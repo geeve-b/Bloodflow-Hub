@@ -9,25 +9,61 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
+const API_URL = "http://localhost:3001/api";
+
 export default function RegisterPage() {
   const { register } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
-    const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData);
-    
-    // Simulate validation delay
-    setTimeout(() => {
-      register(data);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const username = formData.get("username") as string;
+      const password = formData.get("password") as string;
+      const confirmPassword = formData.get("confirmPassword") as string;
+
+      if (password !== confirmPassword) {
+        toast({
+          title: "Error",
+          description: "Passwords do not match",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Registration failed");
+      }
+
+      toast({
+        title: "Success",
+        description: "Account created successfully! Please login.",
+      });
+      
+      register({ username });
+      setLocation("/login");
+    } catch (error) {
+      toast({
+        title: "Registration Failed",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
-      setLocation("/dashboard");
-    }, 1500);
+    }
   };
 
   return (
@@ -42,79 +78,27 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" name="fullName" required />
+                <Label htmlFor="username">Username</Label>
+                <Input id="username" name="username" type="text" placeholder="john_donor" required />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dob">Date of Birth</Label>
-                <Input id="dob" name="dob" type="date" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="bloodGroup">Blood Group</Label>
-                <Select name="bloodGroup" required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                     {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
-                      <SelectItem key={bg} value={bg}>{bg}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-4 border rounded-lg p-4 bg-secondary/20">
-              <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Medical Eligibility</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="flex items-start space-x-2">
-                  <Checkbox id="weight" required />
-                  <Label htmlFor="weight" className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    I weigh more than 50kg (110lbs)
-                  </Label>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <Checkbox id="age" required />
-                  <Label htmlFor="age" className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    I am between 18 and 65 years old
-                  </Label>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <Checkbox id="health" required />
-                  <Label htmlFor="health" className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    I have not had a tattoo in the last 6 months
-                  </Label>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <Checkbox id="alcohol" required />
-                  <Label htmlFor="alcohol" className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                     No alcohol consumption in last 24h
-                  </Label>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" name="password" type="password" placeholder="Min 6 characters" required />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="idProof">Upload ID Proof (Govt ID)</Label>
-              <Input id="idProof" type="file" required className="cursor-pointer" />
-              <p className="text-xs text-muted-foreground">This will be verified by our staff. Your ID is kept secure.</p>
+              
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input id="confirmPassword" name="confirmPassword" type="password" placeholder="Confirm password" required />
             </div>
 
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? "Submitting Application..." : "Submit Application"}
+              {loading ? "Creating Account..." : "Create Account"}
             </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              By registering, you agree to our privacy policy. Your contact info is never shared publicly.
-            </p>
           </CardFooter>
         </form>
       </Card>
