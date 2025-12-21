@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { connectDB } from "../config/db";
+import { connectDatabase, closeDatabase } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -63,6 +64,9 @@ app.use((req, res, next) => {
 
 (async () => {
   await connectDB();
+  // Connect to MongoDB
+  await connectDatabase();
+  
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
