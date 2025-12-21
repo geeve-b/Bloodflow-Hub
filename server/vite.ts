@@ -9,29 +9,32 @@ import { nanoid } from "nanoid";
 const viteLogger = createLogger();
 
 export async function setupVite(server: Server, app: Express) {
+  console.log("[DEBUG] setupVite function called");
   const serverOptions = {
     middlewareMode: true,
     hmr: { server, path: "/vite-hmr" },
     allowedHosts: true as const,
   };
 
+  console.log("[DEBUG] Creating Vite server...");
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
-    customLogger: {
-      ...viteLogger,
-      error: (msg, options) => {
-        viteLogger.error(msg, options);
-        process.exit(1);
-      },
-    },
     server: serverOptions,
     appType: "custom",
   });
 
+  console.log("[DEBUG] Adding Vite middlewares to Express...");
   app.use(vite.middlewares);
 
   app.use("*", async (req, res, next) => {
+    // Don't handle API routes - let them fall through
+    if (req.path.startsWith("/api/")) {
+      console.log("[DEBUG] Vite catch-all skipping API route:", req.originalUrl);
+      return next();
+    }
+
+    console.log("[DEBUG] Vite catch-all route called for:", req.originalUrl);
     const url = req.originalUrl;
 
     try {
@@ -51,8 +54,10 @@ export async function setupVite(server: Server, app: Express) {
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
+      console.log("[DEBUG] Error in Vite catch-all:", e);
       vite.ssrFixStacktrace(e as Error);
       next(e);
     }
   });
+  console.log("[DEBUG] setupVite function complete");
 }

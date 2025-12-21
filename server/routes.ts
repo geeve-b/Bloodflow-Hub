@@ -27,20 +27,87 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // ==================== HEALTH CHECK ====================
+  app.get("/api/health", (req, res) => {
+    console.log("[DEBUG] Health check endpoint called");
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // ==================== AUTH ROUTES ====================
   app.post("/api/register", async (req, res) => {
+    console.log("[DEBUG] Register endpoint called with body:", Object.keys(req.body));
     try {
       const payload = insertUserSchema.parse(req.body);
+      console.log("[DEBUG] Payload parsed:", payload.username, payload.role);
       const existingUser = await storage.getUserByUsername(payload.username);
       if (existingUser) {
         return res.status(409).json({ error: "Username already exists" });
       }
       const user = await storage.createUser(payload);
+      console.log("[DEBUG] User created:", user._id);
+      
+      // Create role-specific data in separate collections
+      if (payload.role === "donor" && req.body.firstName && req.body.lastName && user._id) {
+        const donorData = {
+          userId: user._id,
+          firstName: req.body.firstName,
+          lastName: req.body.lastName,
+          bloodType: req.body.bloodType || "O+",
+          phone: req.body.phone || "",
+          address: req.body.address || "",
+        };
+        try {
+          await storage.createDonor(donorData);
+          console.log("✓ Donor profile created for:", user._id);
+        } catch (err) {
+          console.log("⚠ Donor creation optional, continuing:", err);
+        }
+      } else if (payload.role === "hospital" && req.body.firstName && req.body.lastName && user._id) {
+        // Hospital staff registration
+        const staffData = {
+          userId: user._id,
+          firstName: req.body.firstName,
+          lastName: req.body.lastName,
+          staffId: req.body.staffId,
+          department: req.body.department,
+          position: req.body.position,
+          phone: req.body.phone,
+          email: req.body.email,
+          hospitalName: req.body.hospitalName,
+        };
+        try {
+          await storage.createStaff(staffData);
+        } catch (err) {
+          console.log("Staff creation optional, continuing");
+        }
+      } else if (payload.role === "receiver" && req.body.firstName && req.body.lastName && user._id) {
+        // Blood receiver (patient) registration
+        const receiverData = {
+          userId: user._id,
+          firstName: req.body.firstName,
+          lastName: req.body.lastName,
+          bloodType: req.body.bloodType || "O+",
+          phone: req.body.phone || "",
+          address: req.body.address || "",
+          hospitalName: req.body.hospitalName || "",
+          medicalCondition: req.body.medicalCondition || "",
+          urgencyLevel: req.body.urgencyLevel || "medium",
+        };
+        try {
+          await storage.createReceiver(receiverData);
+          console.log("✓ Receiver profile created for:", user._id);
+        } catch (err) {
+          console.log("⚠ Receiver creation optional, continuing:", err);
+        }
+      }
+
+      console.log("[DEBUG] Sending registration response");
       res.status(201).json({
         message: "User registered successfully",
         user: removePassword(user),
       });
     } catch (error) {
+      console.log("[DEBUG] Registration error:", error);
       res.status(400).json({
         error: error instanceof Error ? error.message : "Registration failed",
       });
@@ -48,20 +115,56 @@ export async function registerRoutes(
   });
 
   app.post("/api/login", async (req, res) => {
+    console.log("[DEBUG] Login endpoint called with username:", req.body.username);
     try {
       const credentials = loginSchema.parse(req.body);
+      console.log("[DEBUG] Credentials parsed, looking up user:", credentials.username);
       const user = await storage.getUserByUsername(credentials.username);
       if (!user) {
+        console.log("[DEBUG] User not found:", credentials.username);
         return res.status(401).json({ error: "Invalid credentials" });
       }
+      console.log("[DEBUG] User found, comparing password");
       const isMatch = await bcrypt.compare(credentials.password, user.password);
       if (!isMatch) {
+        console.log("[DEBUG] Password mismatch");
         return res.status(401).json({ error: "Invalid credentials" });
       }
+      console.log("[DEBUG] Login successful for user:", user._id);
       res.json({ message: "Login successful", user: removePassword(user) });
     } catch (error) {
+      console.log("[DEBUG] Login error:", error);
       res.status(400).json({
         error: error instanceof Error ? error.message : "Login failed",
+      });
+    }
+  });
+
+  // ==================== FETCH USER PROFILE DATA ====================
+  app.get("/api/profile/:userId/:role", async (req, res) => {
+    try {
+      const { userId, role } = req.params;
+      let profileData = null;
+
+      if (role === "donor") {
+        const donors = await storage.getAllDonors();
+        profileData = donors.find((d: any) => d.userId === userId);
+      } else if (role === "hospital") {
+        const staffMembers = await storage.getAllStaff();
+        profileData = staffMembers.find((s: any) => s.userId === userId);
+      } else if (role === "receiver") {
+        const receivers = await storage.getAllReceivers();
+        profileData = receivers.find((r: any) => r.userId === userId);
+      }
+
+      if (!profileData) {
+        return res.status(404).json({ error: "Profile data not found" });
+      }
+
+      res.json(profileData);
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to fetch profile",
       });
     }
   });
@@ -428,6 +531,78 @@ export async function registerRoutes(
       res.json({ message: "Staff member deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete staff" });
+    }
+  });
+
+  // ==================== RECEIVER ROUTES ====================
+  app.get("/api/receivers", async (_req, res) => {
+    try {
+      const receivers = await storage.getAllReceivers();
+      res.json(receivers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch receivers" });
+    }
+  });
+
+  app.get("/api/receivers/:id", async (req, res) => {
+    try {
+      const receiver = await storage.getReceiver(req.params.id);
+      if (!receiver) {
+        return res.status(404).json({ error: "Receiver not found" });
+      }
+      res.json(receiver);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch receiver" });
+    }
+  });
+
+  app.get("/api/receivers/blood-type/:bloodType", async (req, res) => {
+    try {
+      const receivers = await storage.getReceiversByBloodType(
+        req.params.bloodType
+      );
+      res.json(receivers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch receivers by blood type" });
+    }
+  });
+
+  app.post("/api/receivers", async (req, res) => {
+    try {
+      const payload = req.body;
+      const receiver = await storage.createReceiver(payload);
+      res.status(201).json(receiver);
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Failed to create receiver",
+      });
+    }
+  });
+
+  app.put("/api/receivers/:id", async (req, res) => {
+    try {
+      const updates = req.body;
+      const receiver = await storage.updateReceiver(req.params.id, updates);
+      if (!receiver) {
+        return res.status(404).json({ error: "Receiver not found" });
+      }
+      res.json(receiver);
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Failed to update receiver",
+      });
+    }
+  });
+
+  app.delete("/api/receivers/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteReceiver(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Receiver not found" });
+      }
+      res.json({ message: "Receiver deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete receiver" });
     }
   });
 

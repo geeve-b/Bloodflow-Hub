@@ -55,6 +55,13 @@ export interface IStorage {
   createStaff(staff: InsertStaff): Promise<Staff>;
   updateStaff(id: string, staff: Partial<InsertStaff>): Promise<Staff | undefined>;
   deleteStaff(id: string): Promise<boolean>;
+
+  getReceiver(id: string): Promise<any | undefined>;
+  getAllReceivers(): Promise<any[]>;
+  getReceiversByBloodType(bloodType: string): Promise<any[]>;
+  createReceiver(receiver: any): Promise<any>;
+  updateReceiver(id: string, receiver: Partial<any>): Promise<any | undefined>;
+  deleteReceiver(id: string): Promise<boolean>;
 }
 
 const toObjectId = (id: string) => new ObjectId(id);
@@ -379,6 +386,59 @@ export class MongoDBStorage implements IStorage {
 
   async deleteStaff(id: string): Promise<boolean> {
     const result = await db.collection("staff").deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
+  }
+
+  async getReceiver(id: string): Promise<any | undefined> {
+    const receiver = await db.collection("receivers").findOne({ _id: toObjectId(id) });
+    return normalize<any>(receiver);
+  }
+
+  async getAllReceivers(): Promise<any[]> {
+    const receivers = await db.collection("receivers").find({}).toArray();
+    return normalizeMany<any>(receivers);
+  }
+
+  async getReceiversByBloodType(bloodType: string): Promise<any[]> {
+    const receivers = await db
+      .collection("receivers")
+      .find({ bloodType })
+      .toArray();
+    return normalizeMany<any>(receivers);
+  }
+
+  async createReceiver(receiver: any): Promise<any> {
+    const now = new Date();
+    const document = {
+      ...receiver,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db.collection("receivers").insertOne(document);
+    return normalize<any>({ ...document, _id: result.insertedId })!;
+  }
+
+  async updateReceiver(
+    id: string,
+    receiver: Partial<any>
+  ): Promise<any | undefined> {
+    const updatePayload = removeUndefined({
+      ...receiver,
+      updatedAt: new Date(),
+    });
+    const result = await db
+      .collection("receivers")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<any>(updated);
+  }
+
+  async deleteReceiver(id: string): Promise<boolean> {
+    const result = await db.collection("receivers").deleteOne({ _id: toObjectId(id) });
     return result.deletedCount === 1;
   }
 }
