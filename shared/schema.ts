@@ -1,70 +1,13 @@
 import { z } from "zod";
 import { ObjectId } from "mongodb";
 
-export const insertUserSchema = z.object({
-  username: z.string().min(3),
-  password: z.string().min(6),
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
-
-export interface User extends InsertUser {
-  _id: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Blood Donation Models
-export const donorSchema = z.object({
-  _id: z.string().optional(),
-  name: z.string(),
-  email: z.string().email(),
-  phone: z.string(),
-  bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
-  lastDonation: z.date().optional(),
-  status: z.enum(["pending", "approved", "rejected"]),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-
-export type Donor = z.infer<typeof donorSchema>;
-
-export const bloodRequestSchema = z.object({
-  _id: z.string().optional(),
-  patientName: z.string(),
-  hospital: z.string(),
-  bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
-  units: z.number().min(1),
-  urgency: z.enum(["normal", "urgent", "critical"]),
-  status: z.enum(["pending", "fulfilled", "cancelled"]),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-
-export type BloodRequest = z.infer<typeof bloodRequestSchema>;
-
-// Staff Model
-export const staffSchema = z.object({
-  _id: z.string().optional(),
-  name: z.string(),
-  email: z.string().email(),
-  phone: z.string(),
-  role: z.enum(["admin", "nurse", "doctor", "technician", "staff"]),
-  department: z.string(),
-  employeeId: z.string(),
-  status: z.enum(["active", "inactive"]),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-
-export type Staff = z.infer<typeof staffSchema>;
 // ==================== USER SCHEMA ====================
 export const userSchema = z.object({
   _id: z.instanceof(ObjectId).optional(),
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   email: z.string().email().optional(),
-  role: z.enum(["donor", "hospital", "admin"]).default("donor"),
+  role: z.enum(["donor", "hospital", "admin", "receiver"]).default("donor"),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
 });
@@ -145,6 +88,62 @@ export const insertDonorSchema = donorSchema.pick({
   address: true,
 });
 
+// ==================== STAFF SCHEMA ====================
+export const staffSchema = z.object({
+  _id: z.instanceof(ObjectId).optional(),
+  userId: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  staffId: z.string(),
+  department: z.string(),
+  position: z.string(),
+  phone: z.string(),
+  email: z.string().email(),
+  hospitalName: z.string(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const insertStaffSchema = staffSchema.pick({
+  userId: true,
+  firstName: true,
+  lastName: true,
+  staffId: true,
+  department: true,
+  position: true,
+  phone: true,
+  email: true,
+  hospitalName: true,
+});
+
+// ==================== RECEIVER SCHEMA ====================
+export const receiverSchema = z.object({
+  _id: z.instanceof(ObjectId).optional(),
+  userId: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
+  phone: z.string(),
+  address: z.string(),
+  hospitalName: z.string(),
+  medicalCondition: z.string().optional(),
+  urgencyLevel: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const insertReceiverSchema = receiverSchema.pick({
+  userId: true,
+  firstName: true,
+  lastName: true,
+  bloodType: true,
+  phone: true,
+  address: true,
+  hospitalName: true,
+  medicalCondition: true,
+  urgencyLevel: true,
+});
+
 // ==================== TYPE EXPORTS ====================
 export type User = z.infer<typeof userSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -157,3 +156,9 @@ export type InsertBloodRequest = z.infer<typeof insertBloodRequestSchema>;
 
 export type Donor = z.infer<typeof donorSchema>;
 export type InsertDonor = z.infer<typeof insertDonorSchema>;
+
+export type Staff = z.infer<typeof staffSchema>;
+export type InsertStaff = z.infer<typeof insertStaffSchema>;
+
+export type Receiver = z.infer<typeof receiverSchema>;
+export type InsertReceiver = z.infer<typeof insertReceiverSchema>;
