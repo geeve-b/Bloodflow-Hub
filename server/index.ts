@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { connectDB } from "../config/db";
 import { connectDatabase, closeDatabase } from "./db";
 
 const app = express();
@@ -62,6 +63,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await connectDB();
   // Connect to MongoDB
   await connectDatabase();
   

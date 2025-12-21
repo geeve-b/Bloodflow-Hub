@@ -7,21 +7,57 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocation } from "wouter";
 import { Droplet, Building2, User } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+const API_URL = "http://localhost:3001/api";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const [, setLocation] = useLocation();
-  const [email, setEmail] = useState("");
+  const { toast } = useToast();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (role: "donor" | "manager") => {
-    // In a real app, validation and API call here
-    if (!email) return;
-    
-    // Simulate role selection based on tab, but for demo let's assume
-    // the user knows which tab they are on.
-    login(role, email);
-    setLocation("/dashboard");
+  const handleLogin = async (role: "donor" | "manager") => {
+    if (!username || !password) {
+      toast({
+        title: "Error",
+        description: "Please enter both username and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Login failed");
+      }
+
+      const data = await response.json();
+      login(role, username);
+      toast({
+        title: "Success",
+        description: "Logged in successfully!",
+      });
+      setLocation("/dashboard");
+    } catch (error) {
+      toast({
+        title: "Login Failed",
+        description: error instanceof Error ? error.message : "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,13 +82,13 @@ export default function LoginPage() {
             <TabsContent value="user">
               <form onSubmit={(e) => { e.preventDefault(); handleLogin("donor"); }} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email-user">Email</Label>
+                  <Label htmlFor="username-user">Username</Label>
                   <Input 
-                    id="email-user" 
-                    type="email" 
-                    placeholder="name@example.com" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="username-user" 
+                    type="text" 
+                    placeholder="john_donor" 
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     required 
                   />
                 </div>
@@ -66,20 +102,22 @@ export default function LoginPage() {
                     required 
                   />
                 </div>
-                <Button type="submit" className="w-full">Sign In as User</Button>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign In as Donor"}
+                </Button>
               </form>
             </TabsContent>
             
             <TabsContent value="hospital">
               <form onSubmit={(e) => { e.preventDefault(); handleLogin("manager"); }} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email-hosp">Hospital ID / Email</Label>
+                  <Label htmlFor="username-hosp">Username</Label>
                   <Input 
-                    id="email-hosp" 
-                    type="email" 
-                    placeholder="admin@hospital.com" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="username-hosp" 
+                    type="text" 
+                    placeholder="staff_001" 
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     required 
                   />
                 </div>
@@ -93,7 +131,9 @@ export default function LoginPage() {
                     required 
                   />
                 </div>
-                <Button type="submit" className="w-full" variant="secondary">Sign In as Staff</Button>
+                <Button type="submit" className="w-full" variant="secondary" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign In as Staff"}
+                </Button>
               </form>
             </TabsContent>
           </Tabs>
