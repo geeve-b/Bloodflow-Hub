@@ -52,7 +52,7 @@ export default function RegisterPage() {
         title: "Success",
         description: "Account created successfully! Please login.",
       });
-      
+
       register({ username });
       setLocation("/login");
     } catch (error) {
@@ -75,26 +75,45 @@ export default function RegisterPage() {
             Join our community of life savers. Strict medical eligibility is required.
           </CardDescription>
         </CardHeader>
+
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
-            
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
-                <Input id="username" name="username" type="text" placeholder="john_donor" required />
+                <Input
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="john_donor"
+                  required
+                />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" name="password" type="password" placeholder="Min 6 characters" required />
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="Min 6 characters"
+                  required
+                />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input id="confirmPassword" name="confirmPassword" type="password" placeholder="Confirm password" required />
-            </div>
-
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  placeholder="Confirm password"
+                  required
+                />
+              </div>
+            </div> {/* ✅ FIXED: missing closing div */}
           </CardContent>
+
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" size="lg" disabled={loading}>
               {loading ? "Creating Account..." : "Create Account"}
