@@ -12,6 +12,8 @@ import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
+import AboutPage from "@/pages/AboutPage";
+import ContactPage from "@/pages/ContactPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +26,8 @@ function Router() {
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />
           <Route path="/dashboard" component={DashboardPage} />
+          <Route path="/about" component={AboutPage} />
+          <Route path="/contact" component={ContactPage} />
           <Route component={NotFound} />
         </Switch>
       </main>
