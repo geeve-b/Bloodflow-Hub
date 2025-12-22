@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-=======
-import type { Express } from "express";
-import { type Server } from "http";
 import bcrypt from "bcryptjs";
 import {
   insertBloodInventorySchema,
@@ -12,7 +8,6 @@ import {
   insertUserSchema,
   insertStaffSchema,
 } from "@shared/schema";
->>>>>>> 5ddef41cc9a370917da90e50705ad02abeee6139
 import { storage } from "./storage";
 import { sendContactEmail, type ContactFormData } from "./email";
 import { log } from "./index";
