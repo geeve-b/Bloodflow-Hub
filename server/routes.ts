@@ -51,7 +51,7 @@ export async function registerRoutes(
       // Create role-specific data in separate collections
       if (payload.role === "donor" && req.body.firstName && req.body.lastName && user._id) {
         const donorData = {
-          userId: user._id,
+          userId: user._id.toString(),
           firstName: req.body.firstName,
           lastName: req.body.lastName,
           bloodType: req.body.bloodType || "O+",
@@ -67,7 +67,7 @@ export async function registerRoutes(
       } else if (payload.role === "hospital" && req.body.firstName && req.body.lastName && user._id) {
         // Hospital staff registration
         const staffData = {
-          userId: user._id,
+          userId: user._id.toString(),
           firstName: req.body.firstName,
           lastName: req.body.lastName,
           staffId: req.body.staffId,
@@ -85,7 +85,7 @@ export async function registerRoutes(
       } else if (payload.role === "receiver" && req.body.firstName && req.body.lastName && user._id) {
         // Blood receiver (patient) registration
         const receiverData = {
-          userId: user._id,
+          userId: user._id.toString(),
           firstName: req.body.firstName,
           lastName: req.body.lastName,
           bloodType: req.body.bloodType || "O+",
