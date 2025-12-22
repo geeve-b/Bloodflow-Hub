@@ -5,9 +5,4 @@ server/public
 vite.config.ts.*
 *.tar.gz
 .env
-<<<<<<< HEAD
-.env.local
-.env.*.local
-=======
-.env
->>>>>>> 5ddef41cc9a370917da90e50705ad02abeee6139
+
