@@ -16,7 +16,7 @@ export default function AboutPage() {
       icon: "👨‍💻",
     },
     {
-      name: "Bertil Anto",
+      name: "Bertil Anto I",
       role: "Database Manager",
       icon: "🗄️",
     },
@@ -26,7 +26,7 @@ export default function AboutPage() {
       icon: "🎨",
     },
     {
-      name: "Abishek Venkatachalam",
+      name: "Abishek V",
       role: "Project Coordinator",
       icon: "📋",
     },
