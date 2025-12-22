@@ -1,38 +1,446 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { ObjectId } from "mongodb";
+import bcrypt from "bcryptjs";
+import {
+  type BloodInventory,
+  type BloodRequest,
+  type Donor,
+  type InsertBloodInventory,
+  type InsertBloodRequest,
+  type InsertDonor,
+  type InsertStaff,
+  type InsertUser,
+  type Staff,
+  type User,
+} from "@shared/schema";
+import { db } from "./db";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
+
+  getBloodInventory(id: string): Promise<BloodInventory | undefined>;
+  getAllBloodInventory(): Promise<BloodInventory[]>;
+  getBloodInventoryByHospital(hospitalId: string): Promise<BloodInventory[]>;
+  getBloodInventoryByType(bloodType: string): Promise<BloodInventory[]>;
+  createBloodInventory(inventory: InsertBloodInventory): Promise<BloodInventory>;
+  updateBloodInventory(
+    id: string,
+    inventory: Partial<InsertBloodInventory>
+  ): Promise<BloodInventory | undefined>;
+  deleteBloodInventory(id: string): Promise<boolean>;
+
+  getBloodRequest(id: string): Promise<BloodRequest | undefined>;
+  getAllBloodRequests(): Promise<BloodRequest[]>;
+  getBloodRequestsByStatus(status: string): Promise<BloodRequest[]>;
+  createBloodRequest(request: InsertBloodRequest): Promise<BloodRequest>;
+  updateBloodRequest(
+    id: string,
+    request: Partial<InsertBloodRequest>
+  ): Promise<BloodRequest | undefined>;
+  deleteBloodRequest(id: string): Promise<boolean>;
+
+  getDonor(id: string): Promise<Donor | undefined>;
+  getAllDonors(): Promise<Donor[]>;
+  getDonorsByBloodType(bloodType: string): Promise<Donor[]>;
+  createDonor(donor: InsertDonor): Promise<Donor>;
+  updateDonor(id: string, donor: Partial<InsertDonor>): Promise<Donor | undefined>;
+  deleteDonor(id: string): Promise<boolean>;
+
+  getStaff(id: string): Promise<Staff | undefined>;
+  getAllStaff(): Promise<Staff[]>;
+  createStaff(staff: InsertStaff): Promise<Staff>;
+  updateStaff(id: string, staff: Partial<InsertStaff>): Promise<Staff | undefined>;
+  deleteStaff(id: string): Promise<boolean>;
+
+  getReceiver(id: string): Promise<any | undefined>;
+  getAllReceivers(): Promise<any[]>;
+  getReceiversByBloodType(bloodType: string): Promise<any[]>;
+  createReceiver(receiver: any): Promise<any>;
+  updateReceiver(id: string, receiver: Partial<any>): Promise<any | undefined>;
+  deleteReceiver(id: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+const toObjectId = (id: string) => new ObjectId(id);
 
-  constructor() {
-    this.users = new Map();
+const normalize = <T>(doc: any | null): T | undefined => {
+  if (!doc) {
+    return undefined;
   }
+  const { _id, ...rest } = doc;
+  const normalizedId =
+    typeof _id === "string" ? _id : _id?.toString ? _id.toString() : undefined;
+  return { ...rest, _id: normalizedId } as T;
+};
 
+const normalizeMany = <T>(docs: any[]): T[] => {
+  return docs
+    .map((doc) => normalize<T>(doc))
+    .filter((doc): doc is T => Boolean(doc));
+};
+
+const removeUndefined = (value: Record<string, unknown>) => {
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry !== undefined) {
+      result[key] = entry;
+    }
+  }
+  return result;
+};
+
+export class MongoDBStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const user = await db.collection("users").findOne({ _id: toObjectId(id) });
+    return normalize<User>(user);
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const user = await db.collection("users").findOne({ username });
+    return normalize<User>(user);
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async getAllUsers(): Promise<User[]> {
+    const users = await db.collection("users").find({}).toArray();
+    return normalizeMany<User>(users);
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const now = new Date();
+    const document = {
+      ...user,
+      password: await bcrypt.hash(user.password, 10),
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db.collection("users").insertOne(document);
+    return normalize<User>({ ...document, _id: result.insertedId })!;
+  }
+
+  async updateUser(
+    id: string,
+    user: Partial<InsertUser>
+  ): Promise<User | undefined> {
+    const { password, ...rest } = user;
+    const updatePayload = removeUndefined({
+      ...rest,
+      updatedAt: new Date(),
+    });
+    if (password) {
+      updatePayload.password = await bcrypt.hash(password, 10);
+    }
+    const result = await db
+      .collection("users")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<User>(updated);
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db
+      .collection("users")
+      .deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
+  }
+
+  async getBloodInventory(id: string): Promise<BloodInventory | undefined> {
+    const inventory = await db
+      .collection("bloodInventory")
+      .findOne({ _id: toObjectId(id) });
+    return normalize<BloodInventory>(inventory);
+  }
+
+  async getAllBloodInventory(): Promise<BloodInventory[]> {
+    const inventory = await db.collection("bloodInventory").find({}).toArray();
+    return normalizeMany<BloodInventory>(inventory);
+  }
+
+  async getBloodInventoryByHospital(
+    hospitalId: string
+  ): Promise<BloodInventory[]> {
+    const inventory = await db
+      .collection("bloodInventory")
+      .find({ hospitalId })
+      .toArray();
+    return normalizeMany<BloodInventory>(inventory);
+  }
+
+  async getBloodInventoryByType(
+    bloodType: string
+  ): Promise<BloodInventory[]> {
+    const inventory = await db
+      .collection("bloodInventory")
+      .find({ bloodType, status: "available" })
+      .toArray();
+    return normalizeMany<BloodInventory>(inventory);
+  }
+
+  async createBloodInventory(
+    inventory: InsertBloodInventory
+  ): Promise<BloodInventory> {
+    const now = new Date();
+    const document = {
+      ...inventory,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db
+      .collection("bloodInventory")
+      .insertOne(document);
+    return normalize<BloodInventory>({ ...document, _id: result.insertedId })!;
+  }
+
+  async updateBloodInventory(
+    id: string,
+    inventory: Partial<InsertBloodInventory>
+  ): Promise<BloodInventory | undefined> {
+    const updatePayload = removeUndefined({
+      ...inventory,
+      updatedAt: new Date(),
+    });
+    const result = await db
+      .collection("bloodInventory")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<BloodInventory>(updated);
+  }
+
+  async deleteBloodInventory(id: string): Promise<boolean> {
+    const result = await db
+      .collection("bloodInventory")
+      .deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
+  }
+
+  async getBloodRequest(id: string): Promise<BloodRequest | undefined> {
+    const request = await db
+      .collection("bloodRequests")
+      .findOne({ _id: toObjectId(id) });
+    return normalize<BloodRequest>(request);
+  }
+
+  async getAllBloodRequests(): Promise<BloodRequest[]> {
+    const requests = await db.collection("bloodRequests").find({}).toArray();
+    return normalizeMany<BloodRequest>(requests);
+  }
+
+  async getBloodRequestsByStatus(
+    status: string
+  ): Promise<BloodRequest[]> {
+    const requests = await db
+      .collection("bloodRequests")
+      .find({ status })
+      .toArray();
+    return normalizeMany<BloodRequest>(requests);
+  }
+
+  async createBloodRequest(
+    request: InsertBloodRequest
+  ): Promise<BloodRequest> {
+    const now = new Date();
+    const document = {
+      ...request,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db
+      .collection("bloodRequests")
+      .insertOne(document);
+    return normalize<BloodRequest>({ ...document, _id: result.insertedId })!;
+  }
+
+  async updateBloodRequest(
+    id: string,
+    request: Partial<InsertBloodRequest>
+  ): Promise<BloodRequest | undefined> {
+    const updatePayload = removeUndefined({
+      ...request,
+      updatedAt: new Date(),
+    });
+    const result = await db
+      .collection("bloodRequests")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<BloodRequest>(updated);
+  }
+
+  async deleteBloodRequest(id: string): Promise<boolean> {
+    const result = await db
+      .collection("bloodRequests")
+      .deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
+  }
+
+  async getDonor(id: string): Promise<Donor | undefined> {
+    const donor = await db
+      .collection("donors")
+      .findOne({ _id: toObjectId(id) });
+    return normalize<Donor>(donor);
+  }
+
+  async getAllDonors(): Promise<Donor[]> {
+    const donors = await db.collection("donors").find({}).toArray();
+    return normalizeMany<Donor>(donors);
+  }
+
+  async getDonorsByBloodType(bloodType: string): Promise<Donor[]> {
+    const donors = await db
+      .collection("donors")
+      .find({ bloodType, isActive: true })
+      .toArray();
+    return normalizeMany<Donor>(donors);
+  }
+
+  async createDonor(donor: InsertDonor): Promise<Donor> {
+    const now = new Date();
+    const document = {
+      ...donor,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db.collection("donors").insertOne(document);
+    return normalize<Donor>({ ...document, _id: result.insertedId })!;
+  }
+
+  async updateDonor(
+    id: string,
+    donor: Partial<InsertDonor>
+  ): Promise<Donor | undefined> {
+    const updatePayload = removeUndefined({
+      ...donor,
+      updatedAt: new Date(),
+    });
+    const result = await db
+      .collection("donors")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<Donor>(updated);
+  }
+
+  async deleteDonor(id: string): Promise<boolean> {
+    const result = await db
+      .collection("donors")
+      .deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
+  }
+
+  async getStaff(id: string): Promise<Staff | undefined> {
+    const staff = await db.collection("staff").findOne({ _id: toObjectId(id) });
+    return normalize<Staff>(staff);
+  }
+
+  async getAllStaff(): Promise<Staff[]> {
+    const staffMembers = await db.collection("staff").find({}).toArray();
+    return normalizeMany<Staff>(staffMembers);
+  }
+
+  async createStaff(staff: InsertStaff): Promise<Staff> {
+    const now = new Date();
+    const document = {
+      ...staff,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db.collection("staff").insertOne(document);
+    return normalize<Staff>({ ...document, _id: result.insertedId })!;
+  }
+
+  async updateStaff(
+    id: string,
+    staff: Partial<InsertStaff>
+  ): Promise<Staff | undefined> {
+    const updatePayload = removeUndefined({
+      ...staff,
+      updatedAt: new Date(),
+    });
+    const result = await db
+      .collection("staff")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<Staff>(updated);
+  }
+
+  async deleteStaff(id: string): Promise<boolean> {
+    const result = await db.collection("staff").deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
+  }
+
+  async getReceiver(id: string): Promise<any | undefined> {
+    const receiver = await db.collection("receivers").findOne({ _id: toObjectId(id) });
+    return normalize<any>(receiver);
+  }
+
+  async getAllReceivers(): Promise<any[]> {
+    const receivers = await db.collection("receivers").find({}).toArray();
+    return normalizeMany<any>(receivers);
+  }
+
+  async getReceiversByBloodType(bloodType: string): Promise<any[]> {
+    const receivers = await db
+      .collection("receivers")
+      .find({ bloodType })
+      .toArray();
+    return normalizeMany<any>(receivers);
+  }
+
+  async createReceiver(receiver: any): Promise<any> {
+    const now = new Date();
+    const document = {
+      ...receiver,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db.collection("receivers").insertOne(document);
+    return normalize<any>({ ...document, _id: result.insertedId })!;
+  }
+
+  async updateReceiver(
+    id: string,
+    receiver: Partial<any>
+  ): Promise<any | undefined> {
+    const updatePayload = removeUndefined({
+      ...receiver,
+      updatedAt: new Date(),
+    });
+    const result = await db
+      .collection("receivers")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<any>(updated);
+  }
+
+  async deleteReceiver(id: string): Promise<boolean> {
+    const result = await db.collection("receivers").deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new MongoDBStorage();
