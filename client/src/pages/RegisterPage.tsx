@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Upload } from "lucide-react";
 
 const API_URL = "http://localhost:3001/api";
+const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 
 const BLOOD_GROUPS = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
@@ -127,11 +128,22 @@ export default function RegisterPage() {
       });
 
       const verification = data.verification;
-      if (verification?.userId) {
+      const nextTarget = {
+        userId: verification?.userId ?? "",
+        email: verification?.email ?? formData.email,
+      };
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(
+          PENDING_VERIFICATION_KEY,
+          JSON.stringify(nextTarget),
+        );
+      }
+
+      if (nextTarget.userId || nextTarget.email) {
         setLocation(
           `/verify-email?userId=${encodeURIComponent(
-            verification.userId,
-          )}&email=${encodeURIComponent(verification.email || formData.email)}`,
+            nextTarget.userId,
+          )}&email=${encodeURIComponent(nextTarget.email)}`,
         );
       } else {
         setLocation("/verify-email");

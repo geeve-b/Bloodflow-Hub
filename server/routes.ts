@@ -174,12 +174,22 @@ export async function registerRoutes(
 
   app.post("/api/verify-email", async (req, res) => {
     const { userId, code } = req.body ?? {};
-    if (!userId || !code) {
+    const emailParam =
+      typeof req.body?.email === "string"
+        ? req.body.email.toLowerCase()
+        : undefined;
+
+    if (!userId && !emailParam) {
+      return res.status(400).json({ error: "Missing verification target" });
+    }
+    if (!code) {
       return res.status(400).json({ error: "Verification code is required" });
     }
 
     try {
-      const user = await storage.getUser(userId);
+      const user = userId
+        ? await storage.getUser(userId)
+        : await storage.getUserByEmail(emailParam!);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -211,7 +221,15 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid verification code" });
       }
 
-      const verifiedUser = (await storage.markEmailVerified(userId)) ?? user;
+      const targetUserId =
+        typeof user._id === "string"
+          ? user._id
+          : user._id?.toString?.() ?? userId;
+      if (!targetUserId) {
+        return res.status(500).json({ error: "Unable to verify email" });
+      }
+      const verifiedUser =
+        (await storage.markEmailVerified(targetUserId)) ?? user;
       return res.json({
         message: "Email verified successfully",
         user: removePassword(verifiedUser),
@@ -224,12 +242,19 @@ export async function registerRoutes(
 
   app.post("/api/resend-verification", async (req, res) => {
     const { userId } = req.body ?? {};
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
+    const emailParam =
+      typeof req.body?.email === "string"
+        ? req.body.email.toLowerCase()
+        : undefined;
+
+    if (!userId && !emailParam) {
+      return res.status(400).json({ error: "Missing verification target" });
     }
 
     try {
-      const user = await storage.getUser(userId);
+      const user = userId
+        ? await storage.getUser(userId)
+        : await storage.getUserByEmail(emailParam!);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -241,9 +266,17 @@ export async function registerRoutes(
       const verificationCode = generateVerificationCode();
       const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
       const codeHash = await bcrypt.hash(verificationCode, 10);
+      const targetUserId =
+        typeof user._id === "string"
+          ? user._id
+          : user._id?.toString?.() ?? userId;
+      if (!targetUserId) {
+        return res.status(500).json({ error: "Unable to prepare verification code" });
+      }
+
       const updatedUser =
         (await storage.setEmailVerificationCode(
-          userId,
+          targetUserId,
           codeHash,
           expiresAt,
         )) ?? user;

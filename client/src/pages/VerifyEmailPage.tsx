@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 
 const API_URL = "http://localhost:3001/api";
 const RESEND_COOLDOWN_SECONDS = 30;
+const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 
 function resolveId(rawId: unknown): string {
   if (!rawId) {
@@ -35,14 +36,39 @@ export default function VerifyEmailPage() {
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [target, setTarget] = useState<{ userId: string; email: string }>(
+    () => ({ userId: "", email: "" })
+  );
 
-  const searchParams = useMemo(() => {
-    const [, query = ""] = location.split("?");
-    return new URLSearchParams(query);
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const queryUserId = params.get("userId") ?? "";
+    const queryEmail = params.get("email") ?? "";
+
+    if (queryUserId || queryEmail) {
+      const nextTarget = { userId: queryUserId, email: queryEmail };
+      setTarget(nextTarget);
+      sessionStorage.setItem(PENDING_VERIFICATION_KEY, JSON.stringify(nextTarget));
+      return;
+    }
+
+    const stored = sessionStorage.getItem(PENDING_VERIFICATION_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { userId?: string; email?: string };
+        setTarget({
+          userId: parsed.userId ?? "",
+          email: parsed.email ?? "",
+        });
+      } catch (error) {
+        console.error("Failed to parse pending verification info", error);
+        sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
+      }
+    }
   }, [location]);
-
-  const userId = searchParams.get("userId") ?? "";
-  const email = searchParams.get("email") ?? "";
 
   useEffect(() => {
     if (resendCooldown <= 0) {
@@ -61,7 +87,7 @@ export default function VerifyEmailPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!userId) {
+    if (!target.userId && !target.email) {
       toast({
         title: "Missing Information",
         description: "We could not determine your account. Please register again.",
@@ -83,7 +109,11 @@ export default function VerifyEmailPage() {
       const response = await fetch(`${API_URL}/verify-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, code }),
+        body: JSON.stringify({
+          userId: target.userId || undefined,
+          email: target.email || undefined,
+          code,
+        }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -105,6 +135,10 @@ export default function VerifyEmailPage() {
         name: apiUser.username,
       });
 
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
+      }
+
       toast({
         title: "Email Verified",
         description: "Welcome to LifeFlow!",
@@ -122,7 +156,7 @@ export default function VerifyEmailPage() {
   };
 
   const handleResend = async () => {
-    if (!userId) {
+    if (!target.userId && !target.email) {
       toast({
         title: "Missing Information",
         description: "We could not determine your account. Please register again.",
@@ -136,7 +170,10 @@ export default function VerifyEmailPage() {
       const response = await fetch(`${API_URL}/resend-verification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({
+          userId: target.userId || undefined,
+          email: target.email || undefined,
+        }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -165,7 +202,7 @@ export default function VerifyEmailPage() {
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-2xl font-bold">Verify your email</CardTitle>
           <CardDescription>
-            Enter the 6-digit code we sent to <Badge variant="secondary">{email || "your email"}</Badge>
+            Enter the 6-digit code we sent to <Badge variant="secondary">{target.email || "your email"}</Badge>
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>

@@ -10,6 +10,7 @@ import { Droplet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API_URL = "http://localhost:3001/api";
+const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 
 export default function LoginPage() {
   const { setUser } = useAuth();
@@ -51,13 +52,20 @@ export default function LoginPage() {
             description: "Please verify your email before logging in.",
             variant: "destructive",
           });
-          if (targetId) {
-            setLocation(
-              `/verify-email?userId=${encodeURIComponent(
-                targetId,
-              )}&email=${encodeURIComponent(targetEmail || "")}`,
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem(
+              PENDING_VERIFICATION_KEY,
+              JSON.stringify({
+                userId: targetId ?? "",
+                email: targetEmail || "",
+              }),
             );
           }
+          setLocation(
+            `/verify-email?userId=${encodeURIComponent(
+              targetId ?? "",
+            )}&email=${encodeURIComponent(targetEmail || "")}`,
+          );
           return;
         }
         throw new Error(error.error || "Login failed");
@@ -75,6 +83,15 @@ export default function LoginPage() {
           description: "Please verify your email before logging in.",
           variant: "destructive",
         });
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(
+            PENDING_VERIFICATION_KEY,
+            JSON.stringify({
+              userId: resolvedId,
+              email: apiUser.email || username,
+            }),
+          );
+        }
         setLocation(
           `/verify-email?userId=${encodeURIComponent(
             resolvedId,
@@ -91,6 +108,9 @@ export default function LoginPage() {
         emailVerified: apiUser.emailVerified,
         name: apiUser.username,
       });
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
+      }
       toast({
         title: "Success",
         description: "Logged in successfully!",
