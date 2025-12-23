@@ -72,45 +72,7 @@ export default function LoginPage() {
       }
 
       const data = await response.json();
-      const apiUser = data.user;
-      const resolvedId =
-        typeof apiUser?._id === "string"
-          ? apiUser._id
-          : apiUser?._id?.toString?.() ?? "";
-      if (!apiUser?.emailVerified) {
-        toast({
-          title: "Email Not Verified",
-          description: "Please verify your email before logging in.",
-          variant: "destructive",
-        });
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem(
-            PENDING_VERIFICATION_KEY,
-            JSON.stringify({
-              userId: resolvedId,
-              email: apiUser.email || username,
-            }),
-          );
-        }
-        setLocation(
-          `/verify-email?userId=${encodeURIComponent(
-            resolvedId,
-          )}&email=${encodeURIComponent(apiUser.email || username)}`,
-        );
-        return;
-      }
-
-      setUser({
-        id: resolvedId,
-        username: apiUser.username,
-        email: apiUser.email,
-        role: apiUser.role,
-        emailVerified: apiUser.emailVerified,
-        name: apiUser.username,
-      });
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
-      }
+      login(role, username, username);
       toast({
         title: "Success",
         description: "Logged in successfully!",

@@ -22,6 +22,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(null);
   const { toast } = useToast();
 
+  const login = (role: AuthUser["role"], email: string, name?: string) => {
+    // Use provided name or fallback to role-based names
+    const displayName = name || (role === "hospital" ? "Dr. Sarah Smith" : "John Doe");
+    
+    let mockUser: AuthUser = {
+      id: "1",
+      username: displayName,
+      name: displayName,
+      email,
+      role,
+      emailVerified: false,
+    };
+
+    setUserState(mockUser);
+    toast({
+      title: "Welcome back!",
+      description: `Logged in as ${role}`,
+    });
+  };
+
+  const register = (data: any) => {
+    // Mock register logic
+    setUserState({
+      id: "2",
+      username: data.fullName,
+      name: data.fullName,
+      email: data.email,
+      role: "donor",
+      emailVerified: false,
+    });
+    toast({
+      title: "Registration Successful",
+      description: "Your donor application is under review.",
+    });
+  };
+
   const setUser = (nextUser: AuthUser | null) => {
     setUserState(nextUser);
   };
