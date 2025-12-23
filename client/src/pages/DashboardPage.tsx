@@ -27,6 +27,7 @@ export default function DashboardPage() {
 
   const lowStockCount = inventory.filter(i => i.units < 5).length;
   const criticalRequests = requests.filter(r => r.status === "critical").length;
+  const isHospitalStaff = user.role === "hospital" || user.role === "admin";
 
   return (
     <div className="container max-w-screen-2xl py-8 px-4 md:px-8 space-y-8">
@@ -34,10 +35,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back, {user.name} 
-            {user.role === 'manager' && ` - ${user.hospitalName}`}
-          </p>
+          <p className="text-muted-foreground">Welcome back, {user.name}</p>
         </div>
       </div>
 
@@ -73,7 +71,7 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Pending fulfillment</p>
           </CardContent>
         </Card>
-        {user.role === 'manager' && (
+        {isHospitalStaff && (
            <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pending Donors</CardTitle>
@@ -88,9 +86,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Role Based Content */}
-      <Tabs defaultValue={user.role === 'manager' ? "inventory" : "search"} className="space-y-4">
+      <Tabs defaultValue={isHospitalStaff ? "inventory" : "search"} className="space-y-4">
         <TabsList>
-          {user.role === 'manager' ? (
+          {isHospitalStaff ? (
             <>
               <TabsTrigger value="inventory">Inventory Management</TabsTrigger>
               <TabsTrigger value="donors">Donor Approvals</TabsTrigger>

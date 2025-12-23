@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,11 +13,11 @@ import { format } from "date-fns";
 import { CalendarIcon, Upload } from "lucide-react";
 
 const API_URL = "http://localhost:3001/api";
+const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 
 const BLOOD_GROUPS = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
 export default function RegisterPage() {
-  const { register } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -122,13 +121,33 @@ export default function RegisterPage() {
         throw new Error(error.error || "Registration failed");
       }
 
+      const data = await response.json();
       toast({
         title: "Success",
-        description: "Donor registration submitted successfully! Please login.",
+        description: "Verification code sent to your email.",
       });
 
-      register({ username: formData.username });
-      setLocation("/login");
+      const verification = data.verification;
+      const nextTarget = {
+        userId: verification?.userId ?? "",
+        email: verification?.email ?? formData.email,
+      };
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(
+          PENDING_VERIFICATION_KEY,
+          JSON.stringify(nextTarget),
+        );
+      }
+
+      if (nextTarget.userId || nextTarget.email) {
+        setLocation(
+          `/verify-email?userId=${encodeURIComponent(
+            nextTarget.userId,
+          )}&email=${encodeURIComponent(nextTarget.email)}`,
+        );
+      } else {
+        setLocation("/verify-email");
+      }
     } catch (error) {
       toast({
         title: "Registration Failed",

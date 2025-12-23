@@ -17,10 +17,17 @@ import { db } from "./db";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
+  setEmailVerificationCode(
+    id: string,
+    codeHash: string,
+    expiresAt: Date
+  ): Promise<User | undefined>;
+  markEmailVerified(id: string): Promise<User | undefined>;
 
   getBloodInventory(id: string): Promise<BloodInventory | undefined>;
   getAllBloodInventory(): Promise<BloodInventory[]>;
@@ -103,6 +110,13 @@ export class MongoDBStorage implements IStorage {
     return normalize<User>(user);
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const user = await db
+      .collection("users")
+      .findOne({ email: email.toLowerCase() });
+    return normalize<User>(user);
+  }
+
   async getAllUsers(): Promise<User[]> {
     const users = await db.collection("users").find({}).toArray();
     return normalizeMany<User>(users);
@@ -112,12 +126,57 @@ export class MongoDBStorage implements IStorage {
     const now = new Date();
     const document = {
       ...user,
+      email: user.email.toLowerCase(),
       password: await bcrypt.hash(user.password, 10),
+      emailVerified: false,
+      emailVerificationCode: null,
+      emailVerificationExpiresAt: null,
       createdAt: now,
       updatedAt: now,
     };
     const result = await db.collection("users").insertOne(document);
     return normalize<User>({ ...document, _id: result.insertedId })!;
+  }
+
+  async setEmailVerificationCode(
+    id: string,
+    codeHash: string,
+    expiresAt: Date
+  ): Promise<User | undefined> {
+    const result = await db
+      .collection("users")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        {
+          $set: {
+            emailVerificationCode: codeHash,
+            emailVerificationExpiresAt: expiresAt,
+            updatedAt: new Date(),
+          },
+        },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<User>(updated);
+  }
+
+  async markEmailVerified(id: string): Promise<User | undefined> {
+    const result = await db
+      .collection("users")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        {
+          $set: {
+            emailVerified: true,
+            emailVerificationCode: null,
+            emailVerificationExpiresAt: null,
+            updatedAt: new Date(),
+          },
+        },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<User>(updated);
   }
 
   async updateUser(
