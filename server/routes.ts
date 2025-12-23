@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
-import { createServer, type Server } from "http";
+import type { Server } from "http";
+import { randomInt } from "crypto";
 import bcrypt from "bcryptjs";
 import {
   insertBloodInventorySchema,
@@ -9,16 +10,29 @@ import {
   insertStaffSchema,
 } from "@shared/schema";
 import { storage } from "./storage";
-import { sendContactEmail, type ContactFormData } from "./email";
+import {
+  sendContactEmail,
+  sendVerificationEmail,
+  type ContactFormData,
+} from "./email";
 import { log } from "./index";
 
 const removePassword = (user: any) => {
   if (!user || typeof user !== "object") {
     return user;
   }
-  const { password: _password, ...rest } = user as Record<string, unknown>;
+  const {
+    password: _password,
+    emailVerificationCode: _emailVerificationCode,
+    ...rest
+  } = user as Record<string, unknown>;
   return rest;
 };
+
+const OTP_EXPIRATION_MINUTES = 10;
+
+const generateVerificationCode = () =>
+  randomInt(100000, 1000000).toString();
 
 const loginSchema = insertUserSchema.pick({
   username: true,
@@ -41,10 +55,16 @@ export async function registerRoutes(
     try {
       const payload = insertUserSchema.parse(req.body);
       console.log("[DEBUG] Payload parsed:", payload.username, payload.role);
+
       const existingUser = await storage.getUserByUsername(payload.username);
       if (existingUser) {
         return res.status(409).json({ error: "Username already exists" });
       }
+      const existingEmail = await storage.getUserByEmail(payload.email);
+      if (existingEmail) {
+        return res.status(409).json({ error: "Email already in use" });
+      }
+
       const user = await storage.createUser(payload);
       console.log("[DEBUG] User created:", user._id);
       
@@ -103,16 +123,158 @@ export async function registerRoutes(
         }
       }
 
+      const verificationCode = generateVerificationCode();
+      const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
+      const codeHash = await bcrypt.hash(verificationCode, 10);
+      const userId =
+        typeof user._id === "string"
+          ? user._id
+          : user._id?.toString?.();
+      if (!userId) {
+        console.error("[DEBUG] Missing user ID after registration");
+        return res.status(500).json({ error: "Registration failed" });
+      }
+      const userWithCode =
+        (await storage.setEmailVerificationCode(
+          userId,
+          codeHash,
+          expiresAt,
+        )) ?? user;
+
+      try {
+        await sendVerificationEmail({
+          email: user.email,
+          name: req.body.firstName || user.username,
+          code: verificationCode,
+        });
+      } catch (emailError) {
+        console.error("[DEBUG] Verification email failed:", emailError);
+        return res
+          .status(500)
+          .json({ error: "Failed to send verification email" });
+      }
+
       console.log("[DEBUG] Sending registration response");
       res.status(201).json({
         message: "User registered successfully",
-        user: removePassword(user),
+        user: removePassword(userWithCode),
+        verification: {
+          userId: userWithCode?._id,
+          email: user.email,
+          expiresAt: userWithCode?.emailVerificationExpiresAt,
+        },
       });
     } catch (error) {
       console.log("[DEBUG] Registration error:", error);
       res.status(400).json({
         error: error instanceof Error ? error.message : "Registration failed",
       });
+    }
+  });
+
+  app.post("/api/verify-email", async (req, res) => {
+    const { userId, code } = req.body ?? {};
+    if (!userId || !code) {
+      return res.status(400).json({ error: "Verification code is required" });
+    }
+
+    try {
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.emailVerified) {
+        return res.json({
+          message: "Email already verified",
+          user: removePassword(user),
+        });
+      }
+
+      if (!user.emailVerificationCode || !user.emailVerificationExpiresAt) {
+        return res
+          .status(400)
+          .json({ error: "No verification code found. Please resend." });
+      }
+
+      const expiresAt =
+        user.emailVerificationExpiresAt instanceof Date
+          ? user.emailVerificationExpiresAt
+          : new Date(user.emailVerificationExpiresAt);
+
+      if (expiresAt.getTime() < Date.now()) {
+        return res.status(400).json({ error: "Verification code expired" });
+      }
+
+      const isValid = await bcrypt.compare(code, user.emailVerificationCode);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid verification code" });
+      }
+
+      const verifiedUser = (await storage.markEmailVerified(userId)) ?? user;
+      return res.json({
+        message: "Email verified successfully",
+        user: removePassword(verifiedUser),
+      });
+    } catch (error) {
+      console.log("[DEBUG] Verify email error:", error);
+      return res.status(500).json({ error: "Email verification failed" });
+    }
+  });
+
+  app.post("/api/resend-verification", async (req, res) => {
+    const { userId } = req.body ?? {};
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    try {
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.emailVerified) {
+        return res.status(400).json({ error: "Email already verified" });
+      }
+
+      const verificationCode = generateVerificationCode();
+      const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
+      const codeHash = await bcrypt.hash(verificationCode, 10);
+      const updatedUser =
+        (await storage.setEmailVerificationCode(
+          userId,
+          codeHash,
+          expiresAt,
+        )) ?? user;
+
+      try {
+        await sendVerificationEmail({
+          email: updatedUser.email,
+          name: req.body?.name || updatedUser.username,
+          code: verificationCode,
+        });
+      } catch (emailError) {
+        console.error("[DEBUG] Resend verification email failed:", emailError);
+        return res
+          .status(500)
+          .json({ error: "Failed to send verification email" });
+      }
+
+      return res.json({
+        message: "Verification code resent",
+        user: removePassword(updatedUser),
+        verification: {
+          userId: updatedUser._id,
+          email: updatedUser.email,
+          expiresAt: updatedUser.emailVerificationExpiresAt,
+        },
+      });
+    } catch (error) {
+      console.log("[DEBUG] Resend verification error:", error);
+      return res
+        .status(500)
+        .json({ error: "Unable to resend verification code" });
     }
   });
 
@@ -131,6 +293,18 @@ export async function registerRoutes(
       if (!isMatch) {
         console.log("[DEBUG] Password mismatch");
         return res.status(401).json({ error: "Invalid credentials" });
+      }
+      if (!user.emailVerified) {
+        const userId =
+          typeof user._id === "string"
+            ? user._id
+            : user._id?.toString?.();
+        console.log("[DEBUG] Email not verified for user:", user._id);
+        return res.status(403).json({
+          error: "Email not verified",
+          userId,
+          email: user.email,
+        });
       }
       console.log("[DEBUG] Login successful for user:", user._id);
       res.json({ message: "Login successful", user: removePassword(user) });

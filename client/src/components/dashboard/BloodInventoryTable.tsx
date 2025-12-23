@@ -13,7 +13,7 @@ export function BloodInventoryTable() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<number>(0);
 
-  const isManager = user?.role === "manager";
+  const isManager = user?.role === "hospital" || user?.role === "admin";
 
   const handleEdit = (item: BloodStock) => {
     setEditingId(item.id);

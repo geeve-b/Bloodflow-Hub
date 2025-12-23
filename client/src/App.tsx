@@ -15,6 +15,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import AboutPage from "@/pages/AboutPage";
 import ContactPage from "@/pages/ContactPage";
 import NotFound from "@/pages/not-found";
+import VerifyEmailPage from "@/pages/VerifyEmailPage";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
           <Route path="/" component={LandingPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />
+          <Route path="/verify-email" component={VerifyEmailPage} />
           <Route path="/dashboard" component={DashboardPage} />
           <Route path="/about" component={AboutPage} />
           <Route path="/contact" component={ContactPage} />

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +17,6 @@ const API_URL = "http://localhost:3001/api";
 const BLOOD_GROUPS = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
 export default function RegisterPage() {
-  const { register } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -122,13 +120,22 @@ export default function RegisterPage() {
         throw new Error(error.error || "Registration failed");
       }
 
+      const data = await response.json();
       toast({
         title: "Success",
-        description: "Donor registration submitted successfully! Please login.",
+        description: "Verification code sent to your email.",
       });
 
-      register({ username: formData.username });
-      setLocation("/login");
+      const verification = data.verification;
+      if (verification?.userId) {
+        setLocation(
+          `/verify-email?userId=${encodeURIComponent(
+            verification.userId,
+          )}&email=${encodeURIComponent(verification.email || formData.email)}`,
+        );
+      } else {
+        setLocation("/verify-email");
+      }
     } catch (error) {
       toast({
         title: "Registration Failed",
