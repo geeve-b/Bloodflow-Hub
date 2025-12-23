@@ -1,6 +1,9 @@
 import { Droplet, Heart, Phone, Mail, MapPin } from "lucide-react";
+import { useLocation } from "wouter";
 
 export function Footer() {
+  const [, navigate] = useLocation();
+
   return (
     <footer className="bg-secondary/30 border-t border-border mt-auto">
       <div className="container max-w-screen-2xl px-4 md:px-8 py-12">
@@ -18,10 +21,10 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-primary transition-colors">About Us</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Find a Donor</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Hospital Login</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Privacy Policy</a></li>
+              <li><button onClick={() => navigate("/about")} className="hover:text-primary transition-colors cursor-pointer">About Us</button></li>
+              <li><button onClick={() => navigate("/")} className="hover:text-primary transition-colors cursor-pointer">Find a Donor</button></li>
+              <li><button onClick={() => navigate("/login")} className="hover:text-primary transition-colors cursor-pointer">Hospital Login</button></li>
+              <li><button onClick={() => navigate("/contact")} className="hover:text-primary transition-colors cursor-pointer">Privacy Policy</button></li>
             </ul>
           </div>
 
@@ -34,7 +37,7 @@ export function Footer() {
               </li>
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
-                <span>support@lifeflow.com</span>
+                <span>bloodflowhub@gmail.com</span>
               </li>
               <li className="flex items-center gap-2">
                 <MapPin className="h-4 w-4" />

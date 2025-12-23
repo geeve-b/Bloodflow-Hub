@@ -11,8 +11,6 @@ export interface AuthUser {
 }
 
 interface AuthContextType {
-  user: User | null;
-  login: (role: UserRole, email: string, name?: string) => void;
   user: AuthUser | null;
   setUser: (user: AuthUser | null) => void;
   logout: () => void;
@@ -24,25 +22,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(null);
   const { toast } = useToast();
 
-  const login = (role: UserRole, email: string, name?: string) => {
+  const login = (role: AuthUser["role"], email: string, name?: string) => {
     // Use provided name or fallback to role-based names
-    const displayName = name || (role === "manager" ? "Dr. Sarah Smith" : "John Doe");
+    const displayName = name || (role === "hospital" ? "Dr. Sarah Smith" : "John Doe");
     
-    let mockUser: User = {
+    let mockUser: AuthUser = {
       id: "1",
+      username: displayName,
       name: displayName,
       email,
       role,
+      emailVerified: false,
     };
 
-    if (role === "manager") {
-      mockUser.hospitalName = "City General Hospital";
-    } else if (role === "donor") {
-      mockUser.bloodGroup = "O+";
-      mockUser.status = "approved";
-    }
-
-    setUser(mockUser);
+    setUserState(mockUser);
     toast({
       title: "Welcome back!",
       description: `Logged in as ${role}`,
@@ -51,18 +44,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = (data: any) => {
     // Mock register logic
-    setUser({
+    setUserState({
       id: "2",
+      username: data.fullName,
       name: data.fullName,
       email: data.email,
       role: "donor",
-      bloodGroup: data.bloodGroup,
-      status: "pending", // New donors are pending
+      emailVerified: false,
     });
     toast({
       title: "Registration Successful",
       description: "Your donor application is under review.",
     });
+  };
+
   const setUser = (nextUser: AuthUser | null) => {
     setUserState(nextUser);
   };
