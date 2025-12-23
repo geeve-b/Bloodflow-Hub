@@ -43,7 +43,7 @@ export default function LoginPage() {
       }
 
       const data = await response.json();
-      login(role, username);
+      login(role, username, username);
       toast({
         title: "Success",
         description: "Logged in successfully!",

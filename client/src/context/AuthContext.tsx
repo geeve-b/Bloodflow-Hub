@@ -16,7 +16,7 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (role: UserRole, email: string) => void;
+  login: (role: UserRole, email: string, name?: string) => void;
   logout: () => void;
   register: (data: any) => void;
 }
@@ -27,11 +27,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const { toast } = useToast();
 
-  const login = (role: UserRole, email: string) => {
-    // Mock login logic
+  const login = (role: UserRole, email: string, name?: string) => {
+    // Use provided name or fallback to role-based names
+    const displayName = name || (role === "manager" ? "Dr. Sarah Smith" : "John Doe");
+    
     let mockUser: User = {
       id: "1",
-      name: role === "manager" ? "Dr. Sarah Smith" : "John Doe",
+      name: displayName,
       email,
       role,
     };

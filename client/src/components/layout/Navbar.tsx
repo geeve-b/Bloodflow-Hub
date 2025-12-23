@@ -11,18 +11,23 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
 
   const isLanding = location === "/";
+  const isDashboard = location === "/dashboard";
 
   const NavLinks = () => (
     <>
-      <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
-        Home
-      </Link>
-      <Link href="/about" className="text-sm font-medium hover:text-primary transition-colors">
-        About Us
-      </Link>
-      <Link href="/contact" className="text-sm font-medium hover:text-primary transition-colors">
-        Contact
-      </Link>
+      {!isDashboard && (
+        <>
+          <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
+            Home
+          </Link>
+          <Link href="/about" className="text-sm font-medium hover:text-primary transition-colors">
+            About Us
+          </Link>
+          <Link href="/contact" className="text-sm font-medium hover:text-primary transition-colors">
+            Contact
+          </Link>
+        </>
+      )}
     </>
   );
 
@@ -51,7 +56,7 @@ export function Navbar() {
               <Button variant="outline" size="sm" onClick={logout} data-testid="button-logout">
                 Logout
               </Button>
-              {user.role !== 'guest' && (
+              {user.role !== 'guest' && !isDashboard && (
                  <Link href="/dashboard">
                    <Button size="sm">Dashboard</Button>
                  </Link>

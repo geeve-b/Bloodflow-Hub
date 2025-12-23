@@ -23,6 +23,8 @@ export function RequestBloodForm() {
       bloodGroup: formData.get("bloodGroup") as string,
       unitsNeeded: Number(formData.get("units")),
       hospitalName: formData.get("hospital") as string,
+      primaryMobileNumber: formData.get("primaryMobileNumber") as string,
+      secondaryMobileNumber: formData.get("secondaryMobileNumber") as string,
     };
 
     setTimeout(() => {
@@ -71,6 +73,31 @@ export function RequestBloodForm() {
             <div className="space-y-2">
               <Label htmlFor="hospital">Hospital Name</Label>
               <Input id="hospital" name="hospital" placeholder="Where is the patient?" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="primaryMobileNumber">
+                Primary Mobile Number <span className="text-red-500">*</span>
+              </Label>
+              <Input 
+                id="primaryMobileNumber" 
+                name="primaryMobileNumber" 
+                type="tel" 
+                placeholder="10-digit mobile number" 
+                pattern="[0-9]{10}"
+                inputMode="numeric"
+                required 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="secondaryMobileNumber">Secondary Mobile Number (Optional)</Label>
+              <Input 
+                id="secondaryMobileNumber" 
+                name="secondaryMobileNumber" 
+                type="tel" 
+                placeholder="10-digit mobile number" 
+                pattern="[0-9]{10}"
+                inputMode="numeric"
+              />
             </div>
           </div>
           <div className="space-y-2">

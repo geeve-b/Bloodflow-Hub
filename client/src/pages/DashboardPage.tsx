@@ -5,7 +5,7 @@ import { RequestBloodForm } from "@/components/dashboard/RequestBloodForm";
 import { DonorApprovalList } from "@/components/dashboard/DonorApprovalList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Users, AlertTriangle, Droplets } from "lucide-react";
+import { Activity, Users, AlertTriangle, Droplets, Mail, Heart, Phone } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -177,6 +177,49 @@ export default function DashboardPage() {
         </TabsContent>
 
       </Tabs>
+
+      {/* Contact Section */}
+      <div className="border-t pt-8">
+        <h2 className="text-2xl font-bold mb-6">Get in Touch</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Email Us</CardTitle>
+              <Mail className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <a
+                href="mailto:bloodflowhub@gmail.com"
+                className="text-primary hover:underline font-medium break-all"
+              >
+                bloodflowhub@gmail.com
+              </a>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Our Mission</CardTitle>
+              <Heart className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Connecting donors with those in need, one drop at a time.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Response Time</CardTitle>
+              <Phone className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                We typically respond within 24-48 hours.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
