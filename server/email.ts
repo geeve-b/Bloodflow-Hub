@@ -20,6 +20,33 @@ export interface ContactFormData {
   message: string;
 }
 
+export async function sendVerificationEmail(params: {
+  email: string;
+  name?: string;
+  code: string;
+}): Promise<void> {
+  const { email, name, code } = params;
+  const displayName = name || "there";
+  const supportEmail = process.env.SMTP_FROM_EMAIL;
+  await transporter.sendMail({
+    from: `"${process.env.SMTP_FROM_NAME}" <${supportEmail}>`,
+    to: email,
+    subject: "Verify your LifeFlow account",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626; margin-bottom: 16px;">Verify Your Email Address</h2>
+        <p style="font-size: 16px; color: #1f2937;">Hi ${displayName},</p>
+        <p style="font-size: 16px; color: #1f2937;">Thanks for registering with LifeFlow. Please use the verification code below to complete your registration.</p>
+        <div style="background-color: #fef2f2; padding: 24px; border-radius: 12px; border: 1px solid #fecaca; text-align: center; margin: 24px 0;">
+          <span style="font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #b91c1c;">${code}</span>
+        </div>
+        <p style="font-size: 14px; color: #4b5563;">This code will expire in 10 minutes. If you did not request this, you can safely ignore this email.</p>
+        <p style="font-size: 14px; color: #4b5563; margin-top: 24px;">Stay safe,<br/>LifeFlow Team</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendContactEmail(data: ContactFormData): Promise<void> {
   const { name, email, subject, message } = data;
 

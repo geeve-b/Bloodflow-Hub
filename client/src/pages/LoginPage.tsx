@@ -6,20 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocation } from "wouter";
-import { Droplet, Building2, User } from "lucide-react";
+import { Droplet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API_URL = "http://localhost:3001/api";
+const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { setUser } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (role: "donor" | "manager") => {
+  const handleLogin = async () => {
     if (!username || !password) {
       toast({
         title: "Error",
@@ -39,11 +40,77 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const error = await response.json();
+        if (response.status === 403) {
+          const targetId =
+            error.userId ||
+            (typeof error.user?._id === "string"
+              ? error.user._id
+              : error.user?._id?.toString?.());
+          const targetEmail = error.email || error.user?.email || username;
+          toast({
+            title: "Email Not Verified",
+            description: "Please verify your email before logging in.",
+            variant: "destructive",
+          });
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem(
+              PENDING_VERIFICATION_KEY,
+              JSON.stringify({
+                userId: targetId ?? "",
+                email: targetEmail || "",
+              }),
+            );
+          }
+          setLocation(
+            `/verify-email?userId=${encodeURIComponent(
+              targetId ?? "",
+            )}&email=${encodeURIComponent(targetEmail || "")}`,
+          );
+          return;
+        }
         throw new Error(error.error || "Login failed");
       }
 
       const data = await response.json();
-      login(role, username);
+      const apiUser = data.user;
+      const resolvedId =
+        typeof apiUser?._id === "string"
+          ? apiUser._id
+          : apiUser?._id?.toString?.() ?? "";
+      if (!apiUser?.emailVerified) {
+        toast({
+          title: "Email Not Verified",
+          description: "Please verify your email before logging in.",
+          variant: "destructive",
+        });
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(
+            PENDING_VERIFICATION_KEY,
+            JSON.stringify({
+              userId: resolvedId,
+              email: apiUser.email || username,
+            }),
+          );
+        }
+        setLocation(
+          `/verify-email?userId=${encodeURIComponent(
+            resolvedId,
+          )}&email=${encodeURIComponent(apiUser.email || username)}`,
+        );
+        return;
+      }
+
+      setUser({
+        id: resolvedId,
+        username: apiUser.username,
+        email: apiUser.email,
+        role: apiUser.role,
+        emailVerified: apiUser.emailVerified,
+        name: apiUser.username,
+      });
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
+      }
       toast({
         title: "Success",
         description: "Logged in successfully!",
@@ -80,7 +147,7 @@ export default function LoginPage() {
             </TabsList>
             
             <TabsContent value="user">
-              <form onSubmit={(e) => { e.preventDefault(); handleLogin("donor"); }} className="space-y-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="username-user">Username</Label>
                   <Input 
@@ -109,7 +176,7 @@ export default function LoginPage() {
             </TabsContent>
             
             <TabsContent value="hospital">
-              <form onSubmit={(e) => { e.preventDefault(); handleLogin("manager"); }} className="space-y-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="username-hosp">Username</Label>
                   <Input 
