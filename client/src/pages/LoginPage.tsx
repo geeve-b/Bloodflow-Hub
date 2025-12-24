@@ -113,11 +113,28 @@ export default function LoginPage() {
         });
       }
 
+      const data = await response.json();
+      
+      setUser({
+        id: data.user?._id || "",
+        username: data.user?.username || username,
+        email: data.user?.email || "",
+        role: data.user?.role || "donor",
+        emailVerified: data.user?.emailVerified || true,
+        name: data.user?.username || username,
+      });
+
       toast({
         title: "Success",
         description: "Logged in successfully!",
       });
-      setLocation("/dashboard");
+      
+      // Redirect based on role
+      if (data.user?.role === "hospital") {
+        setLocation("/hospital-dashboard");
+      } else {
+        setLocation("/dashboard");
+      }
     } catch (error) {
       toast({
         title: "Login Failed",
@@ -229,8 +246,13 @@ export default function LoginPage() {
             </TabsContent>
           </Tabs>
         </CardContent>
-        <CardFooter className="flex justify-center text-sm text-muted-foreground">
-          Don't have an account? <a href="/register" className="text-primary hover:underline ml-1">Register here</a>
+        <CardFooter className="flex flex-col gap-3 text-sm text-muted-foreground">
+          <div className="text-center w-full">
+            Don't have an account? <a href="/register" className="text-primary hover:underline font-semibold">Register as Donor</a>
+          </div>
+          <div className="border-t w-full pt-3 text-center">
+            Registering as Hospital Staff? <a href="/staff-register" className="text-primary hover:underline font-semibold">Register here</a>
+          </div>
         </CardFooter>
       </Card>
     </div>

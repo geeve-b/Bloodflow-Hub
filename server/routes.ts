@@ -3,6 +3,9 @@ import type { Server } from "http";
 import { randomInt } from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import {
   insertBloodInventorySchema,
   insertBloodRequestSchema,
@@ -41,6 +44,39 @@ const loginSchema = z.object({
     .min(1, "Username or email is required")
     .transform((value) => value.trim()),
   password: insertUserSchema.shape.password,
+});
+
+// ==================== FILE UPLOAD CONFIGURATION ====================
+const uploadsDir = path.join(process.cwd(), "uploads", "staff_documents");
+
+// Ensure uploads directory exists
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage_multer = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+const fileFilter = (_req: any, file: any, cb: any) => {
+  const allowedMimes = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Invalid file type. Only PDF, JPG, JPEG, PNG are allowed"));
+  }
+};
+
+const uploadMiddleware = multer({
+  storage: storage_multer,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: fileFilter,
 });
 
 export async function registerRoutes(
@@ -740,12 +776,26 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/staff", async (req, res) => {
+  app.post("/api/staff", uploadMiddleware.single("staffIdDocument"), async (req, res) => {
     try {
       const payload = insertStaffSchema.parse(req.body);
+      
+      // If file was uploaded, add the file path to the payload
+      if (req.file) {
+        payload.staff_id_document = `/uploads/staff_documents/${req.file.filename}`;
+      }
+      
       const staff = await storage.createStaff(payload);
       res.status(201).json(staff);
     } catch (error) {
+      // Clean up uploaded file if there was an error
+      if (req.file) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          log(`Failed to delete file: ${unlinkError}`);
+        }
+      }
       res.status(400).json({
         error: error instanceof Error ? error.message : "Failed to create staff",
       });
