@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const API_URL = "http://localhost:3001/api";
 const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
+const ADMIN_EMAIL = "bloodflowhub@gmail.com";
 
 export default function LoginPage() {
   const { setUser } = useAuth();
@@ -111,10 +112,13 @@ export default function LoginPage() {
         emailVerified,
       } = apiUser;
 
-      const resolvedRole: AuthUser["role"] =
-        role && ["donor", "receiver", "hospital", "admin"].includes(role)
-          ? role
-          : "donor";
+      const normalizedEmail = (email || trimmedIdentifier).toLowerCase();
+      const isPrimaryAdmin = normalizedEmail === ADMIN_EMAIL;
+      const resolvedRole: AuthUser["role"] = isPrimaryAdmin
+        ? "admin"
+        : role && ["donor", "receiver", "hospital", "admin"].includes(role)
+        ? role
+        : "donor";
 
       setUser({
         id: _id || id || "",
@@ -130,7 +134,9 @@ export default function LoginPage() {
         description: "Logged in successfully!",
       });
 
-      if (resolvedRole === "hospital") {
+      if (resolvedRole === "admin") {
+        setLocation("/admin");
+      } else if (resolvedRole === "hospital") {
         setLocation("/hospital-dashboard");
       } else {
         setLocation("/dashboard");

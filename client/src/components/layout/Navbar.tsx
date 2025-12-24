@@ -13,10 +13,11 @@ export function Navbar() {
   const isLanding = location === "/";
   const isDashboard = location === "/dashboard";
   const isHospitalDashboard = location === "/hospital-dashboard";
+  const isAdminDashboard = location === "/admin";
 
   const NavLinks = () => (
     <>
-      {!isDashboard && !isHospitalDashboard && (
+      {!isDashboard && !isHospitalDashboard && !isAdminDashboard && (
         <>
           <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
             Home
@@ -64,7 +65,14 @@ export function Navbar() {
                   </Button>
                 </Link>
               )}
-              {user.role !== "hospital" && user.role !== "guest" && !isDashboard && (
+              {user.role === "admin" && !isAdminDashboard && (
+                <Link href="/admin">
+                  <Button size="sm" className="bg-primary hover:bg-primary/90">
+                    Admin Center
+                  </Button>
+                </Link>
+              )}
+              {user.role !== "hospital" && user.role !== "admin" && user.role !== "guest" && !isDashboard && (
                 <Link href="/dashboard">
                   <Button size="sm">Dashboard</Button>
                 </Link>
@@ -115,9 +123,19 @@ export function Navbar() {
                           <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
                         </div>
                       </div>
-                      <Link href="/dashboard" onClick={() => setIsOpen(false)}>
-                        <Button className="w-full">Go to Dashboard</Button>
-                      </Link>
+                      {user.role === "admin" ? (
+                        <Link href="/admin" onClick={() => setIsOpen(false)}>
+                          <Button className="w-full bg-primary hover:bg-primary/90">Admin Center</Button>
+                        </Link>
+                      ) : user.role === "hospital" ? (
+                        <Link href="/hospital-dashboard" onClick={() => setIsOpen(false)}>
+                          <Button className="w-full bg-primary hover:bg-primary/90">Blood Dashboard</Button>
+                        </Link>
+                      ) : (
+                        <Link href="/dashboard" onClick={() => setIsOpen(false)}>
+                          <Button className="w-full">Go to Dashboard</Button>
+                        </Link>
+                      )}
                       <Button variant="outline" onClick={() => { logout(); setIsOpen(false); }} className="w-full">
                         Logout
                       </Button>
