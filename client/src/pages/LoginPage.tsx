@@ -46,14 +46,15 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const errorBody = await response.json().catch(() => null);
         if (response.status === 403) {
           const targetId =
-            error.userId ||
-            (typeof error.user?._id === "string"
-              ? error.user._id
-              : error.user?._id?.toString?.());
-          const targetEmail = error.email || error.user?.email || identifier;
+            errorBody?.userId ||
+            (typeof errorBody?.user?._id === "string"
+              ? errorBody.user._id
+              : errorBody?.user?._id?.toString?.());
+          const targetEmail =
+            errorBody?.email || errorBody?.user?.email || trimmedIdentifier;
           toast({
             title: "Email Not Verified",
             description: "Please verify your email before logging in.",
@@ -75,8 +76,14 @@ export default function LoginPage() {
           );
           return;
         }
-        throw new Error(error.error || "Login failed");
+
+        const message =
+          typeof errorBody?.error === "string"
+            ? errorBody.error
+            : "Login failed";
+        throw new Error(message);
       }
+
       const data: {
         user?: {
           _id?: string;
@@ -89,48 +96,41 @@ export default function LoginPage() {
         };
       } = await response.json();
 
-      if (data.user) {
-        const {
-          _id,
-          id,
-          username,
-          name,
-          email,
-          role,
-          emailVerified,
-        } = data.user;
-        const resolvedRole: AuthUser["role"] =
-          role && ["donor", "receiver", "hospital", "admin"].includes(role)
-            ? role
-            : "donor";
-        setUser({
-          id: _id || id || "",
-          username: username || email || trimmedIdentifier,
-          name: name || username || email || trimmedIdentifier,
-          email: email || trimmedIdentifier,
-          role: resolvedRole,
-          emailVerified: Boolean(emailVerified),
-        });
+      const apiUser = data.user;
+      if (!apiUser) {
+        throw new Error("User data missing from response");
       }
 
-      const data = await response.json();
-      
+      const {
+        _id,
+        id,
+        username: apiUsername,
+        name,
+        email,
+        role,
+        emailVerified,
+      } = apiUser;
+
+      const resolvedRole: AuthUser["role"] =
+        role && ["donor", "receiver", "hospital", "admin"].includes(role)
+          ? role
+          : "donor";
+
       setUser({
-        id: data.user?._id || "",
-        username: data.user?.username || username,
-        email: data.user?.email || "",
-        role: data.user?.role || "donor",
-        emailVerified: data.user?.emailVerified || true,
-        name: data.user?.username || username,
+        id: _id || id || "",
+        username: apiUsername || email || trimmedIdentifier,
+        name: name || apiUsername || email || trimmedIdentifier,
+        email: email || trimmedIdentifier,
+        role: resolvedRole,
+        emailVerified: Boolean(emailVerified),
       });
 
       toast({
         title: "Success",
         description: "Logged in successfully!",
       });
-      
-      // Redirect based on role
-      if (data.user?.role === "hospital") {
+
+      if (resolvedRole === "hospital") {
         setLocation("/hospital-dashboard");
       } else {
         setLocation("/dashboard");
