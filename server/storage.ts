@@ -106,14 +106,47 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const user = await db.collection("users").findOne({ username });
+    const normalized = username.trim().toLowerCase();
+    const user =
+      (await db.collection("users").findOne({
+        $expr: {
+          $eq: [
+            {
+              $toLower: {
+                $trim: { input: "$username" },
+              },
+            },
+            normalized,
+          ],
+        },
+      })) ??
+      (await db
+        .collection("users")
+        .findOne({ username })) ??
+      (await db
+        .collection("users")
+        .findOne({ username: normalized }));
     return normalize<User>(user);
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const user = await db
-      .collection("users")
-      .findOne({ email: email.toLowerCase() });
+    const normalized = email.trim().toLowerCase();
+    const user =
+      (await db.collection("users").findOne({
+        $expr: {
+          $eq: [
+            {
+              $toLower: {
+                $trim: { input: "$email" },
+              },
+            },
+            normalized,
+          ],
+        },
+      })) ??
+      (await db
+        .collection("users")
+        .findOne({ email: normalized }));
     return normalize<User>(user);
   }
 
@@ -126,7 +159,8 @@ export class MongoDBStorage implements IStorage {
     const now = new Date();
     const document = {
       ...user,
-      email: user.email.toLowerCase(),
+      username: user.username.trim(),
+      email: user.email.trim().toLowerCase(),
       password: await bcrypt.hash(user.password, 10),
       emailVerified: false,
       emailVerificationCode: null,
@@ -183,11 +217,17 @@ export class MongoDBStorage implements IStorage {
     id: string,
     user: Partial<InsertUser>
   ): Promise<User | undefined> {
-    const { password, ...rest } = user;
+    const { password, username, email, ...rest } = user;
     const updatePayload = removeUndefined({
       ...rest,
       updatedAt: new Date(),
     });
+    if (username !== undefined) {
+      updatePayload.username = username.trim();
+    }
+    if (email !== undefined) {
+      updatePayload.email = email.trim().toLowerCase();
+    }
     if (password) {
       updatePayload.password = await bcrypt.hash(password, 10);
     }
