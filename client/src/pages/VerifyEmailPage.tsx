@@ -143,7 +143,13 @@ export default function VerifyEmailPage() {
         title: "Email Verified",
         description: "Welcome to LifeFlow!",
       });
-      setLocation("/dashboard");
+
+      // Redirect to appropriate dashboard based on role
+      if (apiUser.role === "hospital") {
+        setLocation("/hospital-dashboard");
+      } else {
+        setLocation("/dashboard");
+      }
     } catch (error) {
       toast({
         title: "Verification Failed",

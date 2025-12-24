@@ -12,10 +12,11 @@ export function Navbar() {
 
   const isLanding = location === "/";
   const isDashboard = location === "/dashboard";
+  const isHospitalDashboard = location === "/hospital-dashboard";
 
   const NavLinks = () => (
     <>
-      {!isDashboard && (
+      {!isDashboard && !isHospitalDashboard && (
         <>
           <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
             Home
@@ -56,10 +57,17 @@ export function Navbar() {
               <Button variant="outline" size="sm" onClick={logout} data-testid="button-logout">
                 Logout
               </Button>
-              {user.role !== 'guest' && !isDashboard && (
-                 <Link href="/dashboard">
-                   <Button size="sm">Dashboard</Button>
-                 </Link>
+              {user.role === "hospital" && !isHospitalDashboard && (
+                <Link href="/hospital-dashboard">
+                  <Button size="sm" className="bg-primary hover:bg-primary/90">
+                    Blood Dashboard
+                  </Button>
+                </Link>
+              )}
+              {user.role !== "hospital" && user.role !== "guest" && !isDashboard && (
+                <Link href="/dashboard">
+                  <Button size="sm">Dashboard</Button>
+                </Link>
               )}
             </div>
           ) : (

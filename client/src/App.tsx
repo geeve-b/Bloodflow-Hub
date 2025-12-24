@@ -11,7 +11,9 @@ import { Footer } from "@/components/layout/Footer";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
+import StaffRegisterPage from "@/pages/StaffRegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
+import HospitalStaffDashboard from "@/pages/HospitalStaffDashboard";
 import AboutPage from "@/pages/AboutPage";
 import ContactPage from "@/pages/ContactPage";
 import NotFound from "@/pages/not-found";
@@ -26,8 +28,10 @@ function Router() {
           <Route path="/" component={LandingPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />
+          <Route path="/staff-register" component={StaffRegisterPage} />
           <Route path="/verify-email" component={VerifyEmailPage} />
           <Route path="/dashboard" component={DashboardPage} />
+          <Route path="/hospital-dashboard" component={HospitalStaffDashboard} />
           <Route path="/about" component={AboutPage} />
           <Route path="/contact" component={ContactPage} />
           <Route component={NotFound} />

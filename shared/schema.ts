@@ -103,6 +103,7 @@ export const staffSchema = z.object({
   phone: z.string(),
   email: z.string().email(),
   hospitalName: z.string(),
+  staff_id_document: z.string().optional(),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
 });
@@ -117,6 +118,7 @@ export const insertStaffSchema = staffSchema.pick({
   phone: true,
   email: true,
   hospitalName: true,
+  staff_id_document: true,
 });
 
 // ==================== RECEIVER SCHEMA ====================
