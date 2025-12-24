@@ -108,13 +108,16 @@ export default function RegisterPage() {
       }
 
       // Register user
+      const trimmedUsername = formData.username.trim();
+      const trimmedEmail = formData.email.trim();
+
       const response = await fetch(`${API_URL}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: formData.username,
+          username: trimmedUsername,
           password: formData.password,
-          email: formData.email,
+          email: trimmedEmail,
           role: "donor",
         }),
       });
@@ -133,7 +136,7 @@ export default function RegisterPage() {
       const verification = data.verification;
       const nextTarget = {
         userId: verification?.userId ?? "",
-        email: verification?.email ?? formData.email,
+        email: verification?.email ?? trimmedEmail,
       };
       if (typeof window !== "undefined") {
         sessionStorage.setItem(

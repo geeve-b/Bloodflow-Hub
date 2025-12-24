@@ -57,7 +57,13 @@ export async function registerRoutes(
   app.post("/api/register", async (req, res) => {
     console.log("[DEBUG] Register endpoint called with body:", Object.keys(req.body));
     try {
-      const payload = insertUserSchema.parse(req.body);
+      const rawPayload = insertUserSchema.parse(req.body);
+      const payload = {
+        ...rawPayload,
+        username: rawPayload.username.trim(),
+        email: rawPayload.email.trim().toLowerCase(),
+        password: rawPayload.password,
+      };
       console.log("[DEBUG] Payload parsed:", payload.username, payload.role);
 
       const existingUser = await storage.getUserByUsername(payload.username);

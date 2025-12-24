@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import type { AuthUser } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,10 +34,15 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
+      const trimmedIdentifier = identifier.trim();
       const response = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({
+          identifier: trimmedIdentifier,
+          username: trimmedIdentifier,
+          password,
+        }),
       });
 
       if (!response.ok) {
@@ -71,9 +77,42 @@ export default function LoginPage() {
         }
         throw new Error(error.error || "Login failed");
       }
+      const data: {
+        user?: {
+          _id?: string;
+          id?: string;
+          username?: string;
+          name?: string;
+          email?: string;
+          role?: AuthUser["role"];
+          emailVerified?: boolean;
+        };
+      } = await response.json();
 
-      const data = await response.json();
-      login(role, identifier, identifier);
+      if (data.user) {
+        const {
+          _id,
+          id,
+          username,
+          name,
+          email,
+          role,
+          emailVerified,
+        } = data.user;
+        const resolvedRole: AuthUser["role"] =
+          role && ["donor", "receiver", "hospital", "admin"].includes(role)
+            ? role
+            : "donor";
+        setUser({
+          id: _id || id || "",
+          username: username || email || trimmedIdentifier,
+          name: name || username || email || trimmedIdentifier,
+          email: email || trimmedIdentifier,
+          role: resolvedRole,
+          emailVerified: Boolean(emailVerified),
+        });
+      }
+
       toast({
         title: "Success",
         description: "Logged in successfully!",
