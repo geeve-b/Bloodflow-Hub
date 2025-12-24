@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import type { Server } from "http";
 import { randomInt } from "crypto";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
 import {
   insertBloodInventorySchema,
   insertBloodRequestSchema,
@@ -34,9 +35,12 @@ const OTP_EXPIRATION_MINUTES = 10;
 const generateVerificationCode = () =>
   randomInt(100000, 1000000).toString();
 
-const loginSchema = insertUserSchema.pick({
-  username: true,
-  password: true,
+const loginSchema = z.object({
+  identifier: z
+    .string()
+    .min(1, "Username or email is required")
+    .transform((value) => value.trim()),
+  password: insertUserSchema.shape.password,
 });
 
 export async function registerRoutes(
@@ -312,13 +316,17 @@ export async function registerRoutes(
   });
 
   app.post("/api/login", async (req, res) => {
-    console.log("[DEBUG] Login endpoint called with username:", req.body.username);
+    console.log("[DEBUG] Login endpoint called with identifier:", req.body.identifier);
     try {
       const credentials = loginSchema.parse(req.body);
-      console.log("[DEBUG] Credentials parsed, looking up user:", credentials.username);
-      const user = await storage.getUserByUsername(credentials.username);
+      const identifier = credentials.identifier;
+      console.log("[DEBUG] Credentials parsed, resolving user for identifier:", identifier);
+      const userByUsername = await storage.getUserByUsername(identifier);
+      const user =
+        userByUsername ??
+        (await storage.getUserByEmail(identifier.toLowerCase()));
       if (!user) {
-        console.log("[DEBUG] User not found:", credentials.username);
+        console.log("[DEBUG] User not found for identifier:", identifier);
         return res.status(401).json({ error: "Invalid credentials" });
       }
       console.log("[DEBUG] User found, comparing password");
