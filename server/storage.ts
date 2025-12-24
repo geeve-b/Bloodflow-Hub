@@ -130,9 +130,23 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const user = await db
-      .collection("users")
-      .findOne({ email: email.toLowerCase() });
+    const normalized = email.trim().toLowerCase();
+    const user =
+      (await db.collection("users").findOne({
+        $expr: {
+          $eq: [
+            {
+              $toLower: {
+                $trim: { input: "$email" },
+              },
+            },
+            normalized,
+          ],
+        },
+      })) ??
+      (await db
+        .collection("users")
+        .findOne({ email: normalized }));
     return normalize<User>(user);
   }
 

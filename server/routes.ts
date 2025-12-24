@@ -326,15 +326,37 @@ export async function registerRoutes(
     try {
       const credentials = loginSchema.parse(req.body);
       const identifier = credentials.identifier;
-      console.log("[DEBUG] Credentials parsed, resolving user for identifier:", identifier);
-      const userByUsername = await storage.getUserByUsername(identifier);
-      const user =
-        userByUsername ??
-        (await storage.getUserByEmail(identifier.toLowerCase()));
+      const isEmail = identifier.includes("@");
+      console.log(
+        "[DEBUG] Credentials parsed, resolving user for identifier:",
+        identifier,
+      );
+
+      let user = undefined;
+
+      if (isEmail) {
+        user = await storage.getUserByEmail(identifier);
+        console.log(
+          user
+            ? "[DEBUG] User resolved via email lookup"
+            : "[DEBUG] Email lookup returned no match",
+        );
+      }
+
+      if (!user) {
+        user = await storage.getUserByUsername(identifier);
+        console.log(
+          user
+            ? "[DEBUG] User resolved via username lookup"
+            : "[DEBUG] Username lookup returned no match",
+        );
+      }
+
       if (!user) {
         console.log("[DEBUG] User not found for identifier:", identifier);
         return res.status(401).json({ error: "Invalid credentials" });
       }
+
       console.log("[DEBUG] User found, comparing password");
       const isMatch = await bcrypt.compare(credentials.password, user.password);
       if (!isMatch) {
