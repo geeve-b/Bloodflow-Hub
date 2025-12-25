@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,9 +18,30 @@ const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 const BLOOD_GROUPS = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
 export default function RegisterPage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  
+  // Get role from query params, default to "donor"
+  const getInitialRole = () => {
+    const params = new URLSearchParams(window.location.search);
+    const roleParam = params.get("role");
+    return roleParam === "hospital" ? "hospital" : "donor";
+  };
+  
+  const [selectedRole, setSelectedRole] = useState<"donor" | "hospital">("donor");
+
+  useEffect(() => {
+    const initialRole = getInitialRole();
+    setSelectedRole(initialRole);
+  }, []);
+
+  useEffect(() => {
+    // If role changes to hospital, redirect immediately
+    if (selectedRole === "hospital") {
+      setLocation("/staff-register?role=hospital");
+    }
+  }, [selectedRole, setLocation]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -73,6 +94,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
     setLoading(true);
 
     try {
@@ -170,14 +192,39 @@ export default function RegisterPage() {
       <div className="max-w-4xl mx-auto">
         <Card className="shadow-lg rounded-2xl border-0">
           <CardHeader className="bg-gradient-to-r from-red-50 to-pink-50 rounded-t-2xl">
-            <CardTitle className="text-3xl font-bold text-slate-800">Donor Registration</CardTitle>
+            <CardTitle className="text-3xl font-bold text-slate-800">
+              {selectedRole === "donor" ? "Donor Registration" : "Hospital Staff Registration"}
+            </CardTitle>
             <CardDescription className="text-base text-slate-600 mt-2">
-              Join our community of life savers. We deeply appreciate your commitment to saving lives.
+              {selectedRole === "donor"
+                ? "Join our community of life savers. We deeply appreciate your commitment to saving lives."
+                : "Register as hospital staff to manage blood inventory and requests."}
             </CardDescription>
           </CardHeader>
 
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-8 pt-8">
+              {/* Role Selection Section */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+                <Label className="text-sm font-semibold text-slate-700 block mb-3">
+                  Registration Type
+                </Label>
+                <Select value={selectedRole} onValueChange={(value: any) => setSelectedRole(value)}>
+                  <SelectTrigger className="w-full rounded-lg border-slate-200 shadow-sm focus:ring-2 focus:ring-blue-500">
+                    <SelectValue placeholder="Select your role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="donor">Donor</SelectItem>
+                    <SelectItem value="hospital">Hospital Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500 mt-2">
+                  {selectedRole === "donor" 
+                    ? "Register as a blood donor to contribute to saving lives"
+                    : "Register as hospital staff to manage blood inventory"}
+                </p>
+              </div>
+
               {/* Personal Information Section */}
               <div>
                 <h3 className="text-lg font-semibold text-slate-800 mb-6">Personal Information</h3>
@@ -424,7 +471,7 @@ export default function RegisterPage() {
             <CardFooter className="flex flex-col gap-4 border-t border-slate-200 pt-8">
               <Button
                 type="submit"
-                className="w-full py-6 text-base font-semibold bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all"
+                className={`w-full py-6 text-base font-semibold bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all`}
                 disabled={loading}
               >
                 {loading ? "Submitting Application..." : "Submit Application"}

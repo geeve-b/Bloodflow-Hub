@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,11 +16,32 @@ const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 export default function StaffRegisterPage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Get role from query params, default to "hospital"
+  const getInitialRole = () => {
+    const params = new URLSearchParams(window.location.search);
+    const roleParam = params.get("role");
+    return roleParam === "donor" ? "donor" : "hospital";
+  };
+  
+  const [selectedRole, setSelectedRole] = useState<"hospital" | "donor">("hospital");
+
+  useEffect(() => {
+    const initialRole = getInitialRole();
+    setSelectedRole(initialRole);
+  }, []);
+
+  useEffect(() => {
+    // If role changes to donor, redirect immediately
+    if (selectedRole === "donor") {
+      setLocation("/register?role=donor");
+    }
+  }, [selectedRole, setLocation]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -33,7 +54,9 @@ export default function StaffRegisterPage() {
     username: "",
     designation: "nurse",
     password: "",
-    confirmPassword: "",    staffIdDocument: null as File | null,  });
+    confirmPassword: "",
+    staffIdDocument: null as File | null,
+  });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileError, setFileError] = useState<string>("");
@@ -321,6 +344,27 @@ export default function StaffRegisterPage() {
 
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Role Selection Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+              <Label className="text-sm font-semibold text-slate-700 block mb-3">
+                Registration Type
+              </Label>
+              <Select value={selectedRole} onValueChange={(value: any) => setSelectedRole(value)}>
+                <SelectTrigger className="w-full rounded-lg border-slate-200 shadow-sm focus:ring-2 focus:ring-blue-500">
+                  <SelectValue placeholder="Select your role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hospital">Hospital Staff</SelectItem>
+                  <SelectItem value="donor">Donor</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500 mt-2">
+                {selectedRole === "hospital"
+                  ? "Register as hospital staff to manage blood inventory"
+                  : "Register as a blood donor to contribute to saving lives"}
+              </p>
+            </div>
+
             {/* Full Name */}
             <div className="space-y-2">
               <Label htmlFor="fullName" className="flex items-center gap-2">

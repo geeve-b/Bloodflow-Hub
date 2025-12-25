@@ -14,6 +14,7 @@ import RegisterPage from "@/pages/RegisterPage";
 import StaffRegisterPage from "@/pages/StaffRegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
 import HospitalStaffDashboard from "@/pages/HospitalStaffDashboard";
+import AdminDashboard from "@/pages/AdminDashboard";
 import AboutPage from "@/pages/AboutPage";
 import ContactPage from "@/pages/ContactPage";
 import NotFound from "@/pages/not-found";
@@ -32,6 +33,7 @@ function Router() {
           <Route path="/verify-email" component={VerifyEmailPage} />
           <Route path="/dashboard" component={DashboardPage} />
           <Route path="/hospital-dashboard" component={HospitalStaffDashboard} />
+          <Route path="/admin" component={AdminDashboard} />
           <Route path="/about" component={AboutPage} />
           <Route path="/contact" component={ContactPage} />
           <Route component={NotFound} />

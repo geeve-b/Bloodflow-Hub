@@ -1,4 +1,4 @@
-import { Heart, Users, Target, Lightbulb, TrendingUp, Award } from "lucide-react";
+import { Heart, Users, Target, Lightbulb, TrendingUp, Award, Clock, Link2, BarChart3, Droplets, Building2, Database, Code2, Server, Palette, ClipboardList } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -8,27 +8,27 @@ export default function AboutPage() {
     {
       name: "Geeveswaran B",
       role: "Project Administrator & Developer",
-      icon: "👨‍💼",
+      icon: Server,
     },
     {
       name: "Roshan R",
       role: "Server Manager",
-      icon: "👨‍💻",
+      icon: Database,
     },
     {
       name: "Bertil Anto I",
       role: "Database Manager",
-      icon: "🗄️",
+      icon: BarChart3,
     },
     {
       name: "Dakshan Vel",
       role: "Web Developer",
-      icon: "🎨",
+      icon: Code2,
     },
     {
       name: "Abishek V",
       role: "Project Coordinator",
-      icon: "📋",
+      icon: ClipboardList,
     },
   ];
 
@@ -120,7 +120,9 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
             <Card className="bg-background border-red-200/50 dark:border-red-900/50">
               <CardContent className="pt-6">
-                <h3 className="text-5xl font-bold text-red-600 dark:text-red-400 mb-2">⏱️</h3>
+                <div className="h-12 w-12 rounded-lg bg-red-500/20 flex items-center justify-center mb-4">
+                  <Clock className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
                 <h4 className="font-semibold text-lg mb-2">Time Pressure</h4>
                 <p className="text-muted-foreground text-sm">
                   In medical emergencies, finding compatible blood donors quickly is critical and often challenging.
@@ -130,7 +132,9 @@ export default function AboutPage() {
 
             <Card className="bg-background border-red-200/50 dark:border-red-900/50">
               <CardContent className="pt-6">
-                <h3 className="text-5xl font-bold text-red-600 dark:text-red-400 mb-2">🔗</h3>
+                <div className="h-12 w-12 rounded-lg bg-red-500/20 flex items-center justify-center mb-4">
+                  <Link2 className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
                 <h4 className="font-semibold text-lg mb-2">Disconnected Systems</h4>
                 <p className="text-muted-foreground text-sm">
                   Donors, receivers, and blood banks often operate in silos with limited communication channels.
@@ -140,7 +144,9 @@ export default function AboutPage() {
 
             <Card className="bg-background border-red-200/50 dark:border-red-900/50">
               <CardContent className="pt-6">
-                <h3 className="text-5xl font-bold text-red-600 dark:text-red-400 mb-2">📊</h3>
+                <div className="h-12 w-12 rounded-lg bg-red-500/20 flex items-center justify-center mb-4">
+                  <BarChart3 className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
                 <h4 className="font-semibold text-lg mb-2">Data Gaps</h4>
                 <p className="text-muted-foreground text-sm">
                   Lack of real-time information about blood availability and donor locations creates inefficiencies.
@@ -166,8 +172,8 @@ export default function AboutPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-4">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <span className="text-2xl">🩸</span>
+              <div className="h-12 w-12 rounded-lg bg-red-500/20 flex items-center justify-center mb-4">
+                <Droplets className="h-6 w-6 text-red-600 dark:text-red-400" />
               </div>
               <h3 className="text-xl font-semibold">For Donors</h3>
               <p className="text-muted-foreground">
@@ -177,8 +183,8 @@ export default function AboutPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <span className="text-2xl">🏥</span>
+              <div className="h-12 w-12 rounded-lg bg-blue-500/20 flex items-center justify-center mb-4">
+                <Building2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <h3 className="text-xl font-semibold">For Recipients</h3>
               <p className="text-muted-foreground">
@@ -188,8 +194,8 @@ export default function AboutPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <span className="text-2xl">🏢</span>
+              <div className="h-12 w-12 rounded-lg bg-purple-500/20 flex items-center justify-center mb-4">
+                <Database className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
               <h3 className="text-xl font-semibold">For Blood Banks</h3>
               <p className="text-muted-foreground">
@@ -238,40 +244,68 @@ export default function AboutPage() {
           <div className="space-y-6">
             <Card className="bg-card/50 border-primary/10">
               <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold mb-2">💚 Saves Lives in Emergencies</h3>
-                <p className="text-muted-foreground">
-                  Every minute counts in a medical emergency. Our platform reduces the time between request and
-                  availability from hours to minutes.
-                </p>
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-red-500/20 rounded-lg flex-shrink-0">
+                    <Heart className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Saves Lives in Emergencies</h3>
+                    <p className="text-muted-foreground">
+                      Every minute counts in a medical emergency. Our platform reduces the time between request and
+                      availability from hours to minutes.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             <Card className="bg-card/50 border-primary/10">
               <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold mb-2">🤝 Builds Community Resilience</h3>
-                <p className="text-muted-foreground">
-                  By connecting donors with recipients in their communities, we strengthen social bonds and foster a
-                  culture of mutual care and support.
-                </p>
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-blue-500/20 rounded-lg flex-shrink-0">
+                    <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Builds Community Resilience</h3>
+                    <p className="text-muted-foreground">
+                      By connecting donors with recipients in their communities, we strengthen social bonds and foster a
+                      culture of mutual care and support.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             <Card className="bg-card/50 border-primary/10">
               <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold mb-2">📈 Improves Healthcare Infrastructure</h3>
-                <p className="text-muted-foreground">
-                  Real-time data and coordination help blood banks optimize inventory management and reduce wastage.
-                </p>
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-green-500/20 rounded-lg flex-shrink-0">
+                    <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Improves Healthcare Infrastructure</h3>
+                    <p className="text-muted-foreground">
+                      Real-time data and coordination help blood banks optimize inventory management and reduce wastage.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             <Card className="bg-card/50 border-primary/10">
               <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold mb-2">🌍 Democratizes Access to Blood</h3>
-                <p className="text-muted-foreground">
-                  Our platform ensures that geography or economic status doesn't determine who gets life-saving blood
-                  when they need it most.
-                </p>
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-purple-500/20 rounded-lg flex-shrink-0">
+                    <Target className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Democratizes Access to Blood</h3>
+                    <p className="text-muted-foreground">
+                      Our platform ensures that geography or economic status doesn't determine who gets life-saving blood
+                      when they need it most.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -288,18 +322,23 @@ export default function AboutPage() {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teamMembers.map((member, index) => (
-              <Card
-                key={index}
-                className="bg-background border-primary/10 hover:border-primary/30 hover:shadow-lg transition-all duration-300"
-              >
-                <CardContent className="pt-6">
-                  <div className="text-4xl mb-4">{member.icon}</div>
-                  <h3 className="text-lg font-semibold mb-1">{member.name}</h3>
-                  <p className="text-primary text-sm font-medium">{member.role}</p>
-                </CardContent>
-              </Card>
-            ))}
+            {teamMembers.map((member, index) => {
+              const IconComponent = member.icon;
+              return (
+                <Card
+                  key={index}
+                  className="bg-background border-primary/10 hover:border-primary/30 hover:shadow-lg transition-all duration-300"
+                >
+                  <CardContent className="pt-6">
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                      <IconComponent className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-1">{member.name}</h3>
+                    <p className="text-primary text-sm font-medium">{member.role}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </section>
