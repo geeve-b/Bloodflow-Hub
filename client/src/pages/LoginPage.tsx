@@ -253,11 +253,8 @@ export default function LoginPage() {
           </Tabs>
         </CardContent>
         <CardFooter className="flex flex-col gap-3 text-sm text-muted-foreground">
-          <div className="text-center w-full">
-            Don't have an account? <a href="/register" className="text-primary hover:underline font-semibold">Register as Donor</a>
-          </div>
-          <div className="border-t w-full pt-3 text-center">
-            Registering as Hospital Staff? <a href="/staff-register" className="text-primary hover:underline font-semibold">Register here</a>
+          <div className="text-center w-full border-t pt-3">
+            Don't have an account? <a href="/register" className="text-primary hover:underline font-semibold">Register here</a>
           </div>
         </CardFooter>
       </Card>
