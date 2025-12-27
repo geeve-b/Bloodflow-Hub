@@ -335,13 +335,13 @@ export default function StaffRegisterPage() {
   return (
     <div className="min-h-screen py-12 px-4 bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-4xl mx-auto">
-        <Card className="shadow-lg border-border/40">
-          <CardHeader className="text-center space-y-3 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-t-lg border-b">
-          <CardTitle className="text-3xl font-bold">Staff Registration</CardTitle>
-          <CardDescription className="text-base">
-            Join our hospital staff network to manage blood inventory
-          </CardDescription>
-        </CardHeader>
+        <Card className="shadow-lg rounded-2xl border-0">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-t-2xl">
+            <CardTitle className="text-3xl font-bold text-slate-800">Staff Registration</CardTitle>
+            <CardDescription className="text-base text-slate-600 mt-2">
+              Join our hospital staff network to manage blood inventory
+            </CardDescription>
+          </CardHeader>
 
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
