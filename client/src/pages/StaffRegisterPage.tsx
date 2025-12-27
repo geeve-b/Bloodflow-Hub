@@ -333,9 +333,10 @@ export default function StaffRegisterPage() {
   ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-primary/5 to-secondary/5">
-      <Card className="w-full max-w-2xl shadow-2xl border-border/40">
-        <CardHeader className="text-center space-y-3 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-t-lg border-b">
+    <div className="min-h-screen py-12 px-4 bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-4xl mx-auto">
+        <Card className="shadow-lg border-border/40">
+          <CardHeader className="text-center space-y-3 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-t-lg border-b">
           <CardTitle className="text-3xl font-bold">Staff Registration</CardTitle>
           <CardDescription className="text-base">
             Join our hospital staff network to manage blood inventory
@@ -685,7 +686,8 @@ export default function StaffRegisterPage() {
             Login
           </a>
         </CardFooter>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }
