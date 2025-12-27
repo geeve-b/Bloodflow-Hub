@@ -165,25 +165,25 @@ export default function UserManagement() {
 
   return (
     <>
-      <Card className="border-border/70">
-        <CardHeader>
+      <Card className="border-border/70 w-full">
+        <CardHeader className="pb-3">
           <CardTitle className="text-xl">User Management</CardTitle>
           <CardDescription>View and manage all registered users</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 w-full overflow-hidden p-4">
           {/* Search and Filter */}
-          <div className="flex gap-4 flex-col sm:flex-row">
-            <div className="flex-1 relative">
+          <div className="flex flex-col gap-3 w-full">
+            <div className="flex-1 relative w-full">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by username or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 w-full"
               />
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full sm:w-40">
+              <SelectTrigger className="w-full sm:w-48">
                 <SelectValue placeholder="Filter by role" />
               </SelectTrigger>
               <SelectContent>
@@ -197,16 +197,16 @@ export default function UserManagement() {
           </div>
 
           {/* Users Table */}
-          <div className="border rounded-lg overflow-x-auto">
+          <div className="w-full border rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="min-w-32">Username</TableHead>
+                  <TableHead className="min-w-40">Email</TableHead>
+                  <TableHead className="min-w-24">Role</TableHead>
+                  <TableHead className="min-w-28">Status</TableHead>
+                  <TableHead className="min-w-24">Joined</TableHead>
+                  <TableHead className="text-right min-w-32">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -219,43 +219,43 @@ export default function UserManagement() {
                 ) : (
                   filteredUsers.map((user) => (
                     <TableRow key={user._id}>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell className="text-sm">{user.email}</TableCell>
-                      <TableCell>
-                        <Badge className={getRoleBadgeColor(user.role)}>
+                      <TableCell className="font-medium text-xs sm:text-sm whitespace-nowrap">{user.username}</TableCell>
+                      <TableCell className="text-xs sm:text-sm whitespace-nowrap">{user.email}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Badge className={`${getRoleBadgeColor(user.role)} text-xs`}>
                           {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <Badge
                           variant={user.emailVerified ? "default" : "secondary"}
-                          className={user.emailVerified ? "bg-green-500/10 text-green-700" : ""}
+                          className={`text-xs ${user.emailVerified ? "bg-green-500/10 text-green-700" : ""}`}
                         >
                           {user.emailVerified ? "Verified" : "Pending"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleViewDetails(user)}
-                            className="gap-2"
+                            className="h-8 w-8 p-0"
+                            title="View details"
                           >
                             <Eye className="h-4 w-4" />
-                            <span className="hidden sm:inline">View</span>
                           </Button>
                           <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => handleDeleteUser(user._id)}
-                            className="gap-2"
+                            className="h-8 w-8 p-0"
+                            title="Delete user"
                           >
                             <Trash2 className="h-4 w-4" />
-                            <span className="hidden sm:inline">Delete</span>
                           </Button>
                         </div>
                       </TableCell>
@@ -275,7 +275,7 @@ export default function UserManagement() {
 
       {/* User Details Modal */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-full sm:max-w-2xl w-[95vw] sm:w-auto mx-auto">
           <DialogHeader>
             <DialogTitle>User Details</DialogTitle>
             <DialogDescription>
@@ -288,18 +288,18 @@ export default function UserManagement() {
               {/* Basic Info */}
               <div>
                 <h3 className="text-lg font-semibold mb-3">Account Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Username</p>
-                    <p className="font-medium">{selectedUser.username}</p>
+                    <p className="font-medium text-sm sm:text-base break-words">{selectedUser.username}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium">{selectedUser.email}</p>
+                    <p className="font-medium text-sm sm:text-base break-words">{selectedUser.email}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Role</p>
-                    <Badge className={`${getRoleBadgeColor(selectedUser.role)} mt-1`}>
+                    <Badge className={`${getRoleBadgeColor(selectedUser.role)} mt-1 text-xs`}>
                       {selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1)}
                     </Badge>
                   </div>
@@ -307,14 +307,14 @@ export default function UserManagement() {
                     <p className="text-sm text-muted-foreground">Verification Status</p>
                     <Badge
                       variant={selectedUser.emailVerified ? "default" : "secondary"}
-                      className={`mt-1 ${selectedUser.emailVerified ? "bg-green-500/10 text-green-700" : ""}`}
+                      className={`mt-1 text-xs ${selectedUser.emailVerified ? "bg-green-500/10 text-green-700" : ""}`}
                     >
                       {selectedUser.emailVerified ? "Verified" : "Pending"}
                     </Badge>
                   </div>
-                  <div>
+                  <div className="col-span-1 sm:col-span-2">
                     <p className="text-sm text-muted-foreground">Member Since</p>
-                    <p className="font-medium">
+                    <p className="font-medium text-sm sm:text-base">
                       {new Date(selectedUser.createdAt).toLocaleDateString()}
                     </p>
                   </div>
@@ -327,32 +327,32 @@ export default function UserManagement() {
                   <h3 className="text-lg font-semibold mb-3">
                     {selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1)} Information
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {selectedUser.role === "donor" && (
                       <>
                         <div>
                           <p className="text-sm text-muted-foreground">First Name</p>
-                          <p className="font-medium">{userProfile.firstName || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.firstName || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Last Name</p>
-                          <p className="font-medium">{userProfile.lastName || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.lastName || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Phone Number</p>
-                          <p className="font-medium">{userProfile.phone || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.phone || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Blood Type</p>
-                          <p className="font-medium text-red-600">{userProfile.bloodType || "—"}</p>
+                          <p className="font-medium text-sm text-red-600">{userProfile.bloodType || "—"}</p>
                         </div>
-                        <div>
+                        <div className="col-span-1 sm:col-span-2">
                           <p className="text-sm text-muted-foreground">Address</p>
-                          <p className="font-medium">{userProfile.address || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.address || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Status</p>
-                          <Badge variant={userProfile.isActive ? "default" : "secondary"} className="mt-1">
+                          <Badge variant={userProfile.isActive ? "default" : "secondary"} className="mt-1 text-xs">
                             {userProfile.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </div>
@@ -363,23 +363,23 @@ export default function UserManagement() {
                       <>
                         <div>
                           <p className="text-sm text-muted-foreground">First Name</p>
-                          <p className="font-medium">{userProfile.firstName || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.firstName || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Last Name</p>
-                          <p className="font-medium">{userProfile.lastName || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.lastName || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Phone Number</p>
-                          <p className="font-medium">{userProfile.phone || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.phone || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Hospital Name</p>
-                          <p className="font-medium">{userProfile.hospitalName || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.hospitalName || "—"}</p>
                         </div>
-                        <div>
+                        <div className="col-span-1 sm:col-span-2">
                           <p className="text-sm text-muted-foreground">Address</p>
-                          <p className="font-medium">{userProfile.address || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.address || "—"}</p>
                         </div>
                       </>
                     )}
@@ -388,27 +388,27 @@ export default function UserManagement() {
                       <>
                         <div>
                           <p className="text-sm text-muted-foreground">First Name</p>
-                          <p className="font-medium">{userProfile.firstName || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.firstName || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Last Name</p>
-                          <p className="font-medium">{userProfile.lastName || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.lastName || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Phone Number</p>
-                          <p className="font-medium">{userProfile.phone || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.phone || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Blood Type Required</p>
-                          <p className="font-medium text-red-600">{userProfile.bloodType || "—"}</p>
+                          <p className="font-medium text-sm text-red-600">{userProfile.bloodType || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Hospital Name</p>
-                          <p className="font-medium">{userProfile.hospitalName || "—"}</p>
+                          <p className="font-medium text-sm break-words">{userProfile.hospitalName || "—"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Urgency Level</p>
-                          <Badge variant="secondary" className="mt-1">
+                          <Badge variant="secondary" className="mt-1 text-xs">
                             {userProfile.urgencyLevel || "Medium"}
                           </Badge>
                         </div>
