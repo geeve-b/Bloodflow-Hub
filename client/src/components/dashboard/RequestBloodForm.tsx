@@ -4,38 +4,77 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useData } from "@/context/DataContext";
+import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
+const API_URL = "http://localhost:3001/api";
+
 export function RequestBloodForm() {
-  const { addRequest } = useData();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to request blood",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const data = {
-      patientName: formData.get("patientName") as string,
-      bloodGroup: formData.get("bloodGroup") as string,
-      unitsNeeded: Number(formData.get("units")),
+    const bloodGroup = formData.get("bloodGroup") as string;
+    const units = Number(formData.get("units"));
+    const notes = formData.get("notes") as string;
+
+    const requestData = {
+      requesterId: user.id,
+      requesterName: user.name,
       hospitalName: formData.get("hospital") as string,
-      primaryMobileNumber: formData.get("primaryMobileNumber") as string,
-      secondaryMobileNumber: formData.get("secondaryMobileNumber") as string,
+      bloodType: bloodGroup,
+      quantity: units,
+      urgency: "medium" as const,
+      reason: notes || "Patient blood requirement",
+      patientName: formData.get("patientName") as string,
+      contactNumber: formData.get("primaryMobileNumber") as string,
     };
 
-    setTimeout(() => {
-      addRequest(data);
-      setLoading(false);
-      toast({
-        title: "Request Submitted",
-        description: "Eligible donors have been notified via email.",
+    try {
+      const response = await fetch(`${API_URL}/blood-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestData),
       });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        throw new Error(errorBody?.error || "Failed to submit request");
+      }
+
+      const createdRequest = await response.json();
+      
+      toast({
+        title: "Success",
+        description: "Blood request submitted successfully. Eligible donors will be notified.",
+      });
+      
       (e.target as HTMLFormElement).reset();
-    }, 1500);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to submit blood request",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

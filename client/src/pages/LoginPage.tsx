@@ -22,8 +22,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [activeTab, setActiveTab] = useState<"user" | "hospital">("user");
 
-  const handleLogin = async () => {
+  const handleLogin = async (selectedRole: "donor" | "hospital") => {
     if (!identifier || !password) {
       toast({
         title: "Error",
@@ -102,6 +103,8 @@ export default function LoginPage() {
         throw new Error("User data missing from response");
       }
 
+      console.log("[DEBUG] API returned user:", apiUser);
+
       const {
         _id,
         id,
@@ -112,6 +115,8 @@ export default function LoginPage() {
         emailVerified,
       } = apiUser;
 
+      console.log("[DEBUG] Extracted role from API:", role);
+
       const normalizedEmail = (email || trimmedIdentifier).toLowerCase();
       const isPrimaryAdmin = normalizedEmail === ADMIN_EMAIL;
       const resolvedRole: AuthUser["role"] = isPrimaryAdmin
@@ -119,6 +124,25 @@ export default function LoginPage() {
         : role && ["donor", "receiver", "hospital", "admin"].includes(role)
         ? role
         : "donor";
+
+      // Validate role matches selected tab
+      if (selectedRole === "donor" && resolvedRole === "hospital") {
+        toast({
+          title: "Invalid Login",
+          description: "Hospital staff cannot login through the Donor portal. Please use the Hospital Staff tab.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (selectedRole === "hospital" && resolvedRole === "donor") {
+        toast({
+          title: "Invalid Login",
+          description: "Donors cannot login through the Hospital Staff portal. Please use the User/Donor tab.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       setUser({
         id: _id || id || "",
@@ -165,14 +189,14 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="user" className="w-full">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "user" | "hospital")} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="user">User / Donor</TabsTrigger>
               <TabsTrigger value="hospital">Hospital Staff</TabsTrigger>
             </TabsList>
             
             <TabsContent value="user">
-              <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="space-y-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleLogin("donor"); }} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="identifier-user">Username or Email</Label>
                   <Input 
@@ -212,7 +236,7 @@ export default function LoginPage() {
             </TabsContent>
             
             <TabsContent value="hospital">
-              <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="space-y-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleLogin("hospital"); }} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="identifier-hosp">Username or Email</Label>
                   <Input 
