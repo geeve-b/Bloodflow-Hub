@@ -94,6 +94,16 @@ export default function HospitalStaffDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
 
+  // Debug logging
+  useEffect(() => {
+    console.log("🏥 HospitalStaffDashboard mounted");
+    console.log("👤 User state:", user);
+  }, []);
+
+  useEffect(() => {
+    console.log("📝 User updated:", user);
+  }, [user]);
+
   // Fetch staff profile
   useEffect(() => {
     const fetchStaffProfile = async () => {
@@ -118,33 +128,46 @@ export default function HospitalStaffDashboard() {
   // Fetch blood requests
   useEffect(() => {
     const fetchRequests = async () => {
+      // Don't redirect, just skip fetching if no user
       if (!user) {
-        setLocation("/login");
+        console.log("No user yet, skipping request fetch");
+        return;
+      }
+
+      // Only fetch if user is hospital staff
+      if (user.role !== "hospital") {
+        console.log("User is not hospital staff, skipping fetch");
         return;
       }
 
       setLoading(true);
       try {
         const response = await fetch(`${API_URL}/blood-requests`);
-        if (!response.ok) throw new Error("Failed to fetch requests");
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status} - Failed to fetch requests`);
+        }
 
         const data = await response.json();
-        setRequests(data);
-        setFilteredRequests(data);
+        console.log("Fetched requests:", data);
+        setRequests(Array.isArray(data) ? data : []);
+        setFilteredRequests(Array.isArray(data) ? data : []);
       } catch (error) {
+        console.error("Error fetching blood requests:", error);
         toast({
           title: "Error",
-          description: "Failed to fetch blood requests",
+          description: error instanceof Error ? error.message : "Failed to fetch blood requests",
           variant: "destructive",
         });
-        console.error(error);
+        // Set empty array on error to show "No requests found" message
+        setRequests([]);
+        setFilteredRequests([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchRequests();
-  }, [user, setLocation, toast]);
+  }, [user, toast]);
 
   // Apply filters
   useEffect(() => {
@@ -214,30 +237,80 @@ export default function HospitalStaffDashboard() {
     (r) => r.urgency === "critical"
   ).length;
 
-  if (!user || user.role !== "hospital") {
-    return (
-      <div className="container max-w-screen-2xl py-8 px-4 md:px-8">
-        <Card className="border-destructive bg-destructive/10">
-          <CardHeader>
-            <CardTitle className="text-destructive">Access Denied</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>This dashboard is only accessible to hospital staff members.</p>
-            <Button
-              onClick={() => setLocation("/login")}
-              className="mt-4"
-              variant="outline"
-            >
-              Back to Login
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  try {
+    // Show loading while user is being loaded
+    if (!user) {
+      console.log("⏳ User not loaded yet");
+      return (
+        <div className="w-full min-h-screen bg-background flex items-center justify-center p-4">
+          <Card className="w-full max-w-sm">
+            <CardContent className="pt-8 pb-8 text-center">
+              <div className="text-muted-foreground space-y-3">
+                <div className="animate-pulse">
+                  <Droplets className="h-8 w-8 mx-auto mb-3 text-primary" />
+                </div>
+                <p className="text-sm">Loading dashboard...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
 
-  return (
+    console.log("👤 User role:", user.role);
+
+    // Check if user is hospital staff
+    if (user.role !== "hospital") {
+      console.log("❌ User role is not hospital. Current role:", user.role);
+      return (
+        <div className="w-full min-h-screen bg-background flex items-center justify-center p-4">
+          <Card className="w-full max-w-md border-destructive bg-destructive/10">
+            <CardHeader>
+              <CardTitle className="text-destructive">Access Denied</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm">This dashboard is only accessible to hospital staff members.</p>
+                <p className="text-xs text-muted-foreground">Your role: <strong>{user.role}</strong></p>
+                <p className="text-xs text-muted-foreground">Your name: <strong>{user.name}</strong></p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 p-2 rounded text-xs space-y-1">
+                <p><strong>Debug:</strong></p>
+                <p>ID: {user.id}</p>
+                <p>Email: {user.email}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => window.location.href = "/"}
+                  className="flex-1 text-xs"
+                  variant="outline"
+                  size="sm"
+                >
+                  Home
+                </Button>
+                <Button
+                  onClick={() => window.location.href = "/"}
+                  className="flex-1 text-xs"
+                  variant="destructive"
+                  size="sm"
+                >
+                  Logout
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // Main dashboard
+    return (
     <div className="container max-w-screen-2xl py-8 px-4 md:px-8 space-y-8">
+      {/* Debug Info */}
+      <div className="bg-blue-50 border border-blue-200 p-3 rounded text-sm">
+        <p><strong>Debug Info:</strong> User: {user?.name}, Role: {user?.role}</p>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">
@@ -414,23 +487,23 @@ export default function HospitalStaffDashboard() {
                         <Badge
                           variant="outline"
                           className={`font-medium ${getUrgencyColor(
-                            request.urgency
+                            request.urgency || "medium"
                           )} flex items-center gap-1 w-fit`}
                         >
-                          {getUrgencyIcon(request.urgency)}
-                          {request.urgency.charAt(0).toUpperCase() +
-                            request.urgency.slice(1)}
+                          {getUrgencyIcon(request.urgency || "medium")}
+                          {(request.urgency || "medium").charAt(0).toUpperCase() +
+                            (request.urgency || "medium").slice(1)}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
                           className={`font-medium ${getStatusColor(
-                            request.status
+                            request.status || "pending"
                           )}`}
                         >
-                          {request.status.charAt(0).toUpperCase() +
-                            request.status.slice(1)}
+                          {(request.status || "pending").charAt(0).toUpperCase() +
+                            (request.status || "pending").slice(1)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -545,11 +618,11 @@ export default function HospitalStaffDashboard() {
                     <div className="mt-1">
                       <Badge
                         className={`font-bold ${getUrgencyColor(
-                          selectedRequest.urgency
+                          selectedRequest.urgency || "medium"
                         )}`}
                       >
-                        {selectedRequest.urgency.charAt(0).toUpperCase() +
-                          selectedRequest.urgency.slice(1)}
+                        {(selectedRequest.urgency || "medium").charAt(0).toUpperCase() +
+                          (selectedRequest.urgency || "medium").slice(1)}
                       </Badge>
                     </div>
                   </div>
@@ -621,12 +694,12 @@ export default function HospitalStaffDashboard() {
                     <div className="mt-1">
                       <Badge
                         className={`font-bold ${getStatusColor(
-                          selectedRequest.status
+                          selectedRequest.status || "pending"
                         )}`}
                       >
-                        {selectedRequest.status
+                        {(selectedRequest.status || "pending")
                           .charAt(0)
-                          .toUpperCase() + selectedRequest.status.slice(1)}
+                          .toUpperCase() + (selectedRequest.status || "pending").slice(1)}
                       </Badge>
                     </div>
                   </div>
@@ -659,5 +732,26 @@ export default function HospitalStaffDashboard() {
         </Dialog>
       )}
     </div>
-  );
+    );
+  } catch (error) {
+    console.error("🚨 Error rendering HospitalStaffDashboard:", error);
+    return (
+      <div className="w-full min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">Error Loading Dashboard</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">An error occurred while loading the dashboard.</p>
+            <p className="text-xs font-mono bg-gray-100 p-2 rounded overflow-auto max-h-40">
+              {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+            <Button onClick={() => window.location.href = "/"} className="w-full">
+              Go Home
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 }
