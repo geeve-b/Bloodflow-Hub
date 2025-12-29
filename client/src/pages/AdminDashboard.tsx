@@ -81,7 +81,7 @@ export default function AdminDashboard() {
 
   if (!user) {
     return (
-      <div className="container max-w-screen-lg py-12 px-4 md:px-8">
+      <div className="w-full py-12 px-4 md:px-8">
         <Card className="border-border/80">
           <CardHeader>
             <CardTitle className="text-xl">Sign in required</CardTitle>
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
 
   if (!isAdmin) {
     return (
-      <div className="container max-w-screen-lg py-12 px-4 md:px-8">
+      <div className="w-full py-12 px-4 md:px-8">
         <Card className="border-destructive bg-destructive/10">
           <CardHeader>
             <CardTitle className="text-destructive">Access denied</CardTitle>
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="container max-w-screen-2xl py-10 px-4 md:px-8 space-y-8">
+    <div className="w-full py-10 px-4 md:px-8 space-y-8">
       <header className="space-y-2">
         <div className="flex items-center gap-3">
           <div className="rounded-full bg-primary/10 p-3">

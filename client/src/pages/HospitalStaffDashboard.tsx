@@ -305,7 +305,7 @@ export default function HospitalStaffDashboard() {
 
     // Main dashboard
     return (
-    <div className="container max-w-screen-2xl py-8 px-4 md:px-8 space-y-8">
+    <div className="w-full py-8 px-4 md:px-8 space-y-8">
       {/* Debug Info */}
       <div className="bg-blue-50 border border-blue-200 p-3 rounded text-sm">
         <p><strong>Debug Info:</strong> User: {user?.name}, Role: {user?.role}</p>

@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const isHospitalStaff = user.role === "hospital" || user.role === "admin";
 
   return (
-    <div className="container max-w-screen-2xl py-8 px-4 md:px-8 space-y-8">
+    <div className="w-full py-8 px-4 md:px-8 space-y-8">
       {/* Header Stats */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
