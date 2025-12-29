@@ -262,23 +262,29 @@ export default function AdminDashboard() {
             <CardTitle className="text-lg">User Distribution</CardTitle>
             <CardDescription>Breakdown by user role</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-2 rounded bg-red-50 dark:bg-red-950">
-              <p className="text-sm font-medium">Donors</p>
-              <p className="text-sm font-semibold text-red-600 dark:text-red-400">{stats.totalDonors}</p>
-            </div>
-            <div className="flex items-center justify-between p-2 rounded bg-purple-50 dark:bg-purple-950">
-              <p className="text-sm font-medium">Hospitals</p>
-              <p className="text-sm font-semibold text-purple-600 dark:text-purple-400">
-                {stats.totalHospitals}
-              </p>
-            </div>
-            <div className="flex items-center justify-between p-2 rounded bg-orange-50 dark:bg-orange-950">
-              <p className="text-sm font-medium">Blood Receivers</p>
-              <p className="text-sm font-semibold text-orange-600 dark:text-orange-400">
-                {stats.totalReceivers}
-              </p>
-            </div>
+          <CardContent className="space-y-6">
+            {[
+              { label: "Donors", value: stats.totalDonors, color: "bg-gradient-to-r from-red-500 to-red-600" },
+              { label: "Hospitals", value: stats.totalHospitals, color: "bg-gradient-to-r from-blue-500 to-blue-600" },
+              { label: "Blood Receivers", value: stats.totalReceivers, color: "bg-gradient-to-r from-amber-500 to-amber-600" },
+            ].map((item) => {
+              const maxValue = Math.max(stats.totalDonors, stats.totalHospitals, stats.totalReceivers, 1);
+              const percentage = (item.value / maxValue) * 100;
+              return (
+                <div key={item.label} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-foreground">{item.label}</p>
+                    <span className="text-sm font-bold text-primary">{item.value}</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`${item.color} h-3 rounded-full transition-all duration-500 ease-out shadow-md`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       </section>
