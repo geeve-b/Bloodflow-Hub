@@ -132,6 +132,7 @@ export default function RegisterPage() {
       // Register user
       const trimmedUsername = formData.username.trim();
       const trimmedEmail = formData.email.trim();
+      const [firstName, lastName] = formData.fullName.split(" ");
 
       const response = await fetch(`${API_URL}/register`, {
         method: "POST",
@@ -141,6 +142,9 @@ export default function RegisterPage() {
           password: formData.password,
           email: trimmedEmail,
           role: "donor",
+          firstName: firstName || "",
+          lastName: lastName || "",
+          bloodType: formData.bloodGroup,
         }),
       });
 

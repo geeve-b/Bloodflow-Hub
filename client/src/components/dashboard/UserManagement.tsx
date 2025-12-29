@@ -58,6 +58,7 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   // Fetch all users
   const fetchUsers = async () => {
@@ -85,9 +86,12 @@ export default function UserManagement() {
       const response = await fetch(`/api/profile/${userId}/${role}`);
       if (response.ok) {
         const data = await response.json();
+        console.log("Profile data fetched:", data);
         return data;
+      } else {
+        console.log("Profile not found or error:", response.status);
+        return null;
       }
-      return null;
     } catch (error) {
       console.error("Error fetching user profile:", error);
       return null;
@@ -101,8 +105,10 @@ export default function UserManagement() {
   // Handle view user details
   const handleViewDetails = async (user: User) => {
     setSelectedUser(user);
+    setProfileLoading(true);
     const profileData = await fetchUserDetails(user._id, user.role);
     setUserProfile(profileData);
+    setProfileLoading(false);
     setShowDetails(true);
   };
 
@@ -285,6 +291,11 @@ export default function UserManagement() {
 
           {selectedUser && (
             <div className="space-y-6">
+              {profileLoading && selectedUser.role === "donor" && (
+                <div className="p-4 bg-blue-50 rounded-lg text-center">
+                  <p className="text-sm text-blue-600 animate-pulse">Loading donor profile...</p>
+                </div>
+              )}
               {/* Basic Info */}
               <div>
                 <h3 className="text-lg font-semibold mb-3">Account Information</h3>
@@ -312,6 +323,21 @@ export default function UserManagement() {
                       {selectedUser.emailVerified ? "Verified" : "Pending"}
                     </Badge>
                   </div>
+                  {/* Show Blood Type for Donors */}
+                  {selectedUser.role === "donor" && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Blood Type</p>
+                      <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 mt-1 text-sm font-bold">
+                        {userProfile?.bloodType ? (
+                          userProfile.bloodType
+                        ) : profileLoading ? (
+                          <span className="animate-pulse">Loading...</span>
+                        ) : (
+                          "Not Available"
+                        )}
+                      </Badge>
+                    </div>
+                  )}
                   <div className="col-span-1 sm:col-span-2">
                     <p className="text-sm text-muted-foreground">Member Since</p>
                     <p className="font-medium text-sm sm:text-base">
@@ -436,9 +462,13 @@ export default function UserManagement() {
               )}
 
               {!userProfile && (
-                <div className="p-4 bg-muted/50 rounded-lg text-center">
-                  <p className="text-sm text-muted-foreground">
-                    No additional profile information available
+                <div className="p-4 bg-muted/50 rounded-lg border border-dashed">
+                  <p className="text-sm text-muted-foreground text-center">
+                    {selectedUser.role === "donor" 
+                      ? "No donor profile information available. The donor profile may not have been created yet."
+                      : selectedUser.role === "hospital"
+                      ? "No hospital staff profile information available."
+                      : "No receiver profile information available."}
                   </p>
                 </div>
               )}

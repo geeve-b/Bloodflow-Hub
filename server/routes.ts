@@ -425,11 +425,22 @@ export async function registerRoutes(
   app.get("/api/profile/:userId/:role", async (req, res) => {
     try {
       const { userId, role } = req.params;
+      console.log(`Fetching profile for userId: ${userId}, role: ${role}`);
       let profileData = null;
 
       if (role === "donor") {
         const donors = await storage.getAllDonors();
+        console.log(`Total donors in DB: ${donors.length}`);
         profileData = donors.find((d: any) => d.userId === userId);
+        if (!profileData) {
+          console.log(`No donor found with userId: ${userId}. Available userIds:`, donors.map((d: any) => d.userId));
+          // Also log the first donor to understand the structure
+          if (donors.length > 0) {
+            console.log("Sample donor:", JSON.stringify(donors[0], null, 2));
+          }
+        } else {
+          console.log("Donor found with bloodType:", profileData.bloodType);
+        }
       } else if (role === "hospital") {
         const staffMembers = await storage.getAllStaff();
         profileData = staffMembers.find((s: any) => s.userId === userId);
@@ -439,11 +450,14 @@ export async function registerRoutes(
       }
 
       if (!profileData) {
+        console.log(`Profile data not found for ${role}:${userId}`);
         return res.status(404).json({ error: "Profile data not found" });
       }
 
+      console.log(`Profile found:`, profileData);
       res.json(profileData);
     } catch (error) {
+      console.error("Error in profile endpoint:", error);
       res.status(500).json({
         error: error instanceof Error ? error.message : "Failed to fetch profile",
       });
