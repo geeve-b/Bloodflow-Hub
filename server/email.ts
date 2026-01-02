@@ -1,26 +1,71 @@
 import nodemailer from "nodemailer";
 
-// Log SMTP config on startup (masking password)
+const hasSmtpConfig =
+  Boolean(process.env.SMTP_HOST) &&
+  Boolean(process.env.SMTP_USER) &&
+  Boolean(process.env.SMTP_PASS);
+
 console.log("[DEBUG] SMTP Config:", {
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
   user: process.env.SMTP_USER,
   from: process.env.SMTP_FROM_EMAIL,
-  hasPassword: !!process.env.SMTP_PASS
+  hasPassword: !!process.env.SMTP_PASS,
+  usingProvidedConfig: hasSmtpConfig,
 });
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_PORT === "465", // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false, // Allow self-signed certificates for testing
-  },
-});
+let transporterPromise: Promise<nodemailer.Transporter> | null = null;
+let usingTestAccount = false;
+let testAccountEmail: string | undefined;
+
+async function getTransporter(): Promise<nodemailer.Transporter> {
+  if (!transporterPromise) {
+    transporterPromise = (async () => {
+      if (hasSmtpConfig) {
+        return nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT || "587", 10),
+          secure: process.env.SMTP_PORT === "465",
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+          tls: {
+            rejectUnauthorized: false,
+          },
+        });
+      }
+
+      const account = await nodemailer.createTestAccount();
+      usingTestAccount = true;
+      testAccountEmail = account.user;
+      console.warn(
+        "[DEBUG] No SMTP credentials provided. Using Ethereal test account for email delivery:",
+        { user: account.user },
+      );
+      return nodemailer.createTransport({
+        host: account.smtp.host,
+        port: account.smtp.port,
+        secure: account.smtp.secure,
+        auth: {
+          user: account.user,
+          pass: account.pass,
+        },
+      });
+    })();
+  }
+  return transporterPromise;
+}
+
+function logTestPreview(info: nodemailer.SentMessageInfo) {
+  if (!usingTestAccount) {
+    return;
+  }
+  const previewUrl = nodemailer.getTestMessageUrl(info);
+  if (previewUrl) {
+    console.log("[DEBUG] Preview email at:", previewUrl);
+  }
+}
 
 export interface ContactFormData {
   name: string;
@@ -36,7 +81,11 @@ export async function sendVerificationEmail(params: {
 }): Promise<void> {
   const { email, name, code } = params;
   const displayName = name || "there";
-  const supportEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "bloodflowhub@gmail.com";
+  const supportEmail =
+    process.env.SMTP_FROM_EMAIL ||
+    process.env.SMTP_USER ||
+    testAccountEmail ||
+    "bloodflowhub@gmail.com";
   const fromName = process.env.SMTP_FROM_NAME || "LifeFlow";
 
   // Log the code for debugging/development purposes
@@ -44,10 +93,12 @@ export async function sendVerificationEmail(params: {
   console.log(`[DEBUG] Sending email from: "${fromName}" <${supportEmail}>`);
 
   try {
-    await transporter.sendMail({
+    const transporter = await getTransporter();
+    const info = await transporter.sendMail({
       from: `"${fromName}" <${supportEmail}>`,
       to: email,
       subject: "Verify your LifeFlow account",
+      text: `Hi ${displayName},\n\nYour LifeFlow verification code is: ${code}\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.\n\n— LifeFlow Team`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #dc2626; margin-bottom: 16px;">Verify Your Email Address</h2>
@@ -61,10 +112,10 @@ export async function sendVerificationEmail(params: {
         </div>
       `,
     });
+    logTestPreview(info);
   } catch (error) {
     console.error(`[ERROR] Failed to send verification email to ${email}:`, error);
-    // We don't throw here so the flow can continue in dev mode if email fails
-    // The code is already logged above
+    throw error;
   }
 }
 
@@ -75,7 +126,11 @@ export async function sendPasswordResetEmail(params: {
 }): Promise<void> {
   const { email, name, code } = params;
   const displayName = name || "there";
-  const supportEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "bloodflowhub@gmail.com";
+  const supportEmail =
+    process.env.SMTP_FROM_EMAIL ||
+    process.env.SMTP_USER ||
+    testAccountEmail ||
+    "bloodflowhub@gmail.com";
   const fromName = process.env.SMTP_FROM_NAME || "LifeFlow";
 
   // Log the code for debugging/development purposes
@@ -83,10 +138,12 @@ export async function sendPasswordResetEmail(params: {
   console.log(`[DEBUG] Sending email from: "${fromName}" <${supportEmail}>`);
 
   try {
-    await transporter.sendMail({
+    const transporter = await getTransporter();
+    const info = await transporter.sendMail({
       from: `"${fromName}" <${supportEmail}>`,
       to: email,
       subject: "Reset your LifeFlow password",
+      text: `Hi ${displayName},\n\nUse this code to reset your LifeFlow password: ${code}\n\nThe code expires in 10 minutes. If you did not request a reset, please ignore this email.\n\n— LifeFlow Team`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #dc2626; margin-bottom: 16px;">Reset Your Password</h2>
@@ -100,23 +157,30 @@ export async function sendPasswordResetEmail(params: {
         </div>
       `,
     });
+    logTestPreview(info);
   } catch (error) {
     console.error(`[ERROR] Failed to send password reset email to ${email}:`, error);
-    // We don't throw here so the flow can continue in dev mode if email fails
-    // The code is already logged above
+    throw error;
   }
 }
 
 export async function sendContactEmail(data: ContactFormData): Promise<void> {
   const { name, email, subject, message } = data;
+  const fromName = process.env.SMTP_FROM_NAME || "LifeFlow";
+  const supportEmail =
+    process.env.SMTP_FROM_EMAIL ||
+    process.env.SMTP_USER ||
+    testAccountEmail ||
+    "bloodflowhub@gmail.com";
+  const transporter = await getTransporter();
 
-  // Email to admin
-  await transporter.sendMail({
-    from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
-    to: process.env.SMTP_FROM_EMAIL,
-    replyTo: email,
-    subject: `New Contact Form Submission: ${subject}`,
-    html: `
+  try {
+    const adminInfo = await transporter.sendMail({
+      from: `"${fromName}" <${supportEmail}>`,
+      to: supportEmail,
+      replyTo: email,
+      subject: `New Contact Form Submission: ${subject}`,
+      html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #dc2626;">New Contact Form Submission</h2>
         <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
@@ -134,14 +198,14 @@ export async function sendContactEmail(data: ContactFormData): Promise<void> {
         </p>
       </div>
     `,
-  });
+    });
+    logTestPreview(adminInfo);
 
-  // Confirmation email to user
-  await transporter.sendMail({
-    from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
-    to: email,
-    subject: `We received your message - ${subject}`,
-    html: `
+    const userInfo = await transporter.sendMail({
+      from: `"${fromName}" <${supportEmail}>`,
+      to: email,
+      subject: `We received your message - ${subject}`,
+      html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #dc2626;">Thank You for Reaching Out</h2>
         <p>Hi ${name},</p>
@@ -175,5 +239,10 @@ export async function sendContactEmail(data: ContactFormData): Promise<void> {
         </p>
       </div>
     `,
-  });
+    });
+    logTestPreview(userInfo);
+  } catch (error) {
+    console.error("[ERROR] Failed to send contact emails:", error);
+    throw error;
+  }
 }

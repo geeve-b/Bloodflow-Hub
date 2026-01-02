@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
         title: "Email Sent",
         description: "If an account exists, a verification code has been sent.",
       });
-      
+
       setLocation(`/verify-reset-otp?email=${encodeURIComponent(email)}`);
     } catch (error) {
       toast({

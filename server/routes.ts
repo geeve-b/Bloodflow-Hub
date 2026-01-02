@@ -442,7 +442,7 @@ export async function registerRoutes(
       const verificationCode = generateVerificationCode();
       const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
       const codeHash = await bcrypt.hash(verificationCode, 10);
-      
+
       const userId = typeof user._id === "string" ? user._id : user._id?.toString?.();
       if (userId) {
         await storage.setResetPasswordToken(userId, codeHash, expiresAt);
@@ -466,21 +466,34 @@ export async function registerRoutes(
 
   app.post("/api/verify-reset-otp", async (req, res) => {
     const { email, otp } = req.body;
+    console.log(`[DEBUG] Verifying OTP for ${email}. OTP provided: ${otp}`);
+    
     if (!email || !otp) {
       return res.status(400).json({ error: "Email and OTP are required" });
     }
 
     try {
       const user = await storage.getUserByEmail(email);
-      if (!user || !user.resetPasswordToken || !user.resetPasswordExpires) {
+      if (!user) {
+        console.log("[DEBUG] User not found during OTP verification");
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+      
+      console.log(`[DEBUG] User found: ${user._id}. Has token: ${!!user.resetPasswordToken}, Expires: ${user.resetPasswordExpires}`);
+
+      if (!user.resetPasswordToken || !user.resetPasswordExpires) {
+        console.log("[DEBUG] No reset token or expiry found on user");
         return res.status(400).json({ error: "Invalid or expired OTP" });
       }
 
       if (new Date() > new Date(user.resetPasswordExpires)) {
+        console.log("[DEBUG] OTP expired");
         return res.status(400).json({ error: "OTP has expired" });
       }
 
       const isValid = await bcrypt.compare(otp, user.resetPasswordToken);
+      console.log(`[DEBUG] OTP validation result: ${isValid}`);
+      
       if (!isValid) {
         return res.status(400).json({ error: "Invalid OTP" });
       }
@@ -494,6 +507,8 @@ export async function registerRoutes(
 
   app.post("/api/reset-password", async (req, res) => {
     const { email, otp, newPassword } = req.body;
+    console.log(`[DEBUG] Resetting password for ${email}`);
+
     if (!email || !otp || !newPassword) {
       return res.status(400).json({ error: "All fields are required" });
     }
@@ -501,6 +516,7 @@ export async function registerRoutes(
     try {
       const user = await storage.getUserByEmail(email);
       if (!user || !user.resetPasswordToken || !user.resetPasswordExpires) {
+        console.log("[DEBUG] Invalid request data during password reset");
         return res.status(400).json({ error: "Invalid request" });
       }
 
@@ -510,13 +526,20 @@ export async function registerRoutes(
 
       const isValid = await bcrypt.compare(otp, user.resetPasswordToken);
       if (!isValid) {
+        console.log("[DEBUG] Invalid OTP during password reset");
         return res.status(400).json({ error: "Invalid OTP" });
       }
 
       const userId = typeof user._id === "string" ? user._id : user._id?.toString?.();
       if (userId) {
-        await storage.updateUser(userId, { password: newPassword });
+        console.log(`[DEBUG] Updating password for user ${userId}`);
+        const updatedUser = await storage.updateUser(userId, { password: newPassword });
+        console.log(`[DEBUG] Password update result: ${!!updatedUser}`);
+        
         await storage.clearResetPasswordToken(userId);
+        console.log("[DEBUG] Reset token cleared");
+      } else {
+        console.error("[DEBUG] Could not determine userId for password update");
       }
 
       res.json({ message: "Password reset successfully" });
