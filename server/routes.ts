@@ -124,6 +124,8 @@ export async function registerRoutes(
           bloodType: req.body.bloodType || "O+",
           phone: req.body.phone || "",
           address: req.body.address || "",
+          state: req.body.state || "",
+          region: req.body.region || "",
         };
         try {
           await storage.createDonor(donorData);

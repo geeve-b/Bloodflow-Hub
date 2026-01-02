@@ -78,6 +78,8 @@ export const donorSchema = z.object({
   bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
   phone: z.string(),
   address: z.string(),
+  state: z.string().optional(),
+  region: z.string().optional(),
   lastDonationDate: z.date().optional(),
   isActive: z.boolean().default(true),
   createdAt: z.date().default(() => new Date()),
@@ -91,6 +93,8 @@ export const insertDonorSchema = donorSchema.pick({
   bloodType: true,
   phone: true,
   address: true,
+  state: true,
+  region: true,
 });
 
 // ==================== STAFF SCHEMA ====================

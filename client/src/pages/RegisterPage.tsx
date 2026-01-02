@@ -16,6 +16,20 @@ const API_URL = "http://localhost:3001/api";
 const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 
 const BLOOD_GROUPS = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
+const STATE_REGION_MAP: Record<string, string[]> = {
+  Karnataka: ["Bengaluru", "Mysuru", "Mangaluru", "Hubballi", "Belagavi"],
+  "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Salem", "Tiruchirappalli"],
+  Telangana: ["Hyderabad", "Warangal", "Nizamabad", "Karimnagar"],
+  Kerala: ["Thiruvananthapuram", "Kochi", "Kozhikode", "Thrissur"],
+  Maharashtra: ["Mumbai", "Pune", "Nagpur", "Nashik", "Aurangabad"],
+  Delhi: ["New Delhi", "Dwarka", "Saket", "Karol Bagh"],
+  "Uttar Pradesh": ["Lucknow", "Kanpur", "Varanasi", "Noida"],
+  "West Bengal": ["Kolkata", "Howrah", "Durgapur", "Siliguri"],
+  Gujarat: ["Ahmedabad", "Surat", "Vadodara", "Rajkot"],
+  Rajasthan: ["Jaipur", "Jodhpur", "Udaipur", "Kota"],
+};
+
+const ALL_REGIONS = Object.values(STATE_REGION_MAP).flat();
 
 export default function RegisterPage() {
   const [location, setLocation] = useLocation();
@@ -49,6 +63,8 @@ export default function RegisterPage() {
     email: "",
     dateOfBirth: undefined as Date | undefined,
     bloodGroup: "",
+    state: "",
+    region: "",
     username: "",
     password: "",
     confirmPassword: "",
@@ -66,6 +82,7 @@ export default function RegisterPage() {
 
   const [idProofFile, setIdProofFile] = useState<File | null>(null);
   const [idProofFileName, setIdProofFileName] = useState("");
+  const [isRegionFocused, setRegionFocused] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -74,6 +91,25 @@ export default function RegisterPage() {
 
   const handleSelectChange = (value: string) => {
     setFormData(prev => ({ ...prev, bloodGroup: value }));
+  };
+
+  const handleStateSelect = (value: string) => {
+    setFormData(prev => ({ ...prev, state: value, region: "" }));
+  };
+
+  const handleRegionInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    setFormData(prev => ({ ...prev, region: value }));
+  };
+
+  const handleRegionSuggestionSelect = (value: string) => {
+    setFormData(prev => ({ ...prev, region: value }));
+    setRegionFocused(false);
+  };
+
+  const handleRegionFocus = () => setRegionFocused(true);
+  const handleRegionBlur = () => {
+    setTimeout(() => setRegionFocused(false), 120);
   };
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -91,6 +127,27 @@ export default function RegisterPage() {
       setIdProofFileName(file.name);
     }
   };
+
+  const stateOptions = Object.keys(STATE_REGION_MAP);
+  const regionPool =
+    formData.state && STATE_REGION_MAP[formData.state]
+      ? STATE_REGION_MAP[formData.state]
+      : ALL_REGIONS;
+  const normalizedRegionInput = formData.region.trim().toLowerCase();
+  let regionSuggestions = regionPool.filter((region) =>
+    normalizedRegionInput
+      ? region.toLowerCase().includes(normalizedRegionInput)
+      : true,
+  );
+
+  if (normalizedRegionInput && formData.region.trim()) {
+    const hasExactMatch = regionSuggestions.some(
+      (region) => region.toLowerCase() === normalizedRegionInput,
+    );
+    if (!hasExactMatch) {
+      regionSuggestions = [formData.region.trim(), ...regionSuggestions];
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -113,6 +170,16 @@ export default function RegisterPage() {
         toast({
           title: "Error",
           description: "You must meet all medical eligibility requirements",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (!formData.state || !formData.region) {
+        toast({
+          title: "Error",
+          description: "Please select your state and region",
           variant: "destructive",
         });
         setLoading(false);
@@ -145,6 +212,8 @@ export default function RegisterPage() {
           firstName: firstName || "",
           lastName: lastName || "",
           bloodType: formData.bloodGroup,
+          state: formData.state,
+          region: formData.region,
         }),
       });
 
@@ -320,6 +389,67 @@ export default function RegisterPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* State */}
+                  <div className="space-y-2">
+                    <Label htmlFor="state" className="text-sm font-medium text-slate-700">
+                      State / Province
+                    </Label>
+                    <Select value={formData.state} onValueChange={handleStateSelect}>
+                      <SelectTrigger className="rounded-lg border-slate-200 shadow-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent">
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg shadow-lg max-h-60 overflow-auto">
+                        {stateOptions.map((state) => (
+                          <SelectItem key={state} value={state}>
+                            {state}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">
+                      Pick where you live to tailor region suggestions.
+                    </p>
+                  </div>
+
+                  {/* Region */}
+                  <div className="space-y-2">
+                    <Label htmlFor="region" className="text-sm font-medium text-slate-700">
+                      Region / City
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="region"
+                        name="region"
+                        type="text"
+                        placeholder={formData.state ? "Start typing your city" : "Select state first"}
+                        value={formData.region}
+                        onChange={handleRegionInput}
+                        onFocus={handleRegionFocus}
+                        onBlur={handleRegionBlur}
+                        disabled={!formData.state}
+                        className="rounded-lg border-slate-200 shadow-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                      />
+                      {isRegionFocused && regionSuggestions.length > 0 && (
+                        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+                          {regionSuggestions.map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => handleRegionSuggestionSelect(suggestion)}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Suggestions adapt as you type.
+                    </p>
                   </div>
                 </div>
               </div>
