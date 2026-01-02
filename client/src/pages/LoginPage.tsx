@@ -209,7 +209,17 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password-user">Password</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password-user">Password</Label>
+                    <Button 
+                      variant="link" 
+                      className="p-0 h-auto text-xs text-muted-foreground"
+                      onClick={() => setLocation("/forgot-password")}
+                      type="button"
+                    >
+                      Forgot password?
+                    </Button>
+                  </div>
                   <div className="relative">
                     <Input 
                       id="password-user" 
@@ -249,7 +259,17 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password-hosp">Password</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password-hosp">Password</Label>
+                    <Button 
+                      variant="link" 
+                      className="p-0 h-auto text-xs text-muted-foreground"
+                      onClick={() => setLocation("/forgot-password")}
+                      type="button"
+                    >
+                      Forgot password?
+                    </Button>
+                  </div>
                   <div className="relative">
                     <Input 
                       id="password-hosp" 

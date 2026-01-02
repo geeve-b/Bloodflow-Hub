@@ -1,5 +1,14 @@
 import nodemailer from "nodemailer";
 
+// Log SMTP config on startup (masking password)
+console.log("[DEBUG] SMTP Config:", {
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  user: process.env.SMTP_USER,
+  from: process.env.SMTP_FROM_EMAIL,
+  hasPassword: !!process.env.SMTP_PASS
+});
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT || "587"),
@@ -27,24 +36,75 @@ export async function sendVerificationEmail(params: {
 }): Promise<void> {
   const { email, name, code } = params;
   const displayName = name || "there";
-  const supportEmail = process.env.SMTP_FROM_EMAIL;
-  await transporter.sendMail({
-    from: `"${process.env.SMTP_FROM_NAME}" <${supportEmail}>`,
-    to: email,
-    subject: "Verify your LifeFlow account",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #dc2626; margin-bottom: 16px;">Verify Your Email Address</h2>
-        <p style="font-size: 16px; color: #1f2937;">Hi ${displayName},</p>
-        <p style="font-size: 16px; color: #1f2937;">Thanks for registering with LifeFlow. Please use the verification code below to complete your registration.</p>
-        <div style="background-color: #fef2f2; padding: 24px; border-radius: 12px; border: 1px solid #fecaca; text-align: center; margin: 24px 0;">
-          <span style="font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #b91c1c;">${code}</span>
+  const supportEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "bloodflowhub@gmail.com";
+  const fromName = process.env.SMTP_FROM_NAME || "LifeFlow";
+
+  // Log the code for debugging/development purposes
+  console.log(`[DEBUG] Verification code for ${email}: ${code}`);
+  console.log(`[DEBUG] Sending email from: "${fromName}" <${supportEmail}>`);
+
+  try {
+    await transporter.sendMail({
+      from: `"${fromName}" <${supportEmail}>`,
+      to: email,
+      subject: "Verify your LifeFlow account",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #dc2626; margin-bottom: 16px;">Verify Your Email Address</h2>
+          <p style="font-size: 16px; color: #1f2937;">Hi ${displayName},</p>
+          <p style="font-size: 16px; color: #1f2937;">Thanks for registering with LifeFlow. Please use the verification code below to complete your registration.</p>
+          <div style="background-color: #fef2f2; padding: 24px; border-radius: 12px; border: 1px solid #fecaca; text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #b91c1c;">${code}</span>
+          </div>
+          <p style="font-size: 14px; color: #4b5563;">This code will expire in 10 minutes. If you did not request this, you can safely ignore this email.</p>
+          <p style="font-size: 14px; color: #4b5563; margin-top: 24px;">Stay safe,<br/>LifeFlow Team</p>
         </div>
-        <p style="font-size: 14px; color: #4b5563;">This code will expire in 10 minutes. If you did not request this, you can safely ignore this email.</p>
-        <p style="font-size: 14px; color: #4b5563; margin-top: 24px;">Stay safe,<br/>LifeFlow Team</p>
-      </div>
-    `,
-  });
+      `,
+    });
+  } catch (error) {
+    console.error(`[ERROR] Failed to send verification email to ${email}:`, error);
+    // We don't throw here so the flow can continue in dev mode if email fails
+    // The code is already logged above
+  }
+}
+
+export async function sendPasswordResetEmail(params: {
+  email: string;
+  name?: string;
+  code: string;
+}): Promise<void> {
+  const { email, name, code } = params;
+  const displayName = name || "there";
+  const supportEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "bloodflowhub@gmail.com";
+  const fromName = process.env.SMTP_FROM_NAME || "LifeFlow";
+
+  // Log the code for debugging/development purposes
+  console.log(`[DEBUG] Password reset code for ${email}: ${code}`);
+  console.log(`[DEBUG] Sending email from: "${fromName}" <${supportEmail}>`);
+
+  try {
+    await transporter.sendMail({
+      from: `"${fromName}" <${supportEmail}>`,
+      to: email,
+      subject: "Reset your LifeFlow password",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #dc2626; margin-bottom: 16px;">Reset Your Password</h2>
+          <p style="font-size: 16px; color: #1f2937;">Hi ${displayName},</p>
+          <p style="font-size: 16px; color: #1f2937;">You requested to reset your password. Please use the code below to proceed.</p>
+          <div style="background-color: #fef2f2; padding: 24px; border-radius: 12px; border: 1px solid #fecaca; text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #b91c1c;">${code}</span>
+          </div>
+          <p style="font-size: 14px; color: #4b5563;">This code will expire in 10 minutes. If you did not request this, you can safely ignore this email.</p>
+          <p style="font-size: 14px; color: #4b5563; margin-top: 24px;">Stay safe,<br/>LifeFlow Team</p>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error(`[ERROR] Failed to send password reset email to ${email}:`, error);
+    // We don't throw here so the flow can continue in dev mode if email fails
+    // The code is already logged above
+  }
 }
 
 export async function sendContactEmail(data: ContactFormData): Promise<void> {

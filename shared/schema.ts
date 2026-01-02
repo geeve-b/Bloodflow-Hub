@@ -10,6 +10,8 @@ export const userSchema = z.object({
   emailVerified: z.boolean().default(false),
   emailVerificationCode: z.string().nullable().optional(),
   emailVerificationExpiresAt: z.date().nullable().optional(),
+  resetPasswordToken: z.string().nullable().optional(),
+  resetPasswordExpires: z.date().nullable().optional(),
   role: z.enum(["donor", "hospital", "admin", "receiver"]).default("donor"),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),

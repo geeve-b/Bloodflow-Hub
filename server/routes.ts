@@ -17,6 +17,7 @@ import { storage } from "./storage";
 import {
   sendContactEmail,
   sendVerificationEmail,
+  sendPasswordResetEmail,
   type ContactFormData,
 } from "./email";
 import { log } from "./index";
@@ -418,6 +419,110 @@ export async function registerRoutes(
       res.status(400).json({
         error: error instanceof Error ? error.message : "Login failed",
       });
+    }
+  });
+
+  // ==================== PASSWORD RESET ROUTES ====================
+  app.post("/api/forgot-password", async (req, res) => {
+    console.log("[DEBUG] Forgot password called for:", req.body.email);
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    try {
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        console.log("[DEBUG] User not found for email:", email);
+        // Return success even if user not found to prevent enumeration
+        return res.json({ message: "If an account exists, a verification code has been sent." });
+      }
+
+      console.log("[DEBUG] User found, generating reset token for:", user._id);
+      const verificationCode = generateVerificationCode();
+      const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
+      const codeHash = await bcrypt.hash(verificationCode, 10);
+      
+      const userId = typeof user._id === "string" ? user._id : user._id?.toString?.();
+      if (userId) {
+        await storage.setResetPasswordToken(userId, codeHash, expiresAt);
+        console.log("[DEBUG] Reset token set in DB, sending email...");
+        await sendPasswordResetEmail({
+          email: user.email,
+          name: user.username,
+          code: verificationCode,
+        });
+        console.log("[DEBUG] Email sending process completed");
+      } else {
+        console.error("[DEBUG] Failed to extract userId");
+      }
+
+      res.json({ message: "If an account exists, a verification code has been sent." });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: "Failed to process request" });
+    }
+  });
+
+  app.post("/api/verify-reset-otp", async (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: "Email and OTP are required" });
+    }
+
+    try {
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.resetPasswordToken || !user.resetPasswordExpires) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      if (new Date() > new Date(user.resetPasswordExpires)) {
+        return res.status(400).json({ error: "OTP has expired" });
+      }
+
+      const isValid = await bcrypt.compare(otp, user.resetPasswordToken);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      res.json({ message: "OTP verified successfully" });
+    } catch (error) {
+      console.error("Verify OTP error:", error);
+      res.status(500).json({ error: "Failed to verify OTP" });
+    }
+  });
+
+  app.post("/api/reset-password", async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    try {
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.resetPasswordToken || !user.resetPasswordExpires) {
+        return res.status(400).json({ error: "Invalid request" });
+      }
+
+      if (new Date() > new Date(user.resetPasswordExpires)) {
+        return res.status(400).json({ error: "OTP has expired" });
+      }
+
+      const isValid = await bcrypt.compare(otp, user.resetPasswordToken);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      const userId = typeof user._id === "string" ? user._id : user._id?.toString?.();
+      if (userId) {
+        await storage.updateUser(userId, { password: newPassword });
+        await storage.clearResetPasswordToken(userId);
+      }
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: "Failed to reset password" });
     }
   });
 

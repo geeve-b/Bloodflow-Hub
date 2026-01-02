@@ -28,6 +28,12 @@ export interface IStorage {
     expiresAt: Date
   ): Promise<User | undefined>;
   markEmailVerified(id: string): Promise<User | undefined>;
+  setResetPasswordToken(
+    id: string,
+    tokenHash: string,
+    expiresAt: Date
+  ): Promise<User | undefined>;
+  clearResetPasswordToken(id: string): Promise<User | undefined>;
 
   getBloodInventory(id: string): Promise<BloodInventory | undefined>;
   getAllBloodInventory(): Promise<BloodInventory[]>;
@@ -204,6 +210,46 @@ export class MongoDBStorage implements IStorage {
             emailVerified: true,
             emailVerificationCode: null,
             emailVerificationExpiresAt: null,
+            updatedAt: new Date(),
+          },
+        },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<User>(updated);
+  }
+
+  async setResetPasswordToken(
+    id: string,
+    tokenHash: string,
+    expiresAt: Date
+  ): Promise<User | undefined> {
+    const result = await db
+      .collection("users")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        {
+          $set: {
+            resetPasswordToken: tokenHash,
+            resetPasswordExpires: expiresAt,
+            updatedAt: new Date(),
+          },
+        },
+        { returnDocument: "after" }
+      );
+    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    return normalize<User>(updated);
+  }
+
+  async clearResetPasswordToken(id: string): Promise<User | undefined> {
+    const result = await db
+      .collection("users")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        {
+          $set: {
+            resetPasswordToken: null,
+            resetPasswordExpires: null,
             updatedAt: new Date(),
           },
         },
