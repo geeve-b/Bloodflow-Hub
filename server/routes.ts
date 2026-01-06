@@ -18,6 +18,7 @@ import {
   sendContactEmail,
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendBloodRequestNotification,
   type ContactFormData,
 } from "./email";
 import { log } from "./index";
@@ -785,12 +786,105 @@ export async function registerRoutes(
   app.post("/api/blood-requests", async (req, res) => {
     try {
       const payload = insertBloodRequestSchema.parse(req.body);
+      console.log(`[DEBUG] Creating blood request for blood type: ${payload.bloodType}`);
       const request = await storage.createBloodRequest(payload);
+      
+      // Notify eligible donors asynchronously (don't wait for emails to send)
+      setImmediate(async () => {
+        try {
+          console.log(`[DEBUG] Starting async notification for blood type: ${payload.bloodType}`);
+          const eligibleDonors = await storage.getEligibleDonorsWithEmails(payload.bloodType);
+          console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors for blood type ${payload.bloodType}`);
+          
+          if (eligibleDonors.length > 0) {
+            log(`[INFO] Found ${eligibleDonors.length} eligible donors for blood type ${payload.bloodType}`);
+            
+            // Send emails to all eligible donors without waiting
+            eligibleDonors.forEach(({ donor, email, username }) => {
+              sendBloodRequestNotification({
+                donorEmail: email,
+                donorName: `${donor.firstName} ${donor.lastName}`,
+                bloodType: payload.bloodType,
+                urgency: payload.urgency,
+                hospitalName: payload.hospitalName,
+                requesterName: payload.requesterName,
+              }).catch(error => {
+                console.error(`[ERROR] Failed to send email to ${email}:`, error);
+              });
+            });
+            
+            log(`[INFO] Queued notifications for ${eligibleDonors.length} eligible donors`);
+          } else {
+            log(`[WARNING] No eligible donors found for blood type ${payload.bloodType}`);
+          }
+        } catch (emailError) {
+          console.error("[ERROR] Failed to send donor notifications:", emailError);
+        }
+      });
+      
       res.status(201).json(request);
     } catch (error) {
       res.status(400).json({
         error:
           error instanceof Error ? error.message : "Failed to create request",
+      });
+    }
+  });
+
+  // Separate endpoint to notify donors about blood requests
+  app.post("/api/blood-requests/:id/notify-donors", async (req, res) => {
+    try {
+      const requestId = req.params.id;
+      const request = await storage.getBloodRequest(requestId);
+      
+      if (!request) {
+        return res.status(404).json({ error: "Blood request not found" });
+      }
+
+      console.log(`[DEBUG] Notifying eligible donors for blood type: ${request.bloodType}`);
+      const eligibleDonors = await storage.getEligibleDonorsWithEmails(request.bloodType);
+      
+      console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors with emails`);
+      
+      if (eligibleDonors.length > 0) {
+        log(`[INFO] Found ${eligibleDonors.length} eligible donors for blood type ${request.bloodType}`);
+        
+        // Send emails to all eligible donors
+        const emailPromises = eligibleDonors.map(({ donor, email, username }) => {
+          console.log(`[DEBUG] Sending email to ${email} for donor ${donor.firstName} ${donor.lastName}`);
+          return sendBloodRequestNotification({
+            donorEmail: email,
+            donorName: `${donor.firstName} ${donor.lastName}`,
+            bloodType: request.bloodType,
+            urgency: request.urgency,
+            hospitalName: request.hospitalName,
+            requesterName: request.requesterName,
+          }).catch(error => {
+            // Log error but don't fail
+            console.error(`[ERROR] Failed to send email to ${email}:`, error);
+          });
+        });
+        
+        await Promise.allSettled(emailPromises);
+        log(`[INFO] Sent notifications to ${eligibleDonors.length} eligible donors`);
+        
+        res.status(200).json({
+          message: `Notifications sent to ${eligibleDonors.length} eligible donors`,
+          donorsNotified: eligibleDonors.length,
+          requestId: request._id,
+        });
+      } else {
+        log(`[WARNING] No eligible donors found for blood type ${request.bloodType}`);
+        res.status(200).json({
+          message: "No eligible donors found",
+          donorsNotified: 0,
+          requestId: request._id,
+        });
+      }
+    } catch (error) {
+      console.error("[ERROR] Failed to notify donors:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to notify donors",
       });
     }
   });
