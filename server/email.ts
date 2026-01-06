@@ -246,3 +246,102 @@ export async function sendContactEmail(data: ContactFormData): Promise<void> {
     throw error;
   }
 }
+
+export async function sendBloodRequestNotification(params: {
+  donorEmail: string;
+  donorName: string;
+  bloodType: string;
+  urgency: string;
+  hospitalName: string;
+  requesterName: string;
+}): Promise<void> {
+  const { donorEmail, donorName, bloodType, urgency, hospitalName, requesterName } = params;
+  const fromName = process.env.SMTP_FROM_NAME || "LifeFlow";
+  const supportEmail =
+    process.env.SMTP_FROM_EMAIL ||
+    process.env.SMTP_USER ||
+    testAccountEmail ||
+    "bloodflowhub@gmail.com";
+
+  const appUrl = process.env.APP_URL || "http://localhost:5000";
+
+  // Map urgency to color and display text
+  const urgencyColors: Record<string, string> = {
+    critical: "#dc2626",
+    high: "#ea580c",
+    medium: "#f59e0b",
+    low: "#65a30d",
+  };
+
+  const urgencyLabels: Record<string, string> = {
+    critical: "🚨 CRITICAL",
+    high: "⚠️ HIGH",
+    medium: "📌 MEDIUM",
+    low: "ℹ️ LOW",
+  };
+
+  const urgencyColor = urgencyColors[urgency] || "#f59e0b";
+  const urgencyLabel = urgencyLabels[urgency] || urgency.toUpperCase();
+
+  console.log(`[DEBUG] Sending blood request notification to ${donorEmail}`);
+
+  try {
+    const transporter = await getTransporter();
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${supportEmail}>`,
+      to: donorEmail,
+      subject: `${urgencyLabel} Blood Donation Request - ${bloodType}`,
+      text: `Hi ${donorName},\n\nThere is a blood donation request that matches your blood type (${bloodType}).\n\nUrgency: ${urgency}\nHospital: ${hospitalName}\nRequester: ${requesterName}\n\nYour donation could save a life. Please log in to your dashboard to respond to this request.\n\nThank you for being a registered donor!\n\n— LifeFlow Team`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #dc2626; margin-bottom: 16px;">🩸 Blood Donation Request</h2>
+          <p style="font-size: 16px; color: #1f2937;">Hi ${donorName},</p>
+          <p style="font-size: 16px; color: #1f2937;">There is an urgent blood donation request that matches your blood type. Your help could save a life!</p>
+          
+          <div style="background-color: #fef2f2; padding: 20px; border-radius: 12px; border: 2px solid ${urgencyColor}; margin: 24px 0;">
+            <div style="display: flex; align-items: center; margin-bottom: 16px;">
+              <span style="font-size: 24px; font-weight: bold; color: ${urgencyColor};">${urgencyLabel}</span>
+            </div>
+            <div style="background-color: white; padding: 16px; border-radius: 8px;">
+              <p style="margin: 8px 0;"><strong>Blood Type:</strong> <span style="font-size: 20px; color: #dc2626; font-weight: bold;">${bloodType}</span></p>
+              <p style="margin: 8px 0;"><strong>Hospital:</strong> ${hospitalName}</p>
+              <p style="margin: 8px 0;"><strong>Requester:</strong> ${requesterName}</p>
+              <p style="margin: 8px 0;"><strong>Urgency Level:</strong> ${urgency.toUpperCase()}</p>
+            </div>
+          </div>
+
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${appUrl}/dashboard" style="background-color: #dc2626; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
+              View Request & Respond
+            </a>
+          </div>
+
+          <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; margin: 24px 0;">
+            <h3 style="margin-top: 0; color: #1f2937; font-size: 16px;">Why Your Donation Matters:</h3>
+            <ul style="margin: 8px 0; padding-left: 20px; color: #4b5563;">
+              <li>One donation can save up to three lives</li>
+              <li>Blood cannot be manufactured - it can only come from donors</li>
+              <li>Your blood type is specifically needed for this patient</li>
+            </ul>
+          </div>
+
+          <p style="font-size: 14px; color: #6b7280;">If you're unable to donate at this time, you can update your availability in your donor dashboard.</p>
+          
+          <p style="font-size: 14px; color: #4b5563; margin-top: 24px;">Thank you for being a registered blood donor,<br/>
+          <strong>LifeFlow Team</strong></p>
+          
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+          <p style="color: #6b7280; font-size: 12px;">
+            LifeFlow - Saving Lives, One Drop at a Time<br/>
+            This is an automated notification. Please do not reply to this email.
+          </p>
+        </div>
+      `,
+    });
+    logTestPreview(info);
+    console.log(`[DEBUG] Blood request notification sent successfully to ${donorEmail}`);
+  } catch (error) {
+    console.error(`[ERROR] Failed to send blood request notification to ${donorEmail}:`, error);
+    throw error;
+  }
+}

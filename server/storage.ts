@@ -59,6 +59,7 @@ export interface IStorage {
   getDonor(id: string): Promise<Donor | undefined>;
   getAllDonors(): Promise<Donor[]>;
   getDonorsByBloodType(bloodType: string): Promise<Donor[]>;
+  getEligibleDonorsWithEmails(bloodType: string): Promise<Array<{ donor: Donor; email: string; username: string }>>;
   createDonor(donor: InsertDonor): Promise<Donor>;
   updateDonor(id: string, donor: Partial<InsertDonor>): Promise<Donor | undefined>;
   deleteDonor(id: string): Promise<boolean>;
@@ -449,6 +450,81 @@ export class MongoDBStorage implements IStorage {
       .find({ bloodType, isActive: true })
       .toArray();
     return normalizeMany<Donor>(donors);
+  }
+
+  async getEligibleDonorsWithEmails(bloodType: string): Promise<Array<{ donor: Donor; email: string; username: string }>> {
+    try {
+      // Find all active donors with matching blood type
+      // Note: isActive defaults to true, but we also check for undefined to catch existing donors
+      const donors = await db
+        .collection("donors")
+        .find({ 
+          bloodType, 
+          $or: [{ isActive: true }, { isActive: { $exists: false } }]
+        })
+        .toArray();
+
+      console.log(`[DEBUG] getEligibleDonorsWithEmails: Found ${donors.length} donors for blood type ${bloodType}`);
+
+      if (donors.length === 0) {
+        return [];
+      }
+
+      // For each donor, fetch their user information to get email
+      const donorsWithEmails: Array<{ donor: Donor; email: string; username: string }> = [];
+
+      for (const donorDoc of donors) {
+        try {
+          const donor = normalize<Donor>(donorDoc);
+          if (!donor) {
+            console.log("[DEBUG] Failed to normalize donor document");
+            continue;
+          }
+
+          console.log(`[DEBUG] Processing donor: ${donor.firstName} ${donor.lastName}, userId: ${donor.userId}`);
+
+          // Fetch the user associated with this donor
+          let userId: ObjectId;
+          try {
+            userId = toObjectId(donor.userId);
+          } catch (e) {
+            console.log(`[DEBUG] Invalid userId format: ${donor.userId}`);
+            continue;
+          }
+
+          const user = await db
+            .collection("users")
+            .findOne({ _id: userId });
+
+          if (!user) {
+            console.log(`[DEBUG] No user found for donor userId: ${donor.userId}`);
+            continue;
+          }
+
+          if (!user.email) {
+            console.log(`[DEBUG] User ${donor.userId} has no email`);
+            continue;
+          }
+
+          console.log(`[DEBUG] Successfully found email ${user.email} for donor ${donor.firstName} ${donor.lastName}`);
+
+          donorsWithEmails.push({
+            donor,
+            email: user.email,
+            username: user.username || `${donor.firstName} ${donor.lastName}`,
+          });
+        } catch (itemError) {
+          console.error(`[ERROR] Error processing donor:`, itemError);
+          continue;
+        }
+      }
+
+      console.log(`[DEBUG] Total eligible donors with valid emails: ${donorsWithEmails.length}`);
+      return donorsWithEmails;
+    } catch (error) {
+      console.error("[ERROR] Failed to get eligible donors with emails:", error);
+      throw error;
+    }
   }
 
   async createDonor(donor: InsertDonor): Promise<Donor> {
