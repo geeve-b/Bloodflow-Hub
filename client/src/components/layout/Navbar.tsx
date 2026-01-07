@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Droplet, Menu, X, User, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -49,6 +50,7 @@ export function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-4">
+          <ThemeToggle />
           {user ? (
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end text-sm">
@@ -112,6 +114,7 @@ export function Navbar() {
                   <NavLinks />
                 </div>
                 <div className="border-t pt-4 flex flex-col gap-3">
+                  <ThemeToggle />
                   {user ? (
                     <>
                       <div className="flex items-center gap-3 mb-2">

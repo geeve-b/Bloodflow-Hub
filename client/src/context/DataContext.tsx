@@ -17,6 +17,7 @@ export interface DonorRequest {
   unitsNeeded: number;
   hospitalName: string;
   status: "pending" | "fulfilled" | "critical";
+  urgency?: "critical" | "high" | "medium" | "low";
   requestDate: string;
 }
 

@@ -3,6 +3,7 @@ import { useData } from "@/context/DataContext";
 import { BloodInventoryTable } from "@/components/dashboard/BloodInventoryTable";
 import { RequestBloodForm } from "@/components/dashboard/RequestBloodForm";
 import { DonorApprovalList } from "@/components/dashboard/DonorApprovalList";
+import { UrgencyBadge } from "@/components/dashboard/UrgencyBadge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Users, AlertTriangle, Droplets, Mail, Heart, Phone } from "lucide-react";
@@ -156,8 +157,12 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 {requests.map(req => (
                   <div key={req.id} className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/10 transition-colors">
-                    <div>
-                      <h4 className="font-semibold">{req.patientName} <Badge variant={req.status === 'critical' ? 'destructive' : 'secondary'}>{req.status}</Badge></h4>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold">{req.patientName}</h4>
+                        <Badge variant={req.status === 'critical' ? 'destructive' : 'secondary'}>{req.status}</Badge>
+                        {req.urgency && <UrgencyBadge urgency={req.urgency} size="sm" />}
+                      </div>
                       <p className="text-sm text-muted-foreground">Needs {req.unitsNeeded} unit(s) of {req.bloodGroup} at {req.hospitalName}</p>
                     </div>
                     <Button size="sm" variant="outline">View Details</Button>
