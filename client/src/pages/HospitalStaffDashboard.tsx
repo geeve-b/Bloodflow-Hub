@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { UrgencyBadge } from "@/components/dashboard/UrgencyBadge";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import {
   Droplets,
   AlertTriangle,
@@ -65,6 +67,7 @@ interface BloodRequest {
   requiredWithin?: string;
   hospitalAddress?: string;
   contactNumber?: string;
+  secondaryContactNumber?: string;
   remarks?: string;
 }
 
@@ -187,23 +190,6 @@ export default function HospitalStaffDashboard() {
   const handleViewDetails = (request: BloodRequest) => {
     setSelectedRequest(request);
     setIsDetailsOpen(true);
-  };
-
-  const getUrgencyColor = (
-    urgency: "low" | "medium" | "high" | "critical"
-  ) => {
-    switch (urgency) {
-      case "critical":
-        return "bg-red-100 text-red-800 border-red-300";
-      case "high":
-        return "bg-orange-100 text-orange-800 border-orange-300";
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-300";
-      case "low":
-        return "bg-green-100 text-green-800 border-green-300";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
   };
 
   const getStatusColor = (
@@ -462,7 +448,11 @@ export default function HospitalStaffDashboard() {
                   {filteredRequests.map((request) => (
                     <TableRow
                       key={request._id}
-                      className="hover:bg-muted/30 transition-colors"
+                      className={cn(
+                        "hover:bg-muted/30 transition-colors",
+                        request.urgency === "critical" &&
+                          "border-l-4 border-red-500 bg-red-50/70 dark:bg-red-950/30"
+                      )}
                     >
                       <TableCell className="font-mono text-xs">
                         {request._id.slice(-8).toUpperCase()}
@@ -484,16 +474,10 @@ export default function HospitalStaffDashboard() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`font-medium ${getUrgencyColor(
-                            request.urgency || "medium"
-                          )} flex items-center gap-1 w-fit`}
-                        >
+                        <div className="flex items-center gap-2">
                           {getUrgencyIcon(request.urgency || "medium")}
-                          {(request.urgency || "medium").charAt(0).toUpperCase() +
-                            (request.urgency || "medium").slice(1)}
-                        </Badge>
+                          <UrgencyBadge urgency={request.urgency || "medium"} size="sm" />
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -615,15 +599,8 @@ export default function HospitalStaffDashboard() {
                     <p className="text-xs font-medium text-muted-foreground">
                       URGENCY LEVEL
                     </p>
-                    <div className="mt-1">
-                      <Badge
-                        className={`font-bold ${getUrgencyColor(
-                          selectedRequest.urgency || "medium"
-                        )}`}
-                      >
-                        {(selectedRequest.urgency || "medium").charAt(0).toUpperCase() +
-                          (selectedRequest.urgency || "medium").slice(1)}
-                      </Badge>
+                    <div className="mt-2">
+                      <UrgencyBadge urgency={selectedRequest.urgency || "medium"} size="sm" />
                     </div>
                   </div>
                 </div>
@@ -660,6 +637,11 @@ export default function HospitalStaffDashboard() {
                       <Phone className="h-4 w-4" />
                       {selectedRequest.contactNumber || "Not provided"}
                     </p>
+                    {selectedRequest.secondaryContactNumber && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Alt: {selectedRequest.secondaryContactNumber}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

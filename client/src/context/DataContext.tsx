@@ -16,7 +16,8 @@ export interface DonorRequest {
   bloodGroup: string;
   unitsNeeded: number;
   hospitalName: string;
-  status: "pending" | "fulfilled" | "critical";
+  status: "pending" | "fulfilled" | "approved" | "rejected";
+  urgency: "critical" | "high" | "medium" | "low";
   requestDate: string;
 }
 
@@ -52,8 +53,26 @@ const INITIAL_INVENTORY: BloodStock[] = [
 ];
 
 const INITIAL_REQUESTS: DonorRequest[] = [
-  { id: "r1", patientName: "Alice Walker", bloodGroup: "B-", unitsNeeded: 2, hospitalName: "City General", status: "critical", requestDate: "2024-05-21" },
-  { id: "r2", patientName: "Bob Jones", bloodGroup: "O-", unitsNeeded: 1, hospitalName: "St. Mary's", status: "pending", requestDate: "2024-05-21" },
+  {
+    id: "r1",
+    patientName: "Alice Walker",
+    bloodGroup: "B-",
+    unitsNeeded: 2,
+    hospitalName: "City General",
+    status: "pending",
+    urgency: "critical",
+    requestDate: "2024-05-21",
+  },
+  {
+    id: "r2",
+    patientName: "Bob Jones",
+    bloodGroup: "O-",
+    unitsNeeded: 1,
+    hospitalName: "St. Mary's",
+    status: "fulfilled",
+    urgency: "high",
+    requestDate: "2024-05-21",
+  },
 ];
 
 const INITIAL_DONORS: DonorProfile[] = [
