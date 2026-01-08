@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Respond to Blood Request</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .request-details {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        
+        .detail-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .detail-label {
+            color: #666;
+            font-weight: 600;
+        }
+        
+        .detail-value {
+            color: #333;
+        }
+        
+        .blood-type {
+            display: inline-block;
+            background: #ff4757;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        
+        .urgency-high {
+            display: inline-block;
+            background: #ff4757;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .urgency-medium {
+            display: inline-block;
+            background: #ffa502;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .urgency-low {
+            display: inline-block;
+            background: #2ed573;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-accept {
+            background: #2ed573;
+            color: white;
+        }
+        
+        .btn-accept:hover {
+            background: #26d063;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(46, 213, 115, 0.3);
+        }
+        
+        .btn-decline {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .btn-decline:hover {
+            background: #d0d0d0;
+            transform: translateY(-2px);
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 40px;
+        }
+        
+        .error {
+            background: #ffe5e5;
+            color: #d32f2f;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #d32f2f;
+        }
+        
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2e7d32;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading" class="loading">
+            <p>Loading blood request details...</p>
+        </div>
+        
+        <div id="content" class="hidden">
+            <div class="header">
+                <h1>Blood Donation Request</h1>
+                <p>Help save a life by responding to this urgent blood request</p>
+            </div>
+            
+            <div id="error" class="error hidden"></div>
+            <div id="success" class="success hidden"></div>
+            
+            <div class="request-details">
+                <div class="detail-row">
+                    <span class="detail-label">Hospital:</span>
+                    <span class="detail-value" id="hospitalName">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Blood Type:</span>
+                    <span class="detail-value"><span class="blood-type" id="bloodType">-</span></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Quantity Needed:</span>
+                    <span class="detail-value" id="quantity">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Urgency:</span>
+                    <span class="detail-value" id="urgency">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Reason:</span>
+                    <span class="detail-value" id="reason">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Requested by:</span>
+                    <span class="detail-value" id="requesterName">-</span>
+                </div>
+            </div>
+            
+            <form id="responseForm">
+                <div class="form-group">
+                    <label for="donorName">Your Full Name *</label>
+                    <input type="text" id="donorName" name="donorName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="donorEmail">Email Address *</label>
+                    <input type="email" id="donorEmail" name="donorEmail" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="donorPhone">Phone Number *</label>
+                    <input type="tel" id="donorPhone" name="donorPhone" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="message">Additional Message</label>
+                    <textarea id="message" name="message" placeholder="Any additional information..."></textarea>
+                </div>
+                
+                <div class="button-group">
+                    <button type="submit" class="btn-accept">Accept & Donate</button>
+                    <button type="button" class="btn-decline" onclick="declineRequest()">Decline</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:3001/api';
+        let requestData = null;
+        
+        // Get token from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        if (!token) {
+            showError('Invalid request: No token provided');
+        } else {
+            loadRequestDetails();
+        }
+        
+        async function loadRequestDetails() {
+            try {
+                const response = await fetch(`${API_URL}/blood-requests/public/${token}`);
+                
+                if (!response.ok) {
+                    throw new Error('Request not found or expired');
+                }
+                
+                requestData = await response.json();
+                displayRequestDetails();
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('content').classList.remove('hidden');
+            } catch (error) {
+                showError(error.message || 'Failed to load request details');
+            }
+        }
+        
+        function displayRequestDetails() {
+            document.getElementById('hospitalName').textContent = requestData.hospitalName;
+            document.getElementById('bloodType').textContent = requestData.bloodType;
+            document.getElementById('quantity').textContent = `${requestData.quantity} units`;
+            document.getElementById('urgency').innerHTML = `<span class="urgency-${requestData.urgency}">${requestData.urgency.toUpperCase()}</span>`;
+            document.getElementById('reason').textContent = requestData.reason;
+            document.getElementById('requesterName').textContent = requestData.requesterName;
+        }
+        
+        document.getElementById('responseForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const donorName = document.getElementById('donorName').value;
+            const donorEmail = document.getElementById('donorEmail').value;
+            const donorPhone = document.getElementById('donorPhone').value;
+            const message = document.getElementById('message').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/blood-requests/${requestData._id}/respond`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        response: 'accepted',
+                        donorName,
+                        donorEmail,
+                        donorPhone,
+                        message,
+                        token
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to submit response');
+                }
+                
+                showSuccess('Thank you! Your response has been recorded. The hospital will contact you shortly.');
+                document.getElementById('responseForm').style.display = 'none';
+            } catch (error) {
+                showError(error.message || 'Failed to submit response');
+            }
+        });
+        
+        async function declineRequest() {
+            const confirmed = confirm('Are you sure you want to decline this blood request?');
+            if (!confirmed) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/blood-requests/${requestData._id}/respond`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        response: 'declined',
+                        token
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to submit response');
+                }
+                
+                showSuccess('Your response has been recorded. Thank you for considering this request.');
+                document.getElementById('responseForm').style.display = 'none';
+            } catch (error) {
+                showError(error.message || 'Failed to submit response');
+            }
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('content').classList.remove('hidden');
+        }
+        
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

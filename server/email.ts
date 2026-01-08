@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import crypto from "crypto";
 
 const hasSmtpConfig =
   Boolean(process.env.SMTP_HOST) &&
@@ -65,6 +66,10 @@ function logTestPreview(info: nodemailer.SentMessageInfo) {
   if (previewUrl) {
     console.log("[DEBUG] Preview email at:", previewUrl);
   }
+}
+
+export function generateSecureToken(): string {
+  return crypto.randomBytes(32).toString("hex");
 }
 
 export interface ContactFormData {

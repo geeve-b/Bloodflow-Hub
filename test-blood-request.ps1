@@ -69,6 +69,15 @@ try {
     
     Write-Host "Blood request created successfully!" -ForegroundColor $Green
     Write-Host "Request ID: $($response._id)" -ForegroundColor Gray
+    
+    if ($response.token) {
+        $publicLink = "http://localhost:3000/respond-to-request?token=$($response.token)"
+        Write-Host ""
+        Write-Host "Public Response Link:" -ForegroundColor Cyan
+        Write-Host $publicLink -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Share this link with donors to let them respond without login!" -ForegroundColor Gray
+    }
 } catch {
     Write-Host "Error creating blood request: $_" -ForegroundColor $Red
 }
