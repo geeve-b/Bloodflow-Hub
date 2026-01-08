@@ -891,7 +891,9 @@ export async function registerRoutes(
 
   app.put("/api/blood-requests/:id", async (req, res) => {
     try {
+      console.log("[DEBUG] Updating blood request:", req.params.id, "with data:", req.body);
       const updates = insertBloodRequestSchema.partial().parse(req.body);
+      console.log("[DEBUG] Parsed updates:", updates);
       const request = await storage.updateBloodRequest(
         req.params.id,
         updates
@@ -901,6 +903,7 @@ export async function registerRoutes(
       }
       res.json(request);
     } catch (error) {
+      console.error("[ERROR] Failed to update blood request:", error);
       res.status(400).json({
         error:
           error instanceof Error ? error.message : "Failed to update blood request",

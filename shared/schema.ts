@@ -55,6 +55,7 @@ export const bloodRequestSchema = z.object({
   urgency: z.enum(["low", "medium", "high", "critical"]).default("medium"),
   reason: z.string().optional(),
   status: z.enum(["pending", "approved", "fulfilled", "rejected"]).default("pending"),
+  rejectionReason: z.string().optional(),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
 });
@@ -67,6 +68,8 @@ export const insertBloodRequestSchema = bloodRequestSchema.pick({
   quantity: true,
   urgency: true,
   reason: true,
+  status: true,
+  rejectionReason: true,
 });
 
 // ==================== DONOR SCHEMA ====================
