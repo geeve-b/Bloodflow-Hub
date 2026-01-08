@@ -58,6 +58,7 @@ interface BloodRequest {
   urgency: "low" | "medium" | "high" | "critical";
   reason?: string;
   status: "pending" | "approved" | "fulfilled" | "rejected";
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
   // Extended fields (will be populated from server)
@@ -82,6 +83,17 @@ interface StaffProfile {
   hospitalName: string;
 }
 
+interface BloodInventory {
+  _id: string;
+  hospitalId: string;
+  bloodType: string;
+  quantity: number;
+  expiryDate: string;
+  status: "available" | "reserved" | "expired";
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function HospitalStaffDashboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -89,6 +101,8 @@ export default function HospitalStaffDashboard() {
   const [loading, setLoading] = useState(false);
   const [requests, setRequests] = useState<BloodRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<BloodRequest[]>([]);
+  const [inventory, setInventory] = useState<BloodInventory[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<BloodRequest | null>(
     null
   );
@@ -96,6 +110,12 @@ export default function HospitalStaffDashboard() {
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [processAction, setProcessAction] = useState<"approve" | "reject" | "fulfill" | null>(null);
+  const [showProcessMenu, setShowProcessMenu] = useState(false);
+  const [processNotes, setProcessNotes] = useState("");
+  const [showRejectReason, setShowRejectReason] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Debug logging
   useEffect(() => {
@@ -126,6 +146,31 @@ export default function HospitalStaffDashboard() {
     };
 
     fetchStaffProfile();
+  }, [user]);
+
+  // Fetch blood inventory
+  useEffect(() => {
+    const fetchInventory = async () => {
+      if (!user || user.role !== "hospital") return;
+
+      setInventoryLoading(true);
+      try {
+        const response = await fetch(
+          `${API_URL}/blood-inventory/hospital/${user.id}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setInventory(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch inventory:", error);
+        setInventory([]);
+      } finally {
+        setInventoryLoading(false);
+      }
+    };
+
+    fetchInventory();
   }, [user]);
 
   // Fetch blood requests
@@ -177,7 +222,7 @@ export default function HospitalStaffDashboard() {
     let filtered = requests;
 
     if (statusFilter !== "all") {
-      filtered = filtered.filter((req) => req.status === statusFilter);
+      filtered = filtered.filter((req) => (req.status || "pending") === statusFilter);
     }
 
     if (urgencyFilter !== "all") {
@@ -214,6 +259,134 @@ export default function HospitalStaffDashboard() {
       return <AlertTriangle className="h-4 w-4" />;
     }
     return null;
+  };
+
+  const handleProcessRequest = async (
+    action: "approve" | "reject" | "fulfill",
+    rejectionReason?: string
+  ) => {
+    if (!selectedRequest) return;
+
+    setProcessingId(selectedRequest._id);
+    try {
+      // Check inventory for approve action
+      if (action === "approve") {
+        const availableInventory = inventory.find(
+          (inv) =>
+            inv.bloodType === selectedRequest.bloodType &&
+            inv.status === "available"
+        );
+
+        if (!availableInventory || availableInventory.quantity < selectedRequest.quantity) {
+          toast({
+            title: "Insufficient Inventory",
+            description: `Not enough ${selectedRequest.bloodType} blood available. Required: ${selectedRequest.quantity} units, Available: ${availableInventory?.quantity || 0} units. Request will be rejected.`,
+            variant: "destructive",
+          });
+
+          // Auto-reject if inventory insufficient
+          const rejectResponse = await fetch(
+            `${API_URL}/blood-requests/${selectedRequest._id}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                status: "rejected",
+                rejectionReason: `Insufficient ${selectedRequest.bloodType} blood inventory. Required: ${selectedRequest.quantity} units, Available: ${availableInventory?.quantity || 0} units.`
+              }),
+            }
+          );
+
+          if (rejectResponse.ok) {
+            setRequests(
+              requests.map((req) =>
+                req._id === selectedRequest._id
+                  ? { ...req, status: "rejected" }
+                  : req
+              )
+            );
+            setIsDetailsOpen(false);
+          } else {
+            throw new Error("Failed to auto-reject request due to insufficient inventory");
+          }
+          return;
+        }
+      }
+
+      const response = await fetch(
+        `${API_URL}/blood-requests/${selectedRequest._id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            action === "reject"
+              ? {
+                  status: "rejected",
+                  rejectionReason: rejectionReason || "Request rejected by hospital staff",
+                }
+              : {
+                  status:
+                    action === "approve"
+                      ? "approved"
+                      : action === "fulfill"
+                        ? "fulfilled"
+                        : "rejected",
+                }
+          ),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || "Failed to update request status"
+        );
+      }
+
+      // Update local state
+      const updatedStatus = action === "approve" ? "approved" : action === "fulfill" ? "fulfilled" : "rejected";
+      setRequests(
+        requests.map((req) =>
+          req._id === selectedRequest._id
+            ? { ...req, status: updatedStatus }
+            : req
+        )
+      );
+
+      // Send notification email if approved
+      if (action === "approve") {
+        try {
+          await fetch(`${API_URL}/blood-requests/${selectedRequest._id}/notify-donors`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bloodType: selectedRequest.bloodType,
+              quantity: selectedRequest.quantity,
+            }),
+          });
+        } catch (emailError) {
+          console.error("Failed to send notification:", emailError);
+          // Don't show error to user, email is secondary
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: `Request ${updatedStatus} successfully${action === "approve" ? " and donors notified" : ""}`,
+      });
+
+      setIsDetailsOpen(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to process request",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingId(null);
+      setProcessAction(null);
+      setProcessNotes("");
+    }
   };
 
   const activeRequests = filteredRequests.filter(
@@ -349,6 +522,72 @@ export default function HospitalStaffDashboard() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Blood Inventory Section */}
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Blood Inventory</h2>
+            <p className="text-muted-foreground text-sm mt-1">
+              Current blood stock available in your hospital
+            </p>
+          </div>
+        </div>
+
+        {inventoryLoading ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center text-muted-foreground">
+                Loading inventory...
+              </div>
+            </CardContent>
+          </Card>
+        ) : inventory.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center text-muted-foreground">
+                No blood inventory records found
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {inventory
+              .filter((inv) => inv.status === "available")
+              .map((inv) => {
+                const isExpiring = new Date(inv.expiryDate).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000;
+                return (
+                  <Card key={inv._id} className={isExpiring ? "border-orange-300 bg-orange-50" : ""}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg font-bold text-primary">
+                          {inv.bloodType}
+                        </CardTitle>
+                        <Droplets className="h-5 w-5 text-red-500" />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">QUANTITY</p>
+                        <p className="text-2xl font-bold text-primary">{inv.quantity}</p>
+                        <p className="text-xs text-muted-foreground">units</p>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">EXPIRES</p>
+                        <p className={`text-sm font-semibold ${isExpiring ? "text-orange-600" : "text-green-600"}`}>
+                          {new Date(inv.expiryDate).toLocaleDateString()}
+                        </p>
+                        {isExpiring && (
+                          <p className="text-xs text-orange-600 mt-1">⚠️ Expiring soon</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </div>
+        )}
       </div>
 
       {/* Active Requests Section */}
@@ -580,6 +819,54 @@ export default function HospitalStaffDashboard() {
                 </div>
               </div>
 
+              {/* Inventory Status */}
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Droplets className="h-5 w-5 text-blue-600" />
+                  Inventory Status
+                </h3>
+                {(() => {
+                  const availableInv = inventory.find(
+                    (inv) =>
+                      inv.bloodType === selectedRequest.bloodType &&
+                      inv.status === "available"
+                  );
+                  const hasEnough =
+                    availableInv && availableInv.quantity >= selectedRequest.quantity;
+
+                  return (
+                    <div className={`p-4 rounded-lg border-2 ${hasEnough ? "bg-green-50 border-green-300" : "bg-red-50 border-red-300"}`}>
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold">
+                          {selectedRequest.bloodType} Available:{" "}
+                          <span className={`text-lg font-bold ${hasEnough ? "text-green-600" : "text-red-600"}`}>
+                            {availableInv?.quantity || 0} units
+                          </span>
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Required: <span className="font-semibold">{selectedRequest.quantity} units</span>
+                        </p>
+                        {hasEnough ? (
+                          <div className="flex items-center gap-2 text-green-700 mt-2">
+                            <span className="text-lg">✓</span>
+                            <span className="text-sm font-medium">
+                              Sufficient inventory available. You can approve this request.
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-red-700 mt-2">
+                            <span className="text-lg">✕</span>
+                            <span className="text-sm font-medium">
+                              Insufficient inventory. Request will be auto-rejected if you try to approve.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* Time Requirement */}
               <div className="space-y-3">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -695,19 +982,161 @@ export default function HospitalStaffDashboard() {
                       </p>
                     </div>
                   )}
+                  {selectedRequest.rejectionReason && (
+                    <div className="md:col-span-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        REJECTION REASON
+                      </p>
+                      <p className="text-sm mt-1 bg-red-50 p-3 rounded border border-red-300 text-red-800">
+                        {selectedRequest.rejectionReason}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-2 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setIsDetailsOpen(false)}
-                >
-                  Close
-                </Button>
-                <Button className="flex-1">Process Request</Button>
+              <div className="space-y-3 pt-4 border-t">
+                {(selectedRequest.status || "pending") === "pending" ? (
+                  <>
+                    {!showRejectReason ? (
+                      <>
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Process this blood request:
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => setIsDetailsOpen(false)}
+                          >
+                            Close
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            className="flex-1"
+                            onClick={() => {
+                              const availableInv = inventory.find(
+                                (inv) =>
+                                  inv.bloodType === selectedRequest.bloodType &&
+                                  inv.status === "available"
+                              );
+                              if (!availableInv || availableInv.quantity < selectedRequest.quantity) {
+                                setRejectReason(`Insufficient ${selectedRequest.bloodType} blood inventory. Required: ${selectedRequest.quantity} units, Available: ${availableInv?.quantity || 0} units.`);
+                              }
+                              setShowRejectReason(true);
+                            }}
+                            disabled={processingId === selectedRequest._id}
+                          >
+                            {processingId === selectedRequest._id ? "Processing..." : "Reject"}
+                          </Button>
+                          {(() => {
+                            const availableInv = inventory.find(
+                              (inv) =>
+                                inv.bloodType === selectedRequest.bloodType &&
+                                inv.status === "available"
+                            );
+                            const hasEnough =
+                              availableInv && availableInv.quantity >= selectedRequest.quantity;
+
+                            return (
+                              <Button
+                                className={`flex-1 ${hasEnough ? "bg-green-600 hover:bg-green-700" : "bg-orange-600 hover:bg-orange-700"}`}
+                                onClick={() => handleProcessRequest("approve")}
+                                disabled={processingId === selectedRequest._id}
+                                title={!hasEnough ? "Insufficient inventory - will auto-reject" : ""}
+                              >
+                                {processingId === selectedRequest._id ? "Processing..." : "Approve"}
+                              </Button>
+                            );
+                          })()}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-muted-foreground mb-3">
+                          Rejection Reason:
+                        </p>
+                        <textarea
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          placeholder="Enter reason for rejecting this request..."
+                          className="w-full p-3 border rounded-md text-sm min-h-20 bg-white"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setShowRejectReason(false);
+                              setRejectReason("");
+                            }}
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            className="flex-1"
+                            onClick={() => {
+                              handleProcessRequest("reject", rejectReason);
+                              setShowRejectReason(false);
+                              setRejectReason("");
+                            }}
+                            disabled={processingId === selectedRequest._id}
+                          >
+                            {processingId === selectedRequest._id ? "Rejecting..." : "Confirm Rejection"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </>
+                ) : (selectedRequest.status || "pending") === "approved" ? (
+                  <>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Request has been approved. Mark as fulfilled when blood is delivered:
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setIsDetailsOpen(false)}
+                      >
+                        Close
+                      </Button>
+                      <Button
+                        className="flex-1 bg-blue-600 hover:bg-blue-700"
+                        onClick={() => handleProcessRequest("fulfill")}
+                        disabled={processingId === selectedRequest._id}
+                      >
+                        {processingId === selectedRequest._id ? "Processing..." : "Mark as Fulfilled"}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedRequest.status === "rejected" && selectedRequest.rejectionReason && (
+                      <div className="bg-red-50 border border-red-300 p-3 rounded">
+                        <p className="text-xs font-medium text-red-700 mb-1">Rejection Reason:</p>
+                        <p className="text-sm text-red-800">{selectedRequest.rejectionReason}</p>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setIsDetailsOpen(false)}
+                      >
+                        Close
+                      </Button>
+                      <Button
+                        disabled
+                        className="flex-1"
+                      >
+                        {selectedRequest.status === "rejected" ? "Request Rejected" : "Request Fulfilled"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </DialogContent>

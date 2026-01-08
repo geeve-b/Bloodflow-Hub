@@ -58,6 +58,7 @@ export const bloodRequestSchema = z.object({
   secondaryContactNumber: z.string().optional(),
   reason: z.string().optional(),
   status: z.enum(["pending", "approved", "fulfilled", "rejected"]).default("pending"),
+  rejectionReason: z.string().optional(),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
 });
@@ -73,6 +74,8 @@ export const insertBloodRequestSchema = bloodRequestSchema.pick({
   contactNumber: true,
   secondaryContactNumber: true,
   reason: true,
+  status: true,
+  rejectionReason: true,
 });
 
 // ==================== DONOR SCHEMA ====================
@@ -161,6 +164,30 @@ export const insertReceiverSchema = receiverSchema.pick({
   urgencyLevel: true,
 });
 
+// ==================== DONOR RESPONSE SCHEMA ====================
+export const donorResponseSchema = z.object({
+  _id: z.instanceof(ObjectId).optional(),
+  requestId: z.string(),
+  donorId: z.string(),
+  donorEmail: z.string().email(),
+  donorName: z.string(),
+  token: z.string(),
+  response: z.enum(["accepted", "declined", "pending"]).default("pending"),
+  respondedAt: z.date().optional(),
+  tokenExpiresAt: z.date(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const insertDonorResponseSchema = donorResponseSchema.pick({
+  requestId: true,
+  donorId: true,
+  donorEmail: true,
+  donorName: true,
+  token: true,
+  tokenExpiresAt: true,
+});
+
 // ==================== TYPE EXPORTS ====================
 export type User = z.infer<typeof userSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -179,3 +206,6 @@ export type InsertStaff = z.infer<typeof insertStaffSchema>;
 
 export type Receiver = z.infer<typeof receiverSchema>;
 export type InsertReceiver = z.infer<typeof insertReceiverSchema>;
+
+export type DonorResponse = z.infer<typeof donorResponseSchema>;
+export type InsertDonorResponse = z.infer<typeof insertDonorResponseSchema>;
