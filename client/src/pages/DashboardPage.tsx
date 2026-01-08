@@ -11,6 +11,7 @@ import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -27,8 +28,14 @@ export default function DashboardPage() {
   if (!user) return null;
 
   const lowStockCount = inventory.filter(i => i.units < 5).length;
-  const criticalRequests = requests.filter(r => r.status === "critical").length;
+  const criticalRequests = requests.filter(r => r.urgency === "critical").length;
   const isHospitalStaff = user.role === "hospital" || user.role === "admin";
+  const statusColorByValue: Record<string, string> = {
+    pending: "bg-yellow-50 text-yellow-800 border-yellow-200",
+    fulfilled: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    approved: "bg-blue-50 text-blue-700 border-blue-200",
+    rejected: "bg-red-50 text-red-700 border-red-200",
+  };
 
   return (
     <div className="w-full py-8 px-4 md:px-8 space-y-8">
@@ -155,19 +162,42 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {requests.map(req => (
-                  <div key={req.id} className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/10 transition-colors">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold">{req.patientName}</h4>
-                        <Badge variant={req.status === 'critical' ? 'destructive' : 'secondary'}>{req.status}</Badge>
-                        {req.urgency && <UrgencyBadge urgency={req.urgency} size="sm" />}
+                {requests.map(req => {
+                  const formattedStatus = req.status.charAt(0).toUpperCase() + req.status.slice(1);
+
+                  return (
+                    <div
+                      key={req.id}
+                      className={cn(
+                        "flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/10 transition-colors",
+                        req.urgency === "critical" &&
+                          "border-red-200 bg-red-50/80 dark:bg-red-950/30 shadow-[0_0_0_1px_rgba(239,68,68,0.35)]"
+                      )}
+                    >
+                      <div className="flex-1 pr-4">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <h4 className="font-semibold">{req.patientName}</h4>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "capitalize",
+                              statusColorByValue[req.status] || "bg-muted text-foreground border-muted"
+                            )}
+                          >
+                            {formattedStatus}
+                          </Badge>
+                          <UrgencyBadge urgency={req.urgency} size="sm" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Needs {req.unitsNeeded} unit(s) of {req.bloodGroup} at {req.hospitalName}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground">Needs {req.unitsNeeded} unit(s) of {req.bloodGroup} at {req.hospitalName}</p>
+                      <Button size="sm" variant="outline">
+                        View Details
+                      </Button>
                     </div>
-                    <Button size="sm" variant="outline">View Details</Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

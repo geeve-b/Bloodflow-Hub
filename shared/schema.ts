@@ -53,6 +53,9 @@ export const bloodRequestSchema = z.object({
   bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
   quantity: z.number().min(1, "Quantity must be at least 1"),
   urgency: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+  patientName: z.string().min(1, "Patient name is required"),
+  contactNumber: z.string().min(6, "Primary contact number is required"),
+  secondaryContactNumber: z.string().optional(),
   reason: z.string().optional(),
   status: z.enum(["pending", "approved", "fulfilled", "rejected"]).default("pending"),
   createdAt: z.date().default(() => new Date()),
@@ -66,6 +69,9 @@ export const insertBloodRequestSchema = bloodRequestSchema.pick({
   bloodType: true,
   quantity: true,
   urgency: true,
+  patientName: true,
+  contactNumber: true,
+  secondaryContactNumber: true,
   reason: true,
 });
 

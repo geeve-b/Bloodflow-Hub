@@ -43,8 +43,16 @@ export function UrgencyBadge({ urgency, size = "md" }: UrgencyBadgeProps) {
     lg: "text-base px-3 py-2",
   }[size];
 
+  const emphasisClass =
+    urgency === "critical"
+      ? "ring-2 ring-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.35)]"
+      : "";
+
   return (
-    <Badge variant="outline" className={`${sizeClass} ${config.className} font-medium border`}>
+    <Badge
+      variant="outline"
+      className={`${sizeClass} ${config.className} font-medium border ${emphasisClass}`}
+    >
       <span className="mr-1">{config.emoji}</span>
       {config.label}
     </Badge>

@@ -239,7 +239,11 @@ export default function LoginPage() {
                     </button>
                   </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button
+                  type="submit"
+                  className="w-full rounded-xl bg-[#ff5fa2] text-black hover:bg-[#e84b8f] dark:hover:bg-[#d84482] dark:text-black transition-colors shadow-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#ff5fa2] disabled:opacity-70 disabled:pointer-events-none"
+                  disabled={loading}
+                >
                   {loading ? "Signing in..." : "Sign In as Donor"}
                 </Button>
               </form>
@@ -289,7 +293,11 @@ export default function LoginPage() {
                     </button>
                   </div>
                 </div>
-                <Button type="submit" className="w-full" variant="secondary" disabled={loading}>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-[#ff5fa2] text-black hover:bg-[#e84b8f] dark:hover:bg-[#d84482] dark:text-black transition-colors shadow-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#ff5fa2] disabled:opacity-70 disabled:pointer-events-none"
+                >
                   {loading ? "Signing in..." : "Sign In as Staff"}
                 </Button>
               </form>

@@ -74,7 +74,7 @@ export function Navbar() {
                   </Button>
                 </Link>
               )}
-              {user.role !== "hospital" && user.role !== "admin" && user.role !== "guest" && !isDashboard && (
+              {user.role !== "hospital" && user.role !== "admin" && !isDashboard && (
                 <Link href="/dashboard">
                   <Button size="sm">Dashboard</Button>
                 </Link>
