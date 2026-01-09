@@ -116,6 +116,13 @@ export default function HospitalStaffDashboard() {
   const [processNotes, setProcessNotes] = useState("");
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [showAddBloodModal, setShowAddBloodModal] = useState(false);
+  const [addBloodLoading, setAddBloodLoading] = useState(false);
+  const [addBloodForm, setAddBloodForm] = useState({
+    bloodType: "",
+    quantity: "",
+    expiryDate: "",
+  });
 
   // Debug logging
   useEffect(() => {
@@ -235,6 +242,65 @@ export default function HospitalStaffDashboard() {
   const handleViewDetails = (request: BloodRequest) => {
     setSelectedRequest(request);
     setIsDetailsOpen(true);
+  };
+
+  const handleAddBlood = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user || !addBloodForm.bloodType || !addBloodForm.quantity || !addBloodForm.expiryDate) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAddBloodLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/blood-inventory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hospitalId: user.id,
+          hospitalName: staffProfile?.hospitalName || "Unknown Hospital",
+          bloodType: addBloodForm.bloodType,
+          quantity: parseInt(addBloodForm.quantity),
+          expiryDate: addBloodForm.expiryDate,
+          status: "available",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to add blood inventory");
+      }
+
+      const newInventory = await response.json();
+      
+      // Update inventory list
+      setInventory([...inventory, newInventory]);
+      
+      // Reset form
+      setAddBloodForm({ bloodType: "", quantity: "", expiryDate: "" });
+      setShowAddBloodModal(false);
+      
+      toast({
+        title: "Success",
+        description: `${addBloodForm.quantity} units of ${addBloodForm.bloodType} blood added successfully`,
+      });
+      
+      // Refresh inventory in other components via window event
+      window.dispatchEvent(new Event('bloodInventoryUpdated'));
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add blood inventory",
+        variant: "destructive",
+      });
+    } finally {
+      setAddBloodLoading(false);
+    }
   };
 
   const getStatusColor = (
@@ -533,6 +599,13 @@ export default function HospitalStaffDashboard() {
               Current blood stock available in your hospital
             </p>
           </div>
+          <Button
+            className="bg-green-600 hover:bg-green-700"
+            onClick={() => setShowAddBloodModal(true)}
+          >
+            <Droplets className="h-4 w-4 mr-2" />
+            Add Blood
+          </Button>
         </div>
 
         {inventoryLoading ? (
@@ -1139,6 +1212,97 @@ export default function HospitalStaffDashboard() {
                 )}
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Add Blood Modal */}
+      {showAddBloodModal && (
+        <Dialog open={showAddBloodModal} onOpenChange={setShowAddBloodModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Droplets className="h-5 w-5 text-red-500" />
+                Add Blood to Inventory
+              </DialogTitle>
+              <DialogDescription>
+                Add new blood units to your hospital inventory
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleAddBlood} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Blood Type</label>
+                <Select 
+                  value={addBloodForm.bloodType} 
+                  onValueChange={(value) => 
+                    setAddBloodForm({ ...addBloodForm, bloodType: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select blood type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="O+">O+</SelectItem>
+                    <SelectItem value="O-">O-</SelectItem>
+                    <SelectItem value="A+">A+</SelectItem>
+                    <SelectItem value="A-">A-</SelectItem>
+                    <SelectItem value="B+">B+</SelectItem>
+                    <SelectItem value="B-">B-</SelectItem>
+                    <SelectItem value="AB+">AB+</SelectItem>
+                    <SelectItem value="AB-">AB-</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Quantity (Units)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={addBloodForm.quantity}
+                  onChange={(e) =>
+                    setAddBloodForm({ ...addBloodForm, quantity: e.target.value })
+                  }
+                  placeholder="Enter quantity in units"
+                  className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Expiry Date</label>
+                <input
+                  type="date"
+                  value={addBloodForm.expiryDate}
+                  onChange={(e) =>
+                    setAddBloodForm({ ...addBloodForm, expiryDate: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowAddBloodModal(false);
+                    setAddBloodForm({ bloodType: "", quantity: "", expiryDate: "" });
+                  }}
+                  disabled={addBloodLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={addBloodLoading}
+                >
+                  {addBloodLoading ? "Adding..." : "Add Blood"}
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
       )}

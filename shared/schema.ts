@@ -28,6 +28,7 @@ export const insertUserSchema = userSchema.pick({
 export const bloodInventorySchema = z.object({
   _id: z.instanceof(ObjectId).optional(),
   hospitalId: z.string(),
+  hospitalName: z.string().optional(),
   bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
   quantity: z.number().min(0, "Quantity cannot be negative"),
   expiryDate: z.date(),
@@ -38,6 +39,7 @@ export const bloodInventorySchema = z.object({
 
 export const insertBloodInventorySchema = bloodInventorySchema.pick({
   hospitalId: true,
+  hospitalName: true,
   bloodType: true,
   quantity: true,
   expiryDate: true,
