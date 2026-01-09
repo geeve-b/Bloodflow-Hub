@@ -40,6 +40,7 @@ import {
 const BLOOD_TYPES = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
 export function BloodInventoryTable() {
+  const { inventory, updateInventory, refreshInventory } = useData();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const {
@@ -78,6 +79,20 @@ export function BloodInventoryTable() {
         a.hospitalName.localeCompare(b.hospitalName)
       );
   }, [inventory, statusFilter, bloodTypeFilter, normalizedSearch]);
+  // Listen for blood inventory updates
+  useEffect(() => {
+    const handleInventoryUpdate = () => {
+      refreshInventory();
+    };
+
+    window.addEventListener('bloodInventoryUpdated', handleInventoryUpdate);
+    return () => window.removeEventListener('bloodInventoryUpdated', handleInventoryUpdate);
+  }, [refreshInventory]);
+
+  const handleEdit = (item: BloodStock) => {
+    setEditingId(item.id);
+    setEditValue(item.units);
+  };
 
   const staleEntries = useMemo(
     () => filteredInventory.filter((entry) => isInventoryStale(entry.updatedAt)),

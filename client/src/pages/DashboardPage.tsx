@@ -21,6 +21,7 @@ export default function DashboardPage() {
     data: liveInventory = [],
     isLoading: liveInventoryLoading,
   } = useBloodInventory();
+  const { inventory, requests, refreshInventory } = useData();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -29,6 +30,18 @@ export default function DashboardPage() {
       setLocation("/login");
     }
   }, [user, setLocation]);
+
+  // Refresh inventory on page load and when window event fires
+  useEffect(() => {
+    refreshInventory();
+    
+    const handleInventoryUpdate = () => {
+      refreshInventory();
+    };
+
+    window.addEventListener('bloodInventoryUpdated', handleInventoryUpdate);
+    return () => window.removeEventListener('bloodInventoryUpdated', handleInventoryUpdate);
+  }, [refreshInventory]);
 
   if (!user) return null;
 
