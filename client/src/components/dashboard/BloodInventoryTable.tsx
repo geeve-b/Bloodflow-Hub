@@ -3,17 +3,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useData, BloodStock } from "@/context/DataContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Edit2, Save, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 export function BloodInventoryTable() {
-  const { inventory, updateInventory } = useData();
+  const { inventory, updateInventory, refreshInventory } = useData();
   const { user } = useAuth();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<number>(0);
 
   const isManager = user?.role === "hospital" || user?.role === "admin";
+
+  // Listen for blood inventory updates
+  useEffect(() => {
+    const handleInventoryUpdate = () => {
+      refreshInventory();
+    };
+
+    window.addEventListener('bloodInventoryUpdated', handleInventoryUpdate);
+    return () => window.removeEventListener('bloodInventoryUpdated', handleInventoryUpdate);
+  }, [refreshInventory]);
 
   const handleEdit = (item: BloodStock) => {
     setEditingId(item.id);

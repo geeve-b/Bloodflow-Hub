@@ -78,7 +78,13 @@ export interface IStorage {
   deleteReceiver(id: string): Promise<boolean>;
 }
 
-const toObjectId = (id: string) => new ObjectId(id);
+const toObjectId = (id: string) => {
+  try {
+    return new ObjectId(id);
+  } catch (error) {
+    throw new Error(`Invalid ID format: ${id}`);
+  }
+};
 
 const normalize = <T>(doc: any | null): T | undefined => {
   if (!doc) {
@@ -197,7 +203,7 @@ export class MongoDBStorage implements IStorage {
         },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<User>(updated);
   }
 
@@ -216,7 +222,7 @@ export class MongoDBStorage implements IStorage {
         },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<User>(updated);
   }
 
@@ -238,7 +244,7 @@ export class MongoDBStorage implements IStorage {
         },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<User>(updated);
   }
 
@@ -256,7 +262,7 @@ export class MongoDBStorage implements IStorage {
         },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<User>(updated);
   }
 
@@ -285,7 +291,7 @@ export class MongoDBStorage implements IStorage {
         { $set: updatePayload },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<User>(updated);
   }
 
@@ -358,7 +364,7 @@ export class MongoDBStorage implements IStorage {
         { $set: updatePayload },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<BloodInventory>(updated);
   }
 
@@ -414,15 +420,22 @@ export class MongoDBStorage implements IStorage {
       ...request,
       updatedAt: new Date(),
     });
-    const result = await db
-      .collection("bloodRequests")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
-    return normalize<BloodRequest>(updated);
+    
+    try {
+      const result = await db
+        .collection("bloodRequests")
+        .findOneAndUpdate(
+          { _id: toObjectId(id) },
+          { $set: updatePayload },
+          { returnDocument: "after" }
+        );
+      
+      const updated = (result as any)?.value ?? result ?? null;
+      return normalize<BloodRequest>(updated);
+    } catch (error) {
+      console.error(`[ERROR] Failed to update blood request ${id}:`, error);
+      return undefined;
+    }
   }
 
   async deleteBloodRequest(id: string): Promise<boolean> {
@@ -554,7 +567,7 @@ export class MongoDBStorage implements IStorage {
         { $set: updatePayload },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<Donor>(updated);
   }
 
@@ -601,7 +614,7 @@ export class MongoDBStorage implements IStorage {
         { $set: updatePayload },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<Staff>(updated);
   }
 
@@ -654,7 +667,7 @@ export class MongoDBStorage implements IStorage {
         { $set: updatePayload },
         { returnDocument: "after" }
       );
-    const updated = (result as { value?: unknown } | null)?.value ?? null;
+    const updated = (result as any)?.value ?? result ?? null;
     return normalize<any>(updated);
   }
 
