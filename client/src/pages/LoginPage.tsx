@@ -23,6 +23,20 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState<"user" | "hospital">("user");
+  const [formResetKey, setFormResetKey] = useState(0);
+
+  const resetFormState = () => {
+    setIdentifier("");
+    setPassword("");
+    setShowPassword(false);
+    setLoading(false);
+    setFormResetKey((prev) => prev + 1);
+  };
+
+  const handleTabChange = (value: "user" | "hospital") => {
+    setActiveTab(value);
+    resetFormState();
+  };
 
   const handleLogin = async (selectedRole: "donor" | "hospital") => {
     if (!identifier || !password) {
@@ -189,14 +203,18 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "user" | "hospital")} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as "user" | "hospital")} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="user">User / Donor</TabsTrigger>
               <TabsTrigger value="hospital">Hospital Staff</TabsTrigger>
             </TabsList>
             
             <TabsContent value="user">
-              <form onSubmit={(e) => { e.preventDefault(); handleLogin("donor"); }} className="space-y-4">
+              <form
+                key={`user-form-${formResetKey}`}
+                onSubmit={(e) => { e.preventDefault(); handleLogin("donor"); }}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
                   <Label htmlFor="identifier-user">Username or Email</Label>
                   <Input 
@@ -250,7 +268,11 @@ export default function LoginPage() {
             </TabsContent>
             
             <TabsContent value="hospital">
-              <form onSubmit={(e) => { e.preventDefault(); handleLogin("hospital"); }} className="space-y-4">
+              <form
+                key={`hospital-form-${formResetKey}`}
+                onSubmit={(e) => { e.preventDefault(); handleLogin("hospital"); }}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
                   <Label htmlFor="identifier-hosp">Username or Email</Label>
                   <Input 

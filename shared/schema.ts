@@ -28,11 +28,12 @@ export const insertUserSchema = userSchema.pick({
 export const bloodInventorySchema = z.object({
   _id: z.instanceof(ObjectId).optional(),
   hospitalId: z.string(),
+  hospitalName: z.string(),
   hospitalName: z.string().optional(),
   bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
   quantity: z.number().min(0, "Quantity cannot be negative"),
   expiryDate: z.date(),
-  status: z.enum(["available", "reserved", "expired"]).default("available"),
+  status: z.enum(["available", "limited", "not_available"]).default("available"),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
 });
@@ -54,7 +55,7 @@ export const bloodRequestSchema = z.object({
   hospitalName: z.string(),
   bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
   quantity: z.number().min(1, "Quantity must be at least 1"),
-  urgency: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+  urgency: z.enum(["critical", "normal"]).default("normal"),
   patientName: z.string().min(1, "Patient name is required"),
   contactNumber: z.string().min(6, "Primary contact number is required"),
   secondaryContactNumber: z.string().optional(),
@@ -149,7 +150,7 @@ export const receiverSchema = z.object({
   address: z.string(),
   hospitalName: z.string(),
   medicalCondition: z.string().optional(),
-  urgencyLevel: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+  urgencyLevel: z.enum(["critical", "normal"]).default("normal"),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
 });
