@@ -163,7 +163,7 @@ export async function registerRoutes(
           address: req.body.address || "",
           hospitalName: req.body.hospitalName || "",
           medicalCondition: req.body.medicalCondition || "",
-          urgencyLevel: req.body.urgencyLevel || "medium",
+          urgencyLevel: req.body.urgencyLevel || "normal",
         };
         try {
           await storage.createReceiver(receiverData);

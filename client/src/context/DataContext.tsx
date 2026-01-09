@@ -17,7 +17,7 @@ export interface DonorRequest {
   unitsNeeded: number;
   hospitalName: string;
   status: "pending" | "fulfilled" | "approved" | "rejected";
-  urgency: "critical" | "high" | "medium" | "low";
+  urgency: "critical" | "normal";
   requestDate: string;
 }
 
@@ -70,7 +70,7 @@ const INITIAL_REQUESTS: DonorRequest[] = [
     unitsNeeded: 1,
     hospitalName: "St. Mary's",
     status: "fulfilled",
-    urgency: "high",
+    urgency: "normal",
     requestDate: "2024-05-21",
   },
 ];

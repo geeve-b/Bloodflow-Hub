@@ -12,10 +12,15 @@ import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useBloodInventory } from "@/hooks/useBloodInventory";
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { inventory, requests } = useData();
+  const { requests } = useData();
+  const {
+    data: liveInventory = [],
+    isLoading: liveInventoryLoading,
+  } = useBloodInventory();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -27,7 +32,8 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const lowStockCount = inventory.filter(i => i.units < 5).length;
+  const totalUnits = liveInventory.reduce((acc, curr) => acc + (curr.quantity ?? 0), 0);
+  const lowStockCount = liveInventory.filter((entry) => entry.status === "limited" || entry.quantity < 5).length;
   const criticalRequests = requests.filter(r => r.urgency === "critical").length;
   const isHospitalStaff = user.role === "hospital" || user.role === "admin";
   const statusColorByValue: Record<string, string> = {
@@ -55,7 +61,9 @@ export default function DashboardPage() {
             <Droplets className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inventory.reduce((acc, curr) => acc + curr.units, 0)}</div>
+            <div className="text-2xl font-bold">
+              {liveInventoryLoading ? "…" : totalUnits}
+            </div>
             <p className="text-xs text-muted-foreground">Across all groups</p>
           </CardContent>
         </Card>
@@ -65,7 +73,9 @@ export default function DashboardPage() {
             <AlertTriangle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{lowStockCount}</div>
+            <div className="text-2xl font-bold">
+              {liveInventoryLoading ? "…" : lowStockCount}
+            </div>
             <p className="text-xs text-muted-foreground">Blood groups critical</p>
           </CardContent>
         </Card>

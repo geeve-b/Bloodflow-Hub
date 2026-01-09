@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
 import {
@@ -18,12 +18,15 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { UrgencyBadge } from "@/components/dashboard/UrgencyBadge";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +40,9 @@ import {
   FileText,
   X,
   Filter,
+  Pencil,
+  RefreshCcw,
+  Loader2,
 } from "lucide-react";
 import {
   Select,
@@ -45,8 +51,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  InventoryStatus,
+  formatInventoryTimestamp,
+  INVENTORY_STALE_THRESHOLD_HOURS,
+  inventoryStatusMeta,
+  isInventoryStale,
+  isInventoryUsable,
+  normalizeInventoryStatus,
+} from "@/lib/inventory";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api";
+const INVENTORY_STATUS_ORDER: InventoryStatus[] = [
+  "available",
+  "limited",
+  "not_available",
+];
+
+type NormalizedUrgency = "critical" | "normal";
+
+const normalizeUrgency = (value?: string | null): NormalizedUrgency =>
+  value === "critical" ? "critical" : "normal";
 
 interface BloodRequest {
   _id: string;
@@ -55,7 +80,7 @@ interface BloodRequest {
   hospitalName: string;
   bloodType: string;
   quantity: number;
-  urgency: "low" | "medium" | "high" | "critical";
+  urgency: NormalizedUrgency;
   reason?: string;
   status: "pending" | "approved" | "fulfilled" | "rejected";
   rejectionReason?: string;
@@ -86,10 +111,11 @@ interface StaffProfile {
 interface BloodInventory {
   _id: string;
   hospitalId: string;
+  hospitalName?: string;
   bloodType: string;
   quantity: number;
-  expiryDate: string;
-  status: "available" | "reserved" | "expired";
+  expiryDate?: string;
+  status: InventoryStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -103,13 +129,17 @@ export default function HospitalStaffDashboard() {
   const [filteredRequests, setFilteredRequests] = useState<BloodRequest[]>([]);
   const [inventory, setInventory] = useState<BloodInventory[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [editingInventory, setEditingInventory] = useState<BloodInventory | null>(null);
+  const [inventoryDraft, setInventoryDraft] = useState<{ quantity: string; status: InventoryStatus }>({ quantity: "", status: "available" });
+  const [inventorySaving, setInventorySaving] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<BloodRequest | null>(
     null
   );
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
+  const [urgencyFilter, setUrgencyFilter] = useState<"all" | NormalizedUrgency>("all");
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processAction, setProcessAction] = useState<"approve" | "reject" | "fulfill" | null>(null);
   const [showProcessMenu, setShowProcessMenu] = useState(false);
@@ -148,30 +178,43 @@ export default function HospitalStaffDashboard() {
     fetchStaffProfile();
   }, [user]);
 
-  // Fetch blood inventory
-  useEffect(() => {
-    const fetchInventory = async () => {
-      if (!user || user.role !== "hospital") return;
+  const fetchInventory = useCallback(async () => {
+    if (!user || user.role !== "hospital") return;
 
-      setInventoryLoading(true);
-      try {
-        const response = await fetch(
-          `${API_URL}/blood-inventory/hospital/${user.id}`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setInventory(Array.isArray(data) ? data : []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch inventory:", error);
-        setInventory([]);
-      } finally {
-        setInventoryLoading(false);
+    setInventoryLoading(true);
+    try {
+      const response = await fetch(
+        `${API_URL}/blood-inventory/hospital/${user.id}`
+      );
+      if (!response.ok) {
+        throw new Error("Unable to load hospital inventory");
       }
-    };
 
-    fetchInventory();
+      const data = await response.json();
+      const normalized = Array.isArray(data)
+        ? data.map((entry: BloodInventory) => ({
+            ...entry,
+            status: normalizeInventoryStatus(entry.status),
+          }))
+        : [];
+      setInventory(normalized);
+      setInventoryError(null);
+    } catch (error) {
+      console.error("Failed to fetch inventory:", error);
+      setInventory([]);
+      setInventoryError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load inventory data"
+      );
+    } finally {
+      setInventoryLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchInventory();
+  }, [fetchInventory]);
 
   // Fetch blood requests
   useEffect(() => {
@@ -197,7 +240,10 @@ export default function HospitalStaffDashboard() {
 
         const data = await response.json();
         console.log("Fetched requests:", data);
-        setRequests(Array.isArray(data) ? data : []);
+        const normalized = Array.isArray(data)
+          ? data.map((req) => ({ ...req, urgency: normalizeUrgency(req.urgency) }))
+          : [];
+        setRequests(normalized);
         setFilteredRequests(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Error fetching blood requests:", error);
@@ -216,6 +262,110 @@ export default function HospitalStaffDashboard() {
 
     fetchRequests();
   }, [user, toast]);
+
+  const getUsableInventoryForType = (bloodType: string) =>
+    inventory.find(
+      (inv) => inv.bloodType === bloodType && isInventoryUsable(inv.status)
+    );
+
+  const openInventoryEditor = (entry: BloodInventory) => {
+    setEditingInventory(entry);
+    setInventoryDraft({
+      quantity: entry.quantity?.toString() ?? "0",
+      status: entry.status ?? "available",
+    });
+  };
+
+  const closeInventoryEditor = () => {
+    setEditingInventory(null);
+    setInventoryDraft({ quantity: "", status: "available" });
+    setInventorySaving(false);
+  };
+
+  const handleInventorySave = async () => {
+    if (!editingInventory) return;
+
+    const quantityValue = Math.max(0, Number(inventoryDraft.quantity) || 0);
+    setInventorySaving(true);
+    try {
+      const response = await fetch(
+        `${API_URL}/blood-inventory/${editingInventory._id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            quantity: quantityValue,
+            status: inventoryDraft.status,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        throw new Error(errorBody?.error || "Failed to update inventory");
+      }
+
+      const updated: BloodInventory = await response.json();
+      setInventory((prev) =>
+        prev.map((item) =>
+          item._id === updated._id
+            ? {
+                ...updated,
+                status: normalizeInventoryStatus(updated.status),
+              }
+            : item
+        )
+      );
+
+      toast({
+        title: "Inventory updated",
+        description: `${updated.bloodType} now shows ${quantityValue} unit(s).`,
+      });
+      closeInventoryEditor();
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unable to update inventory",
+        variant: "destructive",
+      });
+    } finally {
+      setInventorySaving(false);
+    }
+  };
+
+  const statusCounts = useMemo(
+    () =>
+      inventory.reduce(
+        (acc, entry) => {
+          acc[entry.status] = (acc[entry.status] ?? 0) + 1;
+          return acc;
+        },
+        { available: 0, limited: 0, not_available: 0 } as Record<
+          InventoryStatus,
+          number
+        >
+      ),
+    [inventory]
+  );
+
+  const totalUnits = useMemo(
+    () => inventory.reduce((sum, entry) => sum + (entry.quantity ?? 0), 0),
+    [inventory]
+  );
+
+  const staleInventory = useMemo(
+    () => inventory.filter((entry) => isInventoryStale(entry.updatedAt)),
+    [inventory]
+  );
+
+  const sortedInventory = useMemo(
+    () =>
+      [...inventory].sort((a, b) => a.bloodType.localeCompare(b.bloodType)),
+    [inventory]
+  );
 
   // Apply filters
   useEffect(() => {
@@ -255,7 +405,7 @@ export default function HospitalStaffDashboard() {
   };
 
   const getUrgencyIcon = (urgency: string) => {
-    if (urgency === "critical" || urgency === "high") {
+    if (urgency === "critical") {
       return <AlertTriangle className="h-4 w-4" />;
     }
     return null;
@@ -271,10 +421,8 @@ export default function HospitalStaffDashboard() {
     try {
       // Check inventory for approve action
       if (action === "approve") {
-        const availableInventory = inventory.find(
-          (inv) =>
-            inv.bloodType === selectedRequest.bloodType &&
-            inv.status === "available"
+        const availableInventory = getUsableInventoryForType(
+          selectedRequest.bloodType
         );
 
         if (!availableInventory || availableInventory.quantity < selectedRequest.quantity) {
@@ -530,10 +678,68 @@ export default function HospitalStaffDashboard() {
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Blood Inventory</h2>
             <p className="text-muted-foreground text-sm mt-1">
-              Current blood stock available in your hospital
+              Live stock levels for {staffProfile?.hospitalName || "your hospital"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Tracking {inventory.length} blood group entr{inventory.length === 1 ? "y" : "ies"} · {totalUnits} total units
             </p>
           </div>
+          <div className="flex items-center w-full md:w-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full md:w-auto"
+              onClick={fetchInventory}
+              disabled={inventoryLoading}
+            >
+              {inventoryLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Syncing
+                </>
+              ) : (
+                <>
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  Refresh
+                </>
+              )}
+            </Button>
+          </div>
         </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          {INVENTORY_STATUS_ORDER.map((status) => {
+            const meta = inventoryStatusMeta[status];
+            const StatusIcon = meta.icon;
+            return (
+              <Card key={status}>
+                <CardContent className="flex items-center justify-between p-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                      {meta.label}
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {statusCounts[status] ?? 0}
+                    </p>
+                  </div>
+                  <StatusIcon className={cn("h-6 w-6", meta.iconClass)} />
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {staleInventory.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2 text-amber-900 font-semibold">
+              <AlertTriangle className="h-5 w-5" />
+              {staleInventory.length} inventory entr{staleInventory.length === 1 ? "y" : "ies"} need updates
+            </div>
+            <p className="text-sm text-amber-800">
+              Last updated more than {INVENTORY_STALE_THRESHOLD_HOURS} hours ago. Donors will see a stale warning until refreshed.
+            </p>
+          </div>
+        )}
 
         {inventoryLoading ? (
           <Card>
@@ -541,6 +747,15 @@ export default function HospitalStaffDashboard() {
               <div className="text-center text-muted-foreground">
                 Loading inventory...
               </div>
+            </CardContent>
+          </Card>
+        ) : inventoryError ? (
+          <Card>
+            <CardContent className="pt-6 space-y-3 text-center">
+              <p className="text-sm text-destructive">{inventoryError}</p>
+              <Button variant="outline" size="sm" onClick={fetchInventory}>
+                Try again
+              </Button>
             </CardContent>
           </Card>
         ) : inventory.length === 0 ? (
@@ -552,41 +767,96 @@ export default function HospitalStaffDashboard() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {inventory
-              .filter((inv) => inv.status === "available")
-              .map((inv) => {
-                const isExpiring = new Date(inv.expiryDate).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000;
-                return (
-                  <Card key={inv._id} className={isExpiring ? "border-orange-300 bg-orange-50" : ""}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg font-bold text-primary">
-                          {inv.bloodType}
-                        </CardTitle>
-                        <Droplets className="h-5 w-5 text-red-500" />
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <div>
-                        <p className="text-xs text-muted-foreground">QUANTITY</p>
-                        <p className="text-2xl font-bold text-primary">{inv.quantity}</p>
-                        <p className="text-xs text-muted-foreground">units</p>
-                      </div>
-                      <div className="pt-2 border-t">
-                        <p className="text-xs text-muted-foreground">EXPIRES</p>
-                        <p className={`text-sm font-semibold ${isExpiring ? "text-orange-600" : "text-green-600"}`}>
-                          {new Date(inv.expiryDate).toLocaleDateString()}
-                        </p>
-                        {isExpiring && (
-                          <p className="text-xs text-orange-600 mt-1">⚠️ Expiring soon</p>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-semibold">Blood Group</TableHead>
+                    <TableHead className="font-semibold text-center">
+                      Units
+                    </TableHead>
+                    <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="font-semibold">Last Updated</TableHead>
+                    <TableHead className="text-right font-semibold">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedInventory.map((entry) => {
+                    const meta = inventoryStatusMeta[entry.status];
+                    const stale = isInventoryStale(entry.updatedAt);
+                    const StatusIcon = meta.icon;
+                    return (
+                      <TableRow
+                        key={entry._id}
+                        className={cn(
+                          "hover:bg-muted/40 transition-colors",
+                          stale && "bg-amber-50/70 border-l-2 border-amber-300",
+                          entry.status === "not_available" && "opacity-80"
                         )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-          </div>
+                      >
+                        <TableCell>
+                          <div className="font-semibold text-lg text-primary">
+                            {entry.bloodType}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {entry.hospitalName || staffProfile?.hospitalName || "Hospital"}
+                          </p>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="font-bold text-primary">
+                            {entry.quantity}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-1">
+                            units
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <Badge
+                              variant="outline"
+                              className={cn("gap-1 text-xs font-semibold", meta.badgeClass)}
+                            >
+                              <StatusIcon className={cn("h-3.5 w-3.5", meta.iconClass)} />
+                              {meta.label}
+                            </Badge>
+                            <p className="text-[11px] text-muted-foreground">
+                              {meta.description}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1 text-sm">
+                            <p className="font-medium">
+                              {formatInventoryTimestamp(entry.updatedAt)}
+                            </p>
+                            {stale && (
+                              <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Needs refresh
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openInventoryEditor(entry)}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Update
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
         )}
       </div>
 
@@ -629,16 +899,17 @@ export default function HospitalStaffDashboard() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Urgency</label>
-                <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+                <Select
+                  value={urgencyFilter}
+                  onValueChange={(value) => setUrgencyFilter(value as "all" | NormalizedUrgency)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Urgencies</SelectItem>
                     <SelectItem value="critical">Critical</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -714,8 +985,8 @@ export default function HospitalStaffDashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {getUrgencyIcon(request.urgency || "medium")}
-                          <UrgencyBadge urgency={request.urgency || "medium"} size="sm" />
+                          {getUrgencyIcon(request.urgency || "normal")}
+                          <UrgencyBadge urgency={request.urgency || "normal"} size="sm" />
                         </div>
                       </TableCell>
                       <TableCell>
@@ -749,6 +1020,85 @@ export default function HospitalStaffDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Inventory Editor */}
+      <Dialog
+        open={Boolean(editingInventory)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeInventoryEditor();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Update {editingInventory?.bloodType} Inventory
+            </DialogTitle>
+            <DialogDescription>
+              Changes sync instantly with donor search results.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="inventory-quantity">Units Available</Label>
+              <Input
+                id="inventory-quantity"
+                type="number"
+                min={0}
+                value={inventoryDraft.quantity}
+                onChange={(event) =>
+                  setInventoryDraft((prev) => ({
+                    ...prev,
+                    quantity: event.target.value,
+                  }))
+                }
+                disabled={inventorySaving}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={inventoryDraft.status}
+                onValueChange={(value) =>
+                  setInventoryDraft((prev) => ({
+                    ...prev,
+                    status: value as InventoryStatus,
+                  }))
+                }
+                disabled={inventorySaving}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {INVENTORY_STATUS_ORDER.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {inventoryStatusMeta[status].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Last updated {formatInventoryTimestamp(editingInventory?.updatedAt)}
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={closeInventoryEditor}
+              disabled={inventorySaving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleInventorySave} disabled={inventorySaving}>
+              {inventorySaving ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Details Modal */}
       {selectedRequest && (
@@ -826,13 +1176,12 @@ export default function HospitalStaffDashboard() {
                   Inventory Status
                 </h3>
                 {(() => {
-                  const availableInv = inventory.find(
-                    (inv) =>
-                      inv.bloodType === selectedRequest.bloodType &&
-                      inv.status === "available"
+                  const usableInventory = getUsableInventoryForType(
+                    selectedRequest.bloodType
                   );
                   const hasEnough =
-                    availableInv && availableInv.quantity >= selectedRequest.quantity;
+                    usableInventory &&
+                    usableInventory.quantity >= selectedRequest.quantity;
 
                   return (
                     <div className={`p-4 rounded-lg border-2 ${hasEnough ? "bg-green-50 border-green-300" : "bg-red-50 border-red-300"}`}>
@@ -840,7 +1189,7 @@ export default function HospitalStaffDashboard() {
                         <p className="text-sm font-semibold">
                           {selectedRequest.bloodType} Available:{" "}
                           <span className={`text-lg font-bold ${hasEnough ? "text-green-600" : "text-red-600"}`}>
-                            {availableInv?.quantity || 0} units
+                            {usableInventory?.quantity || 0} units
                           </span>
                         </p>
                         <p className="text-sm text-muted-foreground">
@@ -887,7 +1236,7 @@ export default function HospitalStaffDashboard() {
                       URGENCY LEVEL
                     </p>
                     <div className="mt-2">
-                      <UrgencyBadge urgency={selectedRequest.urgency || "medium"} size="sm" />
+                      <UrgencyBadge urgency={selectedRequest.urgency || "normal"} size="sm" />
                     </div>
                   </div>
                 </div>
@@ -1016,13 +1365,13 @@ export default function HospitalStaffDashboard() {
                             variant="destructive"
                             className="flex-1"
                             onClick={() => {
-                              const availableInv = inventory.find(
-                                (inv) =>
-                                  inv.bloodType === selectedRequest.bloodType &&
-                                  inv.status === "available"
+                              const usableInventory = getUsableInventoryForType(
+                                selectedRequest.bloodType
                               );
-                              if (!availableInv || availableInv.quantity < selectedRequest.quantity) {
-                                setRejectReason(`Insufficient ${selectedRequest.bloodType} blood inventory. Required: ${selectedRequest.quantity} units, Available: ${availableInv?.quantity || 0} units.`);
+                              if (!usableInventory || usableInventory.quantity < selectedRequest.quantity) {
+                                setRejectReason(
+                                  `Insufficient ${selectedRequest.bloodType} blood inventory. Required: ${selectedRequest.quantity} units, Available: ${usableInventory?.quantity || 0} units.`
+                                );
                               }
                               setShowRejectReason(true);
                             }}
@@ -1031,13 +1380,12 @@ export default function HospitalStaffDashboard() {
                             {processingId === selectedRequest._id ? "Processing..." : "Reject"}
                           </Button>
                           {(() => {
-                            const availableInv = inventory.find(
-                              (inv) =>
-                                inv.bloodType === selectedRequest.bloodType &&
-                                inv.status === "available"
+                            const usableInventory = getUsableInventoryForType(
+                              selectedRequest.bloodType
                             );
                             const hasEnough =
-                              availableInv && availableInv.quantity >= selectedRequest.quantity;
+                              usableInventory &&
+                              usableInventory.quantity >= selectedRequest.quantity;
 
                             return (
                               <Button

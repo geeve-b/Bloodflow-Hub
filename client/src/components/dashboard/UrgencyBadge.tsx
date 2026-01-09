@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 
-type Urgency = "critical" | "high" | "medium" | "low";
+type Urgency = "critical" | "normal";
 
 interface UrgencyBadgeProps {
   urgency: Urgency;
@@ -14,23 +14,11 @@ const urgencyConfig: Record<Urgency, { emoji: string; label: string; variant: "d
     variant: "destructive",
     className: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200 border-red-300 dark:border-red-800",
   },
-  high: {
-    emoji: "🟠",
-    label: "High",
-    variant: "destructive",
-    className: "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200 border-orange-300 dark:border-orange-800",
-  },
-  medium: {
-    emoji: "🟡",
-    label: "Medium",
+  normal: {
+    emoji: "🔵",
+    label: "Normal",
     variant: "secondary",
-    className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200 border-yellow-300 dark:border-yellow-800",
-  },
-  low: {
-    emoji: "🟢",
-    label: "Low",
-    variant: "secondary",
-    className: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200 border-green-300 dark:border-green-800",
+    className: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border-blue-300 dark:border-blue-800",
   },
 };
 
