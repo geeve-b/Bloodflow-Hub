@@ -16,7 +16,6 @@ import { useBloodInventory } from "@/hooks/useBloodInventory";
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { requests } = useData();
   const {
     data: liveInventory = [],
     isLoading: liveInventoryLoading,

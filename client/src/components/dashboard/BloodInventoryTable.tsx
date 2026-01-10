@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/inventory";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useData } from "@/context/DataContext";
 import { useLocation } from "wouter";
 import {
   AlertTriangle,
@@ -40,7 +41,7 @@ import {
 const BLOOD_TYPES = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
 export function BloodInventoryTable() {
-  const { inventory, updateInventory, refreshInventory } = useData();
+  const { refreshInventory } = useData();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const {
@@ -88,11 +89,6 @@ export function BloodInventoryTable() {
     window.addEventListener('bloodInventoryUpdated', handleInventoryUpdate);
     return () => window.removeEventListener('bloodInventoryUpdated', handleInventoryUpdate);
   }, [refreshInventory]);
-
-  const handleEdit = (item: BloodStock) => {
-    setEditingId(item.id);
-    setEditValue(item.units);
-  };
 
   const staleEntries = useMemo(
     () => filteredInventory.filter((entry) => isInventoryStale(entry.updatedAt)),
