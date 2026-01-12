@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UrgencyBadge } from "@/components/dashboard/UrgencyBadge";
+import { AddBloodUnitForm } from "@/components/dashboard/AddBloodUnitForm";
 import {
   Dialog,
   DialogContent,
@@ -533,6 +534,30 @@ export default function HospitalStaffDashboard() {
               Current blood stock available in your hospital
             </p>
           </div>
+          <AddBloodUnitForm 
+            hospitalId={user?.id || ""} 
+            onSuccess={() => {
+              // Refresh inventory when a new blood unit is added
+              const fetchInventory = async () => {
+                if (!user || user.role !== "hospital") return;
+                setInventoryLoading(true);
+                try {
+                  const response = await fetch(
+                    `${API_URL}/blood-inventory/hospital/${user.id}`
+                  );
+                  if (response.ok) {
+                    const data = await response.json();
+                    setInventory(Array.isArray(data) ? data : []);
+                  }
+                } catch (error) {
+                  console.error("Failed to fetch inventory:", error);
+                } finally {
+                  setInventoryLoading(false);
+                }
+              };
+              fetchInventory();
+            }}
+          />
         </div>
 
         {inventoryLoading ? (

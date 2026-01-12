@@ -15,6 +15,17 @@ declare module "http" {
   }
 }
 
+// Add unhandled error handlers
+process.on("uncaughtException", (error) => {
+  console.error("[CRITICAL] Uncaught Exception:", error);
+  // Don't exit, log and continue
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[CRITICAL] Unhandled Rejection at:", promise, "reason:", reason);
+  // Don't exit, log and continue
+});
+
 app.use(
   express.json({
     verify: (req, _res, buf) => {
@@ -85,12 +96,40 @@ app.use((req, res, next) => {
     // It is the only port that is not firewalled.
     const port = parseInt(process.env.PORT || "3000", 10);
     const host = "127.0.0.1";
-    httpServer.listen(port, host, 128, () => {
-      log(`serving on ${host}:${port}`);
+    console.log(`[DEBUG] About to listen on ${host}:${port}`);
+    
+    // Use a timeout to ensure we don't wait forever
+    let listenTimeoutHandle: NodeJS.Timeout;
+    const listenPromise = new Promise<void>((resolve, reject) => {
+      listenTimeoutHandle = setTimeout(() => {
+        console.error("[DEBUG] Listen timeout - server failed to start listening!");
+        reject(new Error("Listen timeout"));
+      }, 5000);
+      
+      console.log("[DEBUG] Creating listener...");
+      const listener = httpServer.listen(port, host, 128);
+      
+      console.log("[DEBUG] Setting up listen event handlers");
+      listener.on("listening", () => {
+        console.log("[DEBUG] Server is now LISTENING (listening event fired)");
+        clearTimeout(listenTimeoutHandle);
+        resolve();
+      });
+      
+      listener.once("error", (err: any) => {
+        console.error(`[DEBUG] Server error on listen:`, err);
+        clearTimeout(listenTimeoutHandle);
+        reject(err);
+      });
+      
+      listener.on("close", () => {
+        console.log("[DEBUG] httpServer closed!");
+      });
     });
-    httpServer.on("error", (err: any) => {
-      console.error(`Server error:`, err);
-    });
+    
+    await listenPromise;
+    console.log("[DEBUG] Listen promise resolved - server should now be accessible");
+    console.log("[DEBUG] Server is now running - process will stay alive due to active server handle");
 
     // importantly only setup vite in development and after
     // setting up all the other routes so the catch-all route
@@ -108,6 +147,13 @@ app.use((req, res, next) => {
       });
       console.log("[DEBUG] Vite setup completed");
     }
+    console.log("[DEBUG] Async initialization function ending");
+    
+    // IMPORTANT: Never return from this async IIFE so the process stays alive
+    // Create a promise that never resolves
+    await new Promise(() => {
+      // This promise never resolves, keeping the process alive
+    });
   } catch (error) {
     console.error("Server initialization error:", error);
     process.exit(1);

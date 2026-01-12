@@ -5,6 +5,7 @@ import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
+import { fileURLToPath } from "url";
 
 const viteLogger = createLogger();
 
@@ -30,20 +31,15 @@ export async function setupVite(server: Server, app: Express) {
   app.use("*", async (req, res, next) => {
     // Don't handle API routes - let them fall through
     if (req.path.startsWith("/api/")) {
-      console.log("[DEBUG] Vite catch-all skipping API route:", req.originalUrl);
       return next();
     }
 
-    console.log("[DEBUG] Vite catch-all route called for:", req.originalUrl);
     const url = req.originalUrl;
 
     try {
-      const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "..",
-        "client",
-        "index.html",
-      );
+      // Use fileURLToPath to properly convert import.meta.url to a file path
+      const currentDir = path.dirname(fileURLToPath(import.meta.url));
+      const clientTemplate = path.resolve(currentDir, "..", "client", "index.html");
 
       // always reload the index.html file from disk incase it changes
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
