@@ -163,7 +163,7 @@ export async function registerRoutes(
           address: req.body.address || "",
           hospitalName: req.body.hospitalName || "",
           medicalCondition: req.body.medicalCondition || "",
-          urgencyLevel: req.body.urgencyLevel || "medium",
+          urgencyLevel: req.body.urgencyLevel || "normal",
         };
         try {
           await storage.createReceiver(receiverData);
@@ -708,7 +708,12 @@ export async function registerRoutes(
 
   app.post("/api/blood-inventory", async (req, res) => {
     try {
-      const payload = insertBloodInventorySchema.parse(req.body);
+      // Convert expiryDate string to Date object if needed
+      const body = {
+        ...req.body,
+        expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : new Date(),
+      };
+      const payload = insertBloodInventorySchema.parse(body);
       const inventory = await storage.createBloodInventory(payload);
       res.status(201).json(inventory);
     } catch (error) {
@@ -762,7 +767,14 @@ export async function registerRoutes(
 
   app.get("/api/blood-requests/:id", async (req, res) => {
     try {
-      const request = await storage.getBloodRequest(req.params.id);
+      const requestId = req.params.id;
+      
+      // Validate ID format
+      if (!requestId || requestId.length !== 24) {
+        return res.status(400).json({ error: "Invalid request ID format" });
+      }
+      
+      const request = await storage.getBloodRequest(requestId);
       if (!request) {
         return res.status(404).json({ error: "Blood request not found" });
       }
@@ -891,16 +903,25 @@ export async function registerRoutes(
 
   app.put("/api/blood-requests/:id", async (req, res) => {
     try {
-      console.log("[DEBUG] Updating blood request:", req.params.id, "with data:", req.body);
+      const requestId = req.params.id;
+      console.log("[DEBUG] Updating blood request:", requestId, "with data:", req.body);
+      
+      // Validate ID format
+      if (!requestId || requestId.length !== 24) {
+        console.log("[DEBUG] Invalid request ID format:", requestId);
+        return res.status(400).json({ error: "Invalid request ID format" });
+      }
+      
       const updates = insertBloodRequestSchema.partial().parse(req.body);
       console.log("[DEBUG] Parsed updates:", updates);
-      const request = await storage.updateBloodRequest(
-        req.params.id,
-        updates
-      );
+      const request = await storage.updateBloodRequest(requestId, updates);
+      
       if (!request) {
+        console.log("[DEBUG] Blood request not found with ID:", requestId);
         return res.status(404).json({ error: "Blood request not found" });
       }
+      
+      console.log("[DEBUG] Successfully updated blood request:", request._id);
       res.json(request);
     } catch (error) {
       console.error("[ERROR] Failed to update blood request:", error);

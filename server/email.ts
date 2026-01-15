@@ -273,20 +273,16 @@ export async function sendBloodRequestNotification(params: {
   // Map urgency to color and display text
   const urgencyColors: Record<string, string> = {
     critical: "#dc2626",
-    high: "#ea580c",
-    medium: "#f59e0b",
-    low: "#65a30d",
+    normal: "#2563eb",
   };
 
   const urgencyLabels: Record<string, string> = {
     critical: "🚨 CRITICAL",
-    high: "⚠️ HIGH",
-    medium: "📌 MEDIUM",
-    low: "ℹ️ LOW",
+    normal: "ℹ️ NORMAL",
   };
 
-  const urgencyColor = urgencyColors[urgency] || "#f59e0b";
-  const urgencyLabel = urgencyLabels[urgency] || urgency.toUpperCase();
+  const urgencyColor = urgencyColors[urgency] || urgencyColors.normal;
+  const urgencyLabel = urgencyLabels[urgency] || urgencyLabels.normal;
 
   console.log(`[DEBUG] Sending blood request notification to ${donorEmail}`);
 
@@ -311,7 +307,7 @@ export async function sendBloodRequestNotification(params: {
               <p style="margin: 8px 0;"><strong>Blood Type:</strong> <span style="font-size: 20px; color: #dc2626; font-weight: bold;">${bloodType}</span></p>
               <p style="margin: 8px 0;"><strong>Hospital:</strong> ${hospitalName}</p>
               <p style="margin: 8px 0;"><strong>Requester:</strong> ${requesterName}</p>
-              <p style="margin: 8px 0;"><strong>Urgency Level:</strong> ${urgency.toUpperCase()}</p>
+              <p style="margin: 8px 0;"><strong>Urgency Level:</strong> ${urgencyLabel.replace(/^[^A-Z]*\s?/, "")}</p>
             </div>
           </div>
 

@@ -13,13 +13,11 @@ import { useState } from "react";
 
 const API_URL = "http://localhost:3001/api";
 
-type Urgency = "critical" | "high" | "medium" | "low";
+type Urgency = "critical" | "normal";
 
 const urgencyOptions: Array<{ value: Urgency; label: string; helper: string }> = [
   { value: "critical", label: "Critical", helper: "Immediate life-threatening emergency" },
-  { value: "high", label: "High", helper: "Needed within the next 6 hours" },
-  { value: "medium", label: "Medium", helper: "Needed within 24 hours" },
-  { value: "low", label: "Low", helper: "Routine or scheduled need" },
+  { value: "normal", label: "Normal", helper: "Standard priority within typical response times" },
 ];
 
 interface RequestFormValues {

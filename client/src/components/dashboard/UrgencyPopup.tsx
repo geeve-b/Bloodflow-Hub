@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { AlertCircle } from "lucide-react";
 
-type Urgency = "critical" | "high" | "medium" | "low";
+type Urgency = "critical" | "normal";
 
 interface UrgencyPopupProps {
   open: boolean;
@@ -37,28 +37,12 @@ const urgencyOptions: Array<{
     bgColor: "bg-red-50 dark:bg-red-950",
   },
   {
-    value: "high",
-    emoji: "🟠",
-    label: "High",
-    description: "Needed within a few hours",
-    color: "text-orange-600",
-    bgColor: "bg-orange-50 dark:bg-orange-950",
-  },
-  {
-    value: "medium",
-    emoji: "🟡",
-    label: "Medium",
-    description: "Needed within 24 hours",
-    color: "text-yellow-600",
-    bgColor: "bg-yellow-50 dark:bg-yellow-950",
-  },
-  {
-    value: "low",
-    emoji: "🟢",
-    label: "Low",
-    description: "Planned or non-emergency request",
-    color: "text-green-600",
-    bgColor: "bg-green-50 dark:bg-green-950",
+    value: "normal",
+    emoji: "🔵",
+    label: "Normal",
+    description: "Standard response priority",
+    color: "text-blue-600",
+    bgColor: "bg-blue-50 dark:bg-blue-950",
   },
 ];
 

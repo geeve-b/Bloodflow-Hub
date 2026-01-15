@@ -435,7 +435,7 @@ export default function UserManagement() {
                         <div>
                           <p className="text-sm text-muted-foreground">Urgency Level</p>
                           <Badge variant="secondary" className="mt-1 text-xs">
-                            {userProfile.urgencyLevel || "Medium"}
+                            {(userProfile.urgencyLevel || "Normal")}
                           </Badge>
                         </div>
                       </>

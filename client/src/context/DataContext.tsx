@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
 // Types
 export interface BloodStock {
@@ -17,7 +17,7 @@ export interface DonorRequest {
   unitsNeeded: number;
   hospitalName: string;
   status: "pending" | "fulfilled" | "approved" | "rejected";
-  urgency: "critical" | "high" | "medium" | "low";
+  urgency: "critical" | "normal";
   requestDate: string;
 }
 
@@ -40,6 +40,8 @@ interface DataContextType {
   addRequest: (req: Omit<DonorRequest, "id" | "status" | "requestDate">) => void;
   approveDonor: (id: string) => void;
   rejectDonor: (id: string) => void;
+  refreshInventory: () => Promise<void>;
+  isLoading: boolean;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -70,7 +72,7 @@ const INITIAL_REQUESTS: DonorRequest[] = [
     unitsNeeded: 1,
     hospitalName: "St. Mary's",
     status: "fulfilled",
-    urgency: "high",
+    urgency: "normal",
     requestDate: "2024-05-21",
   },
 ];
@@ -80,10 +82,45 @@ const INITIAL_DONORS: DonorProfile[] = [
   { id: "d2", name: "Michael Scott", bloodGroup: "O-", age: 45, lastDonation: "2024-01-10", medicalConditions: ["Asthma"], status: "pending", email: "michael@example.com" },
 ];
 
+const API_URL = "http://localhost:3001/api";
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<BloodStock[]>(INITIAL_INVENTORY);
   const [requests, setRequests] = useState<DonorRequest[]>(INITIAL_REQUESTS);
   const [donors, setDonors] = useState<DonorProfile[]>(INITIAL_DONORS);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch blood inventory from API on mount
+  useEffect(() => {
+    refreshInventory();
+  }, []);
+
+  const refreshInventory = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/blood-inventory`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          // Convert API data to BloodStock format
+          const bloodStocks = data.map((item: any) => ({
+            id: item._id || item.id,
+            bloodGroup: item.bloodType,
+            units: item.quantity,
+            hospitalId: item.hospitalId,
+            hospitalName: item.hospitalName || "Unknown Hospital",
+            lastUpdated: new Date(item.updatedAt || item.createdAt).toISOString().split('T')[0],
+          }));
+          setInventory(bloodStocks);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch blood inventory:", error);
+      // Keep using initial/existing inventory on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const updateInventory = (id: string, units: number) => {
     setInventory(prev => prev.map(item => item.id === id ? { ...item, units } : item));
@@ -108,7 +145,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <DataContext.Provider value={{ inventory, requests, donors, updateInventory, addRequest, approveDonor, rejectDonor }}>
+    <DataContext.Provider value={{ inventory, requests, donors, updateInventory, addRequest, approveDonor, rejectDonor, refreshInventory, isLoading }}>
       {children}
     </DataContext.Provider>
   );

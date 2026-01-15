@@ -81,13 +81,14 @@ async function initializeCollections() {
       address: "456 Oak Ave, City",
       hospitalName: "Central Hospital",
       medicalCondition: "Emergency Surgery",
-      urgencyLevel: "high",
+      urgencyLevel: "normal",
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     const sampleInventory = {
       hospitalId: "hospital-001",
+      hospitalName: "Central Hospital",
       bloodType: "O+",
       quantity: 50,
       expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
