@@ -39,6 +39,9 @@ export interface IStorage {
   getAllBloodInventory(): Promise<BloodInventory[]>;
   getBloodInventoryByHospital(hospitalId: string): Promise<BloodInventory[]>;
   getBloodInventoryByType(bloodType: string): Promise<BloodInventory[]>;
+  getBloodInventoryExpiringWithin(
+    days: number
+  ): Promise<Array<BloodInventory & { daysRemaining: number }>>;
   createBloodInventory(inventory: InsertBloodInventory): Promise<BloodInventory>;
   updateBloodInventory(
     id: string,
@@ -49,6 +52,19 @@ export interface IStorage {
   getBloodRequest(id: string): Promise<BloodRequest | undefined>;
   getAllBloodRequests(): Promise<BloodRequest[]>;
   getBloodRequestsByStatus(status: string): Promise<BloodRequest[]>;
+  searchAndFilterBloodRequests(
+    filters: {
+      bloodType?: string;
+      urgency?: string;
+      location?: string;
+      status?: string;
+      search?: string;
+    },
+    pagination?: {
+      skip: number;
+      limit: number;
+    }
+  ): Promise<{ requests: BloodRequest[]; total: number }>;
   createBloodRequest(request: InsertBloodRequest): Promise<BloodRequest>;
   updateBloodRequest(
     id: string,
@@ -328,6 +344,35 @@ export class MongoDBStorage implements IStorage {
     return normalizeMany<BloodInventory>(inventory);
   }
 
+  async getBloodInventoryExpiringWithin(
+    days: number
+  ): Promise<Array<BloodInventory & { daysRemaining: number }>> {
+    const now = new Date();
+    const expiryThreshold = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    const inventory = await db
+      .collection("bloodInventory")
+      .find({
+        status: { $in: ["available", "reserved"] },
+        expiryDate: {
+          $gte: now,
+          $lte: expiryThreshold,
+        },
+      })
+      .sort({ expiryDate: 1 })
+      .toArray();
+
+    return inventory.map((item) => {
+      const normalized = normalize<BloodInventory>(item);
+      if (!normalized) return null;
+      const daysRemaining = Math.ceil(
+        (new Date(normalized.expiryDate).getTime() - now.getTime()) /
+          (24 * 60 * 60 * 1000)
+      );
+      return { ...normalized, daysRemaining };
+    }).filter((item): item is BloodInventory & { daysRemaining: number } => item !== null);
+  }
+
   async createBloodInventory(
     inventory: InsertBloodInventory
   ): Promise<BloodInventory> {
@@ -389,6 +434,69 @@ export class MongoDBStorage implements IStorage {
       .find({ status })
       .toArray();
     return normalizeMany<BloodRequest>(requests);
+  }
+
+  async searchAndFilterBloodRequests(
+    filters: {
+      bloodType?: string;
+      urgency?: string;
+      location?: string;
+      status?: string;
+      search?: string;
+    },
+    pagination?: {
+      skip: number;
+      limit: number;
+    }
+  ): Promise<{ requests: BloodRequest[]; total: number }> {
+    const query: any = {};
+
+    if (filters.bloodType) {
+      query.bloodType = filters.bloodType;
+    }
+
+    if (filters.urgency) {
+      query.urgency = filters.urgency;
+    }
+
+    if (filters.status) {
+      query.status = filters.status;
+    }
+
+    if (filters.location) {
+      const locationRegex = new RegExp(filters.location, "i");
+      query.$or = [
+        { hospitalName: { $regex: locationRegex } },
+        ...(query.$or || []),
+      ];
+    }
+
+    if (filters.search) {
+      const searchRegex = new RegExp(filters.search, "i");
+      query.$or = [
+        { bloodType: { $regex: searchRegex } },
+        { hospitalName: { $regex: searchRegex } },
+        { requesterName: { $regex: searchRegex } },
+        ...(query.$or || []).filter(
+          (item: any) => !item.hospitalName || item.hospitalName !== query.$or[0]?.hospitalName
+        ),
+      ];
+    }
+
+    const collection = db.collection("bloodRequests");
+    const total = await collection.countDocuments(query);
+
+    const requests = await collection
+      .find(query)
+      .skip(pagination?.skip || 0)
+      .limit(pagination?.limit || 100)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    return {
+      requests: normalizeMany<BloodRequest>(requests),
+      total,
+    };
   }
 
   async createBloodRequest(
