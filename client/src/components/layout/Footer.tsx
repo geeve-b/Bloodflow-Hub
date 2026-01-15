@@ -1,4 +1,4 @@
-import { Droplet, Heart, Phone, Mail, MapPin } from "lucide-react";
+import { Droplet, Phone, Mail, MapPin } from "lucide-react";
 import { useLocation } from "wouter";
 
 export function Footer() {
@@ -7,7 +7,7 @@ export function Footer() {
   return (
     <footer className="bg-secondary/30 border-t border-border mt-auto">
       <div className="w-full px-4 md:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="space-y-4">
             <div className="flex items-center gap-2 font-bold text-xl">
               <Droplet className="h-5 w-5 text-primary fill-primary" />
@@ -29,7 +29,7 @@ export function Footer() {
           </div>
 
           <div>
-            <h3 className="font-semibold mb-4">Contact</h3>
+            <h3 className="font-semibold mb-4">Contact Information</h3>
             <ul className="space-y-3 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
                 <Phone className="h-4 w-4" />
@@ -45,20 +45,6 @@ export function Footer() {
               </li>
             </ul>
           </div>
-
-          <div>
-            <h3 className="font-semibold mb-4">Emergency</h3>
-            <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg">
-              <p className="text-destructive font-medium text-sm mb-2">Need blood urgently?</p>
-              <button className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 h-9 px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                Request Immediate Help
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div className="border-t border-border mt-12 pt-8 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} LifeFlow. All rights reserved.</p>
         </div>
       </div>
     </footer>
