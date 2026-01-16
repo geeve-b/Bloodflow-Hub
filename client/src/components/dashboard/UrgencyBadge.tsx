@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 type Urgency = "critical" | "normal";
 
 interface UrgencyBadgeProps {
-  urgency: Urgency;
+  urgency?: string | null;
   size?: "sm" | "md" | "lg";
 }
 
@@ -23,7 +23,8 @@ const urgencyConfig: Record<Urgency, { emoji: string; label: string; variant: "d
 };
 
 export function UrgencyBadge({ urgency, size = "md" }: UrgencyBadgeProps) {
-  const config = urgencyConfig[urgency];
+  const normalizedUrgency: Urgency = urgency === "critical" ? "critical" : "normal";
+  const config = urgencyConfig[normalizedUrgency];
 
   const sizeClass = {
     sm: "text-xs px-2 py-1",
@@ -32,13 +33,13 @@ export function UrgencyBadge({ urgency, size = "md" }: UrgencyBadgeProps) {
   }[size];
 
   const emphasisClass =
-    urgency === "critical"
+    normalizedUrgency === "critical"
       ? "ring-2 ring-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.35)]"
       : "";
 
   return (
     <Badge
-      variant="outline"
+      variant={config.variant}
       className={`${sizeClass} ${config.className} font-medium border ${emphasisClass}`}
     >
       <span className="mr-1">{config.emoji}</span>

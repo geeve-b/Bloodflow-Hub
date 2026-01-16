@@ -53,6 +53,8 @@ export const bloodRequestSchema = z.object({
   requesterId: z.string(),
   requesterName: z.string(),
   hospitalName: z.string(),
+  hospitalLatitude: z.number().min(-90).max(90).optional(),
+  hospitalLongitude: z.number().min(-180).max(180).optional(),
   bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
   quantity: z.number().min(1, "Quantity must be at least 1"),
   urgency: z.enum(["critical", "normal"]).default("normal"),
@@ -61,6 +63,7 @@ export const bloodRequestSchema = z.object({
   secondaryContactNumber: z.string().optional(),
   reason: z.string().optional(),
   status: z.enum(["pending", "approved", "fulfilled", "rejected"]).default("pending"),
+  priorityScore: z.number().min(0).max(1).default(0.5).optional(),
   rejectionReason: z.string().optional(),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
@@ -78,6 +81,9 @@ export const insertBloodRequestSchema = bloodRequestSchema.pick({
   secondaryContactNumber: true,
   reason: true,
   status: true,
+  hospitalLatitude: true,
+  hospitalLongitude: true,
+  priorityScore: true,
   rejectionReason: true,
 });
 
@@ -93,6 +99,19 @@ export const donorSchema = z.object({
   state: z.string().optional(),
   region: z.string().optional(),
   lastDonationDate: z.date().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  availabilityWindows: z
+    .array(
+      z.object({
+        start: z.string(),
+        end: z.string(),
+      })
+    )
+    .optional(),
+  eligibilityStatus: z.enum(["eligible", "temporarily_ineligible", "permanently_ineligible"]).default("eligible"),
+  eligibilityNotes: z.array(z.string()).optional(),
+  deferralUntil: z.date().optional(),
   isActive: z.boolean().default(true),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
@@ -107,6 +126,12 @@ export const insertDonorSchema = donorSchema.pick({
   address: true,
   state: true,
   region: true,
+  latitude: true,
+  longitude: true,
+  availabilityWindows: true,
+  eligibilityStatus: true,
+  eligibilityNotes: true,
+  deferralUntil: true,
 });
 
 // ==================== STAFF SCHEMA ====================

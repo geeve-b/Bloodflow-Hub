@@ -22,6 +22,7 @@ import {
   type ContactFormData,
 } from "./email";
 import { log } from "./index";
+import { MatchmakingEngine } from "./matchmaking";
 
 const removePassword = (user: any) => {
   if (!user || typeof user !== "object") {
@@ -79,6 +80,11 @@ const uploadMiddleware = multer({
   storage: storage_multer,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: fileFilter,
+});
+
+const matchmakingEngine = new MatchmakingEngine(storage, {
+  cacheTtlMs: 5 * 60 * 1000,
+  maxDistanceKm: 150,
 });
 
 export async function registerRoutes(
@@ -715,6 +721,7 @@ export async function registerRoutes(
       };
       const payload = insertBloodInventorySchema.parse(body);
       const inventory = await storage.createBloodInventory(payload);
+      matchmakingEngine.clearCache();
       res.status(201).json(inventory);
     } catch (error) {
       res.status(400).json({
@@ -734,6 +741,7 @@ export async function registerRoutes(
       if (!inventory) {
         return res.status(404).json({ error: "Blood inventory not found" });
       }
+      matchmakingEngine.clearCache();
       res.json(inventory);
     } catch (error) {
       res.status(400).json({
@@ -749,6 +757,7 @@ export async function registerRoutes(
       if (!deleted) {
         return res.status(404).json({ error: "Blood inventory not found" });
       }
+      matchmakingEngine.clearCache();
       res.json({ message: "Blood inventory deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete inventory" });
@@ -835,6 +844,7 @@ export async function registerRoutes(
       });
       
       res.status(201).json(request);
+      matchmakingEngine.clearCache();
     } catch (error) {
       res.status(400).json({
         error:
@@ -922,6 +932,7 @@ export async function registerRoutes(
       }
       
       console.log("[DEBUG] Successfully updated blood request:", request._id);
+      matchmakingEngine.clearCache();
       res.json(request);
     } catch (error) {
       console.error("[ERROR] Failed to update blood request:", error);
@@ -938,6 +949,7 @@ export async function registerRoutes(
       if (!deleted) {
         return res.status(404).json({ error: "Blood request not found" });
       }
+      matchmakingEngine.clearCache();
       res.json({ message: "Blood request deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete request" });
@@ -981,6 +993,7 @@ export async function registerRoutes(
     try {
       const payload = insertDonorSchema.parse(req.body);
       const donor = await storage.createDonor(payload);
+      matchmakingEngine.clearCache();
       res.status(201).json(donor);
     } catch (error) {
       res.status(400).json({
@@ -996,6 +1009,7 @@ export async function registerRoutes(
       if (!donor) {
         return res.status(404).json({ error: "Donor not found" });
       }
+      matchmakingEngine.clearCache();
       res.json(donor);
     } catch (error) {
       res.status(400).json({
@@ -1010,11 +1024,45 @@ export async function registerRoutes(
       if (!deleted) {
         return res.status(404).json({ error: "Donor not found" });
       }
+      matchmakingEngine.clearCache();
       res.json({ message: "Donor deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete donor" });
     }
   });
+
+  // ==================== MATCHMAKING ROUTES ====================
+  app.get(
+    "/api/matchmaking/requests/:requestId/suggestions",
+    async (req, res) => {
+      try {
+        const { requestId } = req.params;
+        const limitParam = Number(req.query.limit);
+        const limit = Number.isFinite(limitParam)
+          ? Math.max(1, Math.min(20, limitParam))
+          : 5;
+
+        const matches = await matchmakingEngine.suggestDonors(requestId, limit);
+        const suggestions = matches.map((match) => ({
+          donorId: match.donor._id,
+          donorName: `${match.donor.firstName} ${match.donor.lastName}`.trim(),
+          bloodType: match.donor.bloodType,
+          score: match.score,
+          distanceKm: match.distanceKm,
+          availabilityWindows: match.donor.availabilityWindows ?? [],
+          eligibilityStatus: match.donor.eligibilityStatus,
+          lastDonationDate: match.donor.lastDonationDate,
+          rationale: match.rationale,
+        }));
+
+        res.json({ requestId, suggestions });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to get donor suggestions";
+        res.status(400).json({ error: message });
+      }
+    }
+  );
 
   // ==================== STAFF ROUTES ====================
   app.get("/api/staff", async (_req, res) => {
