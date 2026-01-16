@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useDonorSuggestions } from "@/hooks/useDonorSuggestions";
 import { cn } from "@/lib/utils";
 import {
   Droplets,
@@ -43,6 +44,7 @@ import {
   Pencil,
   RefreshCcw,
   Loader2,
+  UserCheck,
 } from "lucide-react";
 import {
   Select,
@@ -153,6 +155,17 @@ export default function HospitalStaffDashboard() {
     quantity: "",
     expiryDate: "",
   });
+  const {
+    data: donorSuggestions = [],
+    isLoading: donorSuggestionsLoading,
+    isError: donorSuggestionsHasError,
+    error: donorSuggestionsError,
+    refetch: refetchDonorSuggestions,
+    isFetching: donorSuggestionsFetching,
+  } = useDonorSuggestions(
+    isDetailsOpen && selectedRequest ? selectedRequest._id : undefined,
+    5
+  );
 
   // Debug logging
   useEffect(() => {
@@ -1287,6 +1300,94 @@ export default function HospitalStaffDashboard() {
                     </div>
                   );
                 })()}
+              </div>
+
+              {/* Suggested Donors */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-red-600" />
+                    Suggested Donors
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => refetchDonorSuggestions()}
+                    disabled={donorSuggestionsLoading || donorSuggestionsFetching}
+                  >
+                    <RefreshCcw className="h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
+                <div className="bg-muted/40 p-4 rounded-lg space-y-3">
+                  {donorSuggestionsLoading || donorSuggestionsFetching ? (
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Calculating best matches…
+                    </div>
+                  ) : donorSuggestionsHasError ? (
+                    <p className="text-sm text-destructive">
+                      {donorSuggestionsError?.message || "Unable to load donor suggestions."}
+                    </p>
+                  ) : donorSuggestions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No eligible donors found within the preferred radius.
+                    </p>
+                  ) : (
+                    donorSuggestions.map((suggestion) => (
+                      <div
+                        key={suggestion.donorId}
+                        className="border border-border/60 rounded-lg bg-background/70 p-4 space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-sm text-foreground">
+                            {suggestion.donorName}
+                          </p>
+                          <Badge variant="secondary" className="text-xs">
+                            Match {Math.round(suggestion.score * 100)}%
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Droplets className="h-3 w-3" />
+                            {suggestion.bloodType}
+                          </span>
+                          {typeof suggestion.distanceKm === "number" && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {suggestion.distanceKm.toFixed(1)} km away
+                            </span>
+                          )}
+                          {suggestion.lastDonationDate && (
+                            <span>
+                              Last donation {new Date(suggestion.lastDonationDate).toLocaleDateString()}
+                            </span>
+                          )}
+                          {suggestion.eligibilityStatus && (
+                            <span className="capitalize">
+                              {suggestion.eligibilityStatus.replaceAll("_", " ")}
+                            </span>
+                          )}
+                        </div>
+                        {suggestion.rationale.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {suggestion.rationale.map((reason, index) => (
+                              <Badge key={`${suggestion.donorId}-reason-${index}`} variant="outline" className="text-xs">
+                                {reason}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {suggestion.availabilityWindows.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Next availability: {new Date(suggestion.availabilityWindows[0].start).toLocaleString()} – {new Date(suggestion.availabilityWindows[0].end).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               {/* Time Requirement */}

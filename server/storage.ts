@@ -544,6 +544,7 @@ export class MongoDBStorage implements IStorage {
     const now = new Date();
     const document = {
       ...donor,
+      eligibilityStatus: donor.eligibilityStatus ?? "eligible",
       isActive: true,
       createdAt: now,
       updatedAt: now,
