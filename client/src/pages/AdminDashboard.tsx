@@ -23,6 +23,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import UserManagement from "@/components/dashboard/UserManagement";
+import AdminAnalytics from "@/components/dashboard/AdminAnalytics";
 
 const ADMIN_EMAIL = "bloodflowhub@gmail.com";
 
@@ -205,6 +206,11 @@ export default function AdminDashboard() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* Analytics Section */}
+      <section>
+        <AdminAnalytics />
       </section>
 
       {/* User Management Section */}
