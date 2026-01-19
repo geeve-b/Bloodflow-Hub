@@ -764,6 +764,23 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/blood-inventory/expiry/alerts", async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 7;
+      const expiringInventory =
+        await storage.getBloodInventoryExpiringWithin(days);
+      res.json({
+        expiringUnits: expiringInventory,
+        totalExpiringWithin: expiringInventory.length,
+        warningPeriodDays: days,
+      });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ error: "Failed to fetch expiry alerts" });
+    }
+  });
+
   // ==================== BLOOD REQUEST ROUTES ====================
   app.get("/api/blood-requests", async (_req, res) => {
     try {
@@ -953,6 +970,36 @@ export async function registerRoutes(
       res.json({ message: "Blood request deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete request" });
+    }
+  });
+
+  app.get("/api/blood-requests/search/advanced", async (req, res) => {
+    try {
+      const filters = {
+        bloodType: req.query.bloodType as string | undefined,
+        urgency: req.query.urgency as string | undefined,
+        location: req.query.location as string | undefined,
+        status: req.query.status as string | undefined,
+        search: req.query.search as string | undefined,
+      };
+
+      const skip = parseInt(req.query.skip as string) || 0;
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      const result = await storage.searchAndFilterBloodRequests(filters, {
+        skip,
+        limit,
+      });
+
+      res.json({
+        requests: result.requests,
+        total: result.total,
+        page: Math.floor(skip / limit) + 1,
+        pageSize: limit,
+        totalPages: Math.ceil(result.total / limit),
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to search blood requests" });
     }
   });
 
