@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import UserManagement from "@/components/dashboard/UserManagement";
 import AdminAnalytics from "@/components/dashboard/AdminAnalytics";
+import { BloodExpiryAlerts } from "@/components/dashboard/BloodExpiryAlerts";
 
 const ADMIN_EMAIL = "bloodflowhub@gmail.com";
 
@@ -211,6 +212,11 @@ export default function AdminDashboard() {
       {/* Analytics Section */}
       <section>
         <AdminAnalytics />
+      </section>
+
+      {/* Blood Expiry Alerts Section */}
+      <section>
+        <BloodExpiryAlerts />
       </section>
 
       {/* User Management Section */}

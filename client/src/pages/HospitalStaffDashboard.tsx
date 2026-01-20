@@ -46,6 +46,7 @@ import {
   Loader2,
   UserCheck,
 } from "lucide-react";
+import { BloodExpiryAlerts } from "@/components/dashboard/BloodExpiryAlerts";
 import {
   Select,
   SelectContent,
@@ -749,6 +750,11 @@ export default function HospitalStaffDashboard() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Blood Inventory Expiry Alerts Section */}
+      <div>
+        <BloodExpiryAlerts />
       </div>
 
       {/* Blood Inventory Section */}
