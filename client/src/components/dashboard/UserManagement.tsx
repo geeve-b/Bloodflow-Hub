@@ -151,12 +151,12 @@ export default function UserManagement() {
 
   const getRoleBadgeColor = (role: string) => {
     const colors: Record<string, string> = {
-      admin: "bg-red-500/10 text-red-700 hover:bg-red-500/20",
-      donor: "bg-blue-500/10 text-blue-700 hover:bg-blue-500/20",
-      hospital: "bg-green-500/10 text-green-700 hover:bg-green-500/20",
-      receiver: "bg-purple-500/10 text-purple-700 hover:bg-purple-500/20",
+      admin: "bg-destructive/10 text-destructive dark:text-destructive hover:bg-destructive/20",
+      donor: "bg-blue-500/15 text-blue-700 dark:text-blue-200 hover:bg-blue-500/20",
+      hospital: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/20",
+      receiver: "bg-purple-500/15 text-purple-700 dark:text-purple-200 hover:bg-purple-500/20",
     };
-    return colors[role] || "bg-gray-500/10 text-gray-700";
+    return colors[role] || "bg-muted text-foreground";
   };
 
   if (loading) {
@@ -203,7 +203,7 @@ export default function UserManagement() {
           </div>
 
           {/* Users Table */}
-          <div className="w-full border rounded-lg overflow-x-auto">
+          <div className="w-full border border-border rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -235,7 +235,7 @@ export default function UserManagement() {
                       <TableCell className="whitespace-nowrap">
                         <Badge
                           variant={user.emailVerified ? "default" : "secondary"}
-                          className={`text-xs ${user.emailVerified ? "bg-green-500/10 text-green-700" : ""}`}
+                          className={`text-xs ${user.emailVerified ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-200 dark:bg-emerald-500/20" : ""}`}
                         >
                           {user.emailVerified ? "Verified" : "Pending"}
                         </Badge>

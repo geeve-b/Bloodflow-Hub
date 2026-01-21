@@ -471,15 +471,15 @@ export default function HospitalStaffDashboard() {
   ) => {
     switch (status) {
       case "fulfilled":
-        return "bg-green-100 text-green-800 border-green-300";
+        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-200 border border-emerald-500/30";
       case "approved":
-        return "bg-blue-100 text-blue-800 border-blue-300";
+        return "bg-blue-500/15 text-blue-700 dark:text-blue-200 border border-blue-500/30";
       case "pending":
-        return "bg-yellow-100 text-yellow-800 border-yellow-300";
+        return "bg-amber-500/15 text-amber-700 dark:text-amber-200 border border-amber-500/30";
       case "rejected":
-        return "bg-red-100 text-red-800 border-red-300";
+        return "bg-destructive/10 text-destructive border border-destructive/40";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-muted text-foreground border border-border";
     }
   };
 
@@ -1500,7 +1500,7 @@ export default function HospitalStaffDashboard() {
                       <p className="text-xs font-medium text-muted-foreground">
                         REMARKS OR NOTES
                       </p>
-                      <p className="text-sm mt-1 bg-white p-3 rounded border">
+                      <p className="text-sm mt-1 bg-card p-3 rounded border border-border">
                         {selectedRequest.remarks}
                       </p>
                     </div>
@@ -1510,7 +1510,7 @@ export default function HospitalStaffDashboard() {
                       <p className="text-xs font-medium text-muted-foreground">
                         REJECTION REASON
                       </p>
-                      <p className="text-sm mt-1 bg-red-50 p-3 rounded border border-red-300 text-red-800">
+                      <p className="text-sm mt-1 bg-destructive/10 p-3 rounded border border-destructive/40 text-destructive">
                         {selectedRequest.rejectionReason}
                       </p>
                     </div>
@@ -1519,7 +1519,7 @@ export default function HospitalStaffDashboard() {
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-3 pt-4 border-t">
+              <div className="space-y-3 pt-4 border-t border-border">
                 {(selectedRequest.status || "pending") === "pending" ? (
                   <>
                     {!showRejectReason ? (
@@ -1563,7 +1563,9 @@ export default function HospitalStaffDashboard() {
 
                             return (
                               <Button
-                                className={`flex-1 ${hasEnough ? "bg-green-600 hover:bg-green-700" : "bg-orange-600 hover:bg-orange-700"}`}
+                                className={`flex-1 ${hasEnough
+                                  ? "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white"
+                                  : "bg-amber-500 hover:bg-amber-600 dark:bg-amber-400 dark:hover:bg-amber-300 text-foreground"}`}
                                 onClick={() => handleProcessRequest("approve")}
                                 disabled={processingId === selectedRequest._id}
                                 title={!hasEnough ? "Insufficient inventory - will auto-reject" : ""}
@@ -1583,7 +1585,7 @@ export default function HospitalStaffDashboard() {
                           value={rejectReason}
                           onChange={(e) => setRejectReason(e.target.value)}
                           placeholder="Enter reason for rejecting this request..."
-                          className="w-full p-3 border rounded-md text-sm min-h-20 bg-white"
+                          className="w-full p-3 border border-border rounded-md text-sm min-h-20 bg-card"
                         />
                         <div className="flex gap-2">
                           <Button
@@ -1767,7 +1769,7 @@ export default function HospitalStaffDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">An error occurred while loading the dashboard.</p>
-            <p className="text-xs font-mono bg-gray-100 p-2 rounded overflow-auto max-h-40">
+            <p className="text-xs font-mono bg-muted p-2 rounded overflow-auto max-h-40">
               {error instanceof Error ? error.message : "Unknown error"}
             </p>
             <Button onClick={() => window.location.href = "/"} className="w-full">

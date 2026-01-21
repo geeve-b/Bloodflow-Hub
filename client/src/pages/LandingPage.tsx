@@ -51,7 +51,7 @@ export default function LandingPage() {
               <div className="flex items-center gap-6 pt-4 text-sm text-muted-foreground">
                 <div className="flex -space-x-2">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-8 w-8 rounded-full border-2 border-background bg-slate-200" />
+                    <div key={i} className="h-8 w-8 rounded-full border-2 border-background bg-muted" />
                   ))}
                 </div>
                 <p>Join <span className="font-bold text-foreground">10,000+</span> donors saving lives.</p>
@@ -83,7 +83,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card className="bg-background/50 backdrop-blur border-none shadow-sm">
               <CardContent className="pt-6 space-y-4">
-                <div className="h-12 w-12 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                   <Search className="h-6 w-6" />
                 </div>
                 <h3 className="text-xl font-bold">Real-time Search</h3>
@@ -94,7 +94,7 @@ export default function LandingPage() {
             </Card>
             <Card className="bg-background/50 backdrop-blur border-none shadow-sm">
               <CardContent className="pt-6 space-y-4">
-                <div className="h-12 w-12 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600">
+                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                   <Heart className="h-6 w-6" />
                 </div>
                 <h3 className="text-xl font-bold">Verified Donors</h3>
@@ -105,7 +105,7 @@ export default function LandingPage() {
             </Card>
             <Card className="bg-background/50 backdrop-blur border-none shadow-sm">
               <CardContent className="pt-6 space-y-4">
-                <div className="h-12 w-12 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                   <ShieldCheck className="h-6 w-6" />
                 </div>
                 <h3 className="text-xl font-bold">Privacy First</h3>

@@ -333,12 +333,12 @@ export default function StaffRegisterPage() {
   ];
 
   return (
-    <div className="min-h-screen py-12 px-4 bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen py-12 px-4 bg-background">
       <div className="max-w-4xl mx-auto">
-        <Card className="shadow-lg rounded-2xl border-0">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-t-2xl">
-            <CardTitle className="text-3xl font-bold text-slate-800">Staff Registration</CardTitle>
-            <CardDescription className="text-base text-slate-600 mt-2">
+        <Card className="shadow-lg rounded-2xl">
+          <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 dark:from-primary/10 dark:via-primary/5 dark:to-primary/10 rounded-t-2xl">
+            <CardTitle className="text-3xl font-bold text-foreground">Staff Registration</CardTitle>
+            <CardDescription className="text-base text-muted-foreground mt-2">
               Join our hospital staff network to manage blood inventory
             </CardDescription>
           </CardHeader>
@@ -346,12 +346,12 @@ export default function StaffRegisterPage() {
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Role Selection Section */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-              <Label className="text-sm font-semibold text-slate-700 block mb-3">
+            <div className="bg-secondary/30 dark:bg-secondary/40 p-6 rounded-lg border border-border">
+              <Label className="text-sm font-semibold text-foreground block mb-3">
                 Registration Type
               </Label>
               <Select value={selectedRole} onValueChange={(value: any) => setSelectedRole(value)}>
-                <SelectTrigger className="w-full rounded-lg border-slate-200 shadow-sm focus:ring-2 focus:ring-blue-500">
+                <SelectTrigger className="w-full rounded-lg border-border shadow-sm focus:ring-2 focus:ring-primary">
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -359,7 +359,7 @@ export default function StaffRegisterPage() {
                   <SelectItem value="donor">Donor</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-500 mt-2">
+              <p className="text-xs text-muted-foreground mt-2">
                 {selectedRole === "hospital"
                   ? "Register as hospital staff to manage blood inventory"
                   : "Register as a blood donor to contribute to saving lives"}
@@ -431,7 +431,7 @@ export default function StaffRegisterPage() {
                 Upload Staff ID / Employee ID Proof *
               </Label>
               <div className="flex flex-col gap-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer"
+                <div className="border-2 border-dashed border-border rounded-lg p-6 hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
                   onClick={() => document.getElementById("fileInput")?.click()}>
                   <input
                     id="fileInput"
@@ -442,30 +442,30 @@ export default function StaffRegisterPage() {
                     className="hidden"
                   />
                   <div className="flex flex-col items-center justify-center gap-2 text-center">
-                    <Upload className="h-8 w-8 text-gray-400" />
+                    <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-gray-700">Click to upload or drag and drop</p>
-                      <p className="text-xs text-gray-500">PDF, JPG, JPEG, or PNG (Max 5MB)</p>
+                      <p className="text-sm font-medium text-foreground">Click to upload or drag and drop</p>
+                      <p className="text-xs text-muted-foreground">PDF, JPG, JPEG, or PNG (Max 5MB)</p>
                     </div>
                   </div>
                 </div>
 
                 {/* File Preview */}
                 {formData.staffIdDocument && (
-                  <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 flex items-center justify-between">
+                  <div className="border border-border rounded-lg p-4 bg-muted flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {formData.staffIdDocument.type === "application/pdf" ? (
-                        <FileText className="h-5 w-5 text-red-500" />
+                        <FileText className="h-5 w-5 text-destructive" />
                       ) : (
-                        <div className="h-10 w-10 bg-gray-200 rounded-md flex items-center justify-center text-xs text-gray-600">
+                        <div className="h-10 w-10 bg-muted/80 rounded-md flex items-center justify-center text-xs text-muted-foreground">
                           IMG
                         </div>
                       )}
                       <div className="space-y-1">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-foreground">
                           {formData.staffIdDocument.name}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           {(formData.staffIdDocument.size / 1024).toFixed(2)} KB
                         </p>
                       </div>
@@ -680,7 +680,7 @@ export default function StaffRegisterPage() {
           </form>
         </CardContent>
 
-        <CardFooter className="flex justify-center text-sm text-muted-foreground border-t bg-muted/20 rounded-b-lg">
+        <CardFooter className="flex justify-center text-sm text-muted-foreground border-t border-border bg-muted/20 rounded-b-lg">
           Already have an account?{" "}
           <a href="/login" className="text-primary hover:underline font-semibold ml-1">
             Login

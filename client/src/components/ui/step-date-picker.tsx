@@ -85,14 +85,14 @@ export function StepDatePicker({
     return (
       <div className="space-y-4 p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-800">Select Year</h3>
-          <span className="text-sm font-medium text-pink-600">{tempYear}</span>
+          <h3 className="text-lg font-semibold text-foreground">Select Year</h3>
+          <span className="text-sm font-medium text-primary">{tempYear}</span>
         </div>
 
         <div className="space-y-2">
           {/* Scrollable Year Container */}
           <div className="relative">
-            <div className="h-72 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 scroll-smooth">
+            <div className="h-72 overflow-y-auto rounded-lg border border-border bg-muted/40 p-3 scroll-smooth">
               <div className="grid grid-cols-3 gap-2">
                 {yearsToShow.map((year) => (
                   <button
@@ -101,10 +101,10 @@ export function StepDatePicker({
                     aria-label={`Select year ${year}`}
                     className={cn(
                       "py-3 px-2 rounded-md text-sm font-medium transition-all duration-200",
-                      "hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1",
+                      "hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
                       tempYear === year
-                        ? "bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-lg scale-105"
-                        : "bg-white text-slate-700 border border-slate-200 hover:border-pink-300"
+                        ? "bg-primary text-primary-foreground shadow-lg scale-105"
+                        : "bg-card text-foreground border border-border hover:border-primary/60"
                     )}
                   >
                     {year}
@@ -114,7 +114,7 @@ export function StepDatePicker({
             </div>
           </div>
 
-          <p className="text-xs text-slate-500 text-center">
+          <p className="text-xs text-muted-foreground text-center">
             Scroll to select year • Future dates are disabled
           </p>
         </div>
@@ -131,20 +131,20 @@ export function StepDatePicker({
             variant="ghost"
             size="sm"
             onClick={handleBack}
-            className="text-pink-600 hover:text-pink-700"
+            className="text-primary hover:text-primary"
             aria-label="Go back to year selection"
           >
             <ChevronLeft className="w-4 h-4 mr-1" />
             Back
           </Button>
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className="text-lg font-semibold text-foreground">
             {tempYear}
           </h3>
           <div className="w-12" />
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-700 mb-3">Select Month</p>
+          <p className="text-sm font-medium text-foreground mb-3">Select Month</p>
           <div className="grid grid-cols-3 gap-2">
             {MONTHS.map((month, idx) => (
               <button
@@ -153,10 +153,10 @@ export function StepDatePicker({
                 aria-label={`Select ${month}`}
                 className={cn(
                   "py-3 px-2 rounded-lg text-sm font-medium transition-all duration-200",
-                  "hover:bg-pink-100 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1",
+                  "hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
                   tempMonth === idx
-                    ? "bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-lg scale-105"
-                    : "bg-slate-100 text-slate-700 border border-slate-200 hover:border-pink-300"
+                    ? "bg-primary text-primary-foreground shadow-lg scale-105"
+                    : "bg-muted text-foreground border border-border hover:border-primary/60"
                 )}
               >
                 {month.slice(0, 3)}
@@ -186,13 +186,13 @@ export function StepDatePicker({
             variant="ghost"
             size="sm"
             onClick={handleBack}
-            className="text-pink-600 hover:text-pink-700"
+            className="text-primary hover:text-primary"
             aria-label="Go back to month selection"
           >
             <ChevronLeft className="w-4 h-4 mr-1" />
             Back
           </Button>
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className="text-lg font-semibold text-foreground">
             {MONTHS[tempMonth]} {tempYear}
           </h3>
           <div className="w-12" />
@@ -202,7 +202,7 @@ export function StepDatePicker({
           {/* Weekday Headers */}
           <div className="grid grid-cols-7 gap-1">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <div key={day} className="text-center text-xs font-semibold text-slate-600 py-2">
+              <div key={day} className="text-center text-xs font-semibold text-muted-foreground py-2">
                 {day}
               </div>
             ))}
@@ -229,12 +229,12 @@ export function StepDatePicker({
                   aria-disabled={isDisabled || isFuture}
                   className={cn(
                     "aspect-square rounded-lg text-sm font-medium transition-all duration-200",
-                    "focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1",
+                    "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
                     isSelected && !isDisabled
-                      ? "bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-lg scale-105"
+                      ? "bg-primary text-primary-foreground shadow-lg scale-105"
                       : isDisabled || isFuture
-                        ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                        : "bg-white border border-slate-200 text-slate-700 hover:border-pink-300 hover:bg-pink-50"
+                        ? "bg-muted text-muted-foreground cursor-not-allowed"
+                        : "bg-card border border-border text-foreground hover:border-primary/60 hover:bg-primary/10"
                   )}
                 >
                   {day}
@@ -243,7 +243,7 @@ export function StepDatePicker({
             })}
           </div>
 
-          <p className="text-xs text-slate-500 text-center">
+          <p className="text-xs text-muted-foreground text-center">
             {isCurrentMonth ? "Future dates are disabled for date of birth" : ""}
           </p>
         </div>
