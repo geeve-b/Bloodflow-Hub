@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useBloodRequests } from "@/hooks/useBloodRequests";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -25,8 +26,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Search, AlertTriangle } from "lucide-react";
+import { Loader2, Search, AlertTriangle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CONFIG = {
@@ -48,10 +57,15 @@ export function ActiveRequestsTable() {
     isFetching,
     error,
   } = useBloodRequests();
+  const { toast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string; patientName?: string }>({
+    open: false,
+  });
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -81,6 +95,40 @@ export function ActiveRequestsTable() {
 
   const pendingCount = requests.filter((r) => r.status === "pending").length;
   const criticalCount = requests.filter((r) => r.urgency === "critical").length;
+
+  const handleDeleteClick = (id: string, patientName: string) => {
+    setDeleteDialog({ open: true, id, patientName });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog.id) return;
+
+    setDeletingId(deleteDialog.id);
+    try {
+      const response = await fetch(`/api/blood-requests/${deleteDialog.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete request");
+      }
+
+      toast({
+        title: "Request deleted",
+        description: `Blood request for ${deleteDialog.patientName} has been removed.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete request",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+      setDeleteDialog({ open: false });
+    }
+  };
 
   if (error) {
     return (
@@ -198,6 +246,7 @@ export function ActiveRequestsTable() {
                   <TableHead className="text-right font-semibold">
                     Requested
                   </TableHead>
+                  <TableHead className="text-right font-semibold">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -266,6 +315,23 @@ export function ActiveRequestsTable() {
                           )
                         : "N/A"}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() =>
+                          handleDeleteClick(request._id, request.patientName)
+                        }
+                        disabled={deletingId === request._id}
+                      >
+                        {deletingId === request._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -283,6 +349,47 @@ export function ActiveRequestsTable() {
               )}
             </div>
           </div>
+        )}
+
+        {deleteDialog.open && (
+          <Dialog open={true} onOpenChange={() => setDeleteDialog({ open: false })}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Blood Request?</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete the blood request for{" "}
+                  <span className="font-semibold text-foreground">{deleteDialog.patientName}</span>? This action cannot be
+                  undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center gap-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span>This will be removed from all dashboards in real-time.</span>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteDialog({ open: false })}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteConfirm}
+                  disabled={!!deletingId}
+                >
+                  {deletingId ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </CardContent>
     </Card>
