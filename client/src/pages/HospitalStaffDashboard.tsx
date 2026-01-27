@@ -125,7 +125,7 @@ interface BloodInventory {
 }
 
 export default function HospitalStaffDashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -178,7 +178,14 @@ export default function HospitalStaffDashboard() {
 
   useEffect(() => {
     console.log("📝 User updated:", user);
-  }, [user]);
+    // Redirect to home if user logs out (becomes null)
+    if (user === null) {
+      const timer = setTimeout(() => {
+        setLocation("/");
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [user, setLocation]);
 
   // Fetch staff profile
   useEffect(() => {
@@ -676,14 +683,9 @@ export default function HospitalStaffDashboard() {
                 <p className="text-xs text-muted-foreground">Your role: <strong>{user.role}</strong></p>
                 <p className="text-xs text-muted-foreground">Your name: <strong>{user.name}</strong></p>
               </div>
-              <div className="bg-blue-50 border border-blue-200 p-2 rounded text-xs space-y-1">
-                <p><strong>Debug:</strong></p>
-                <p>ID: {user.id}</p>
-                <p>Email: {user.email}</p>
-              </div>
               <div className="flex gap-2">
                 <Button
-                  onClick={() => window.location.href = "/"}
+                  onClick={() => setLocation("/")}
                   className="flex-1 text-xs"
                   variant="outline"
                   size="sm"
@@ -691,7 +693,10 @@ export default function HospitalStaffDashboard() {
                   Home
                 </Button>
                 <Button
-                  onClick={() => window.location.href = "/"}
+                  onClick={() => {
+                    logout();
+                    setLocation("/");
+                  }}
                   className="flex-1 text-xs"
                   variant="destructive"
                   size="sm"
@@ -708,11 +713,6 @@ export default function HospitalStaffDashboard() {
     // Main dashboard
     return (
     <div className="w-full py-8 px-4 md:px-8 space-y-8">
-      {/* Debug Info */}
-      <div className="bg-blue-50 border border-blue-200 p-3 rounded text-sm">
-        <p><strong>Debug Info:</strong> User: {user?.name}, Role: {user?.role}</p>
-      </div>
-
       {/* Header */}
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">
