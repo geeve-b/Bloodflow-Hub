@@ -3,9 +3,11 @@ import bcrypt from "bcryptjs";
 import {
   type BloodInventory,
   type BloodRequest,
+  type BloodExpiryAlert,
   type Donor,
   type InsertBloodInventory,
   type InsertBloodRequest,
+  type InsertBloodExpiryAlert,
   type InsertDonor,
   type InsertStaff,
   type InsertUser,
@@ -92,6 +94,19 @@ export interface IStorage {
   createReceiver(receiver: any): Promise<any>;
   updateReceiver(id: string, receiver: Partial<any>): Promise<any | undefined>;
   deleteReceiver(id: string): Promise<boolean>;
+
+  // Blood Expiry Alert Methods
+  getBloodExpiryAlert(id: string): Promise<BloodExpiryAlert | undefined>;
+  getAllBloodExpiryAlerts(): Promise<BloodExpiryAlert[]>;
+  getBloodExpiryAlertsByHospital(hospitalId: string): Promise<BloodExpiryAlert[]>;
+  getBloodExpiryAlertsByLevel(alertLevel: string): Promise<BloodExpiryAlert[]>;
+  getActiveBloodExpiryAlerts(resolved?: boolean): Promise<BloodExpiryAlert[]>;
+  createBloodExpiryAlert(alert: InsertBloodExpiryAlert): Promise<BloodExpiryAlert>;
+  updateBloodExpiryAlert(id: string, alert: Partial<InsertBloodExpiryAlert>): Promise<BloodExpiryAlert | undefined>;
+  acknowledgeBloodExpiryAlert(id: string, userId: string, notes?: string): Promise<BloodExpiryAlert | undefined>;
+  resolveBloodExpiryAlert(id: string, userId: string, notes?: string): Promise<BloodExpiryAlert | undefined>;
+  deleteBloodExpiryAlert(id: string): Promise<boolean>;
+  checkAndCreateExpiryAlerts(): Promise<BloodExpiryAlert[]>;
 }
 
 const toObjectId = (id: string) => {
@@ -784,6 +799,226 @@ export class MongoDBStorage implements IStorage {
     const result = await db.collection("receivers").deleteOne({ _id: toObjectId(id) });
     return result.deletedCount === 1;
   }
+
+  // ==================== BLOOD EXPIRY ALERT METHODS ====================
+  async getBloodExpiryAlert(id: string): Promise<BloodExpiryAlert | undefined> {
+    const alert = await db
+      .collection("bloodExpiryAlerts")
+      .findOne({ _id: toObjectId(id) });
+    return normalize<BloodExpiryAlert>(alert);
+  }
+
+  async getAllBloodExpiryAlerts(): Promise<BloodExpiryAlert[]> {
+    const alerts = await db
+      .collection("bloodExpiryAlerts")
+      .find({})
+      .sort({ alertSentAt: -1 })
+      .toArray();
+    return normalizeMany<BloodExpiryAlert>(alerts);
+  }
+
+  async getBloodExpiryAlertsByHospital(hospitalId: string): Promise<BloodExpiryAlert[]> {
+    const alerts = await db
+      .collection("bloodExpiryAlerts")
+      .find({ hospitalId })
+      .sort({ alertSentAt: -1 })
+      .toArray();
+    return normalizeMany<BloodExpiryAlert>(alerts);
+  }
+
+  async getBloodExpiryAlertsByLevel(alertLevel: string): Promise<BloodExpiryAlert[]> {
+    const alerts = await db
+      .collection("bloodExpiryAlerts")
+      .find({ alertLevel })
+      .sort({ alertSentAt: -1 })
+      .toArray();
+    return normalizeMany<BloodExpiryAlert>(alerts);
+  }
+
+  async getActiveBloodExpiryAlerts(resolved = false): Promise<BloodExpiryAlert[]> {
+    const alerts = await db
+      .collection("bloodExpiryAlerts")
+      .find({ resolved })
+      .sort({ alertSentAt: -1 })
+      .toArray();
+    return normalizeMany<BloodExpiryAlert>(alerts);
+  }
+
+  async createBloodExpiryAlert(
+    alert: InsertBloodExpiryAlert
+  ): Promise<BloodExpiryAlert> {
+    const now = new Date();
+    const document = {
+      ...alert,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db
+      .collection("bloodExpiryAlerts")
+      .insertOne(document);
+    return normalize<BloodExpiryAlert>({ ...document, _id: result.insertedId })!;
+  }
+
+  async updateBloodExpiryAlert(
+    id: string,
+    alert: Partial<InsertBloodExpiryAlert>
+  ): Promise<BloodExpiryAlert | undefined> {
+    const updatePayload = removeUndefined({
+      ...alert,
+      updatedAt: new Date(),
+    });
+    const result = await db
+      .collection("bloodExpiryAlerts")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as any)?.value ?? result ?? null;
+    return normalize<BloodExpiryAlert>(updated);
+  }
+
+  async acknowledgeBloodExpiryAlert(
+    id: string,
+    userId: string,
+    notes?: string
+  ): Promise<BloodExpiryAlert | undefined> {
+    const updatePayload = {
+      acknowledged: true,
+      acknowledgedBy: userId,
+      acknowledgedAt: new Date(),
+      ...(notes && { acknowledgedNotes: notes }),
+      updatedAt: new Date(),
+    };
+    const result = await db
+      .collection("bloodExpiryAlerts")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as any)?.value ?? result ?? null;
+    return normalize<BloodExpiryAlert>(updated);
+  }
+
+  async resolveBloodExpiryAlert(
+    id: string,
+    userId: string,
+    notes?: string
+  ): Promise<BloodExpiryAlert | undefined> {
+    const updatePayload = {
+      resolved: true,
+      resolvedBy: userId,
+      resolvedAt: new Date(),
+      ...(notes && { resolvedNotes: notes }),
+      updatedAt: new Date(),
+    };
+    const result = await db
+      .collection("bloodExpiryAlerts")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        { $set: updatePayload },
+        { returnDocument: "after" }
+      );
+    const updated = (result as any)?.value ?? result ?? null;
+    return normalize<BloodExpiryAlert>(updated);
+  }
+
+  async deleteBloodExpiryAlert(id: string): Promise<boolean> {
+    const result = await db
+      .collection("bloodExpiryAlerts")
+      .deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
+  }
+
+  async checkAndCreateExpiryAlerts(): Promise<BloodExpiryAlert[]> {
+    const now = new Date();
+    const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Get all inventory expiring within 7 days
+    const expiringInventory = await db
+      .collection("bloodInventory")
+      .find({
+        status: { $in: ["available", "limited"] },
+        expiryDate: {
+          $gte: now,
+          $lte: sevenDaysLater,
+        },
+      })
+      .toArray();
+
+    const createdAlerts: BloodExpiryAlert[] = [];
+
+    for (const inventory of expiringInventory) {
+      const normalized = normalize<BloodInventory>(inventory);
+      if (!normalized) continue;
+
+      // Check if alert already exists for this inventory
+      const existingAlert = await db
+        .collection("bloodExpiryAlerts")
+        .findOne({
+          inventoryId: inventory._id.toString(),
+          resolved: false,
+        });
+
+      if (existingAlert) {
+        // Update existing alert
+        const daysRemaining = Math.ceil(
+          (new Date(normalized.expiryDate).getTime() - now.getTime()) /
+            (24 * 60 * 60 * 1000)
+        );
+        const alertLevel = this.calculateAlertLevel(daysRemaining);
+
+        await db.collection("bloodExpiryAlerts").findOneAndUpdate(
+          { _id: existingAlert._id },
+          {
+            $set: {
+              daysRemaining,
+              alertLevel,
+              updatedAt: now,
+            },
+          }
+        );
+        continue;
+      }
+
+      // Calculate days remaining
+      const daysRemaining = Math.ceil(
+        (new Date(normalized.expiryDate).getTime() - now.getTime()) /
+          (24 * 60 * 60 * 1000)
+      );
+
+      // Determine alert level
+      const alertLevel = this.calculateAlertLevel(daysRemaining);
+
+      // Create new alert
+      const alert = await this.createBloodExpiryAlert({
+        inventoryId: inventory._id.toString(),
+        hospitalId: normalized.hospitalId,
+        hospitalName: normalized.hospitalName,
+        bloodType: normalized.bloodType,
+        quantity: normalized.quantity,
+        expiryDate: normalized.expiryDate,
+        daysRemaining,
+        alertLevel,
+        alertSentAt: now,
+        emailsSent: [],
+        acknowledged: false,
+        resolved: false,
+      });
+
+      createdAlerts.push(alert);
+    }
+
+    return createdAlerts;
+  }
+
+  private calculateAlertLevel(daysRemaining: number): "critical" | "warning" | "info" {
+    if (daysRemaining <= 1) return "critical";
+    if (daysRemaining <= 3) return "warning";
+    return "info";
+  }
 }
 
 export const storage = new MongoDBStorage();
+

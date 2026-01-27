@@ -216,6 +216,59 @@ export const insertDonorResponseSchema = donorResponseSchema.pick({
   tokenExpiresAt: true,
 });
 
+// ==================== BLOOD EXPIRY ALERT SCHEMA ====================
+export const bloodExpiryAlertSchema = z.object({
+  _id: z.instanceof(ObjectId).optional(),
+  inventoryId: z.string(),
+  hospitalId: z.string(),
+  hospitalName: z.string(),
+  bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
+  quantity: z.number().min(0),
+  expiryDate: z.date(),
+  daysRemaining: z.number().min(0),
+  alertLevel: z.enum(["critical", "warning", "info"]),
+  // critical: 1 day or less
+  // warning: 3 days or less (but > 1 day)
+  // info: 7 days or less (but > 3 days)
+  alertSentAt: z.date(),
+  emailsSent: z.array(z.object({
+    email: z.string().email(),
+    staffName: z.string(),
+    sentAt: z.date(),
+  })).default([]),
+  acknowledged: z.boolean().default(false),
+  acknowledgedBy: z.string().optional(),
+  acknowledgedAt: z.date().optional(),
+  acknowledgedNotes: z.string().optional(),
+  resolved: z.boolean().default(false),
+  resolvedBy: z.string().optional(),
+  resolvedAt: z.date().optional(),
+  resolvedNotes: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const insertBloodExpiryAlertSchema = bloodExpiryAlertSchema.pick({
+  inventoryId: true,
+  hospitalId: true,
+  hospitalName: true,
+  bloodType: true,
+  quantity: true,
+  expiryDate: true,
+  daysRemaining: true,
+  alertLevel: true,
+  alertSentAt: true,
+  emailsSent: true,
+  acknowledged: true,
+  acknowledgedBy: true,
+  acknowledgedAt: true,
+  acknowledgedNotes: true,
+  resolved: true,
+  resolvedBy: true,
+  resolvedAt: true,
+  resolvedNotes: true,
+});
+
 // ==================== TYPE EXPORTS ====================
 export type User = z.infer<typeof userSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -237,3 +290,6 @@ export type InsertReceiver = z.infer<typeof insertReceiverSchema>;
 
 export type DonorResponse = z.infer<typeof donorResponseSchema>;
 export type InsertDonorResponse = z.infer<typeof insertDonorResponseSchema>;
+
+export type BloodExpiryAlert = z.infer<typeof bloodExpiryAlertSchema>;
+export type InsertBloodExpiryAlert = z.infer<typeof insertBloodExpiryAlertSchema>;

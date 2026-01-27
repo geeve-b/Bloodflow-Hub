@@ -346,3 +346,174 @@ export async function sendBloodRequestNotification(params: {
     throw error;
   }
 }
+
+export interface BloodExpiryAlertEmailParams {
+  email: string;
+  staffName: string;
+  alertLevel: "critical" | "warning" | "info";
+  bloodType: string;
+  quantity: number;
+  daysRemaining: number;
+  expiryDate: Date;
+  hospitalName: string;
+}
+
+export async function sendBloodExpiryAlertEmail(
+  params: BloodExpiryAlertEmailParams
+): Promise<void> {
+  const {
+    email,
+    staffName,
+    alertLevel,
+    bloodType,
+    quantity,
+    daysRemaining,
+    expiryDate,
+    hospitalName,
+  } = params;
+
+  const fromName = process.env.SMTP_FROM_NAME || "LifeFlow";
+  const supportEmail =
+    process.env.SMTP_FROM_EMAIL ||
+    process.env.SMTP_USER ||
+    testAccountEmail ||
+    "bloodflowhub@gmail.com";
+
+  // Determine alert styling based on level
+  let alertColor = "#dc2626";
+  let alertBgColor = "#fef2f2";
+  let alertBorderColor = "#fecaca";
+  let alertTitle = "CRITICAL ALERT";
+  let alertDescription =
+    "Blood unit is expiring TODAY or within 24 hours. Immediate action required!";
+
+  if (alertLevel === "warning") {
+    alertColor = "#f59e0b";
+    alertBgColor = "#fffbeb";
+    alertBorderColor = "#fde68a";
+    alertTitle = "WARNING";
+    alertDescription = "Blood unit is expiring within 3 days. Please plan accordingly.";
+  } else if (alertLevel === "info") {
+    alertColor = "#3b82f6";
+    alertBgColor = "#eff6ff";
+    alertBorderColor = "#bfdbfe";
+    alertTitle = "REMINDER";
+    alertDescription = "Blood unit is expiring within 7 days. Review and plan usage.";
+  }
+
+  console.log(
+    `[DEBUG] Sending blood expiry alert email to ${email} for ${bloodType}`
+  );
+
+  try {
+    const transporter = await getTransporter();
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${supportEmail}>`,
+      to: email,
+      subject: `[${alertTitle}] Blood Expiry Alert - ${bloodType} Units at ${hospitalName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: ${alertBgColor}; border-left: 4px solid ${alertColor}; padding: 20px; margin-bottom: 20px; border-radius: 4px;">
+            <h2 style="color: ${alertColor}; margin-top: 0; margin-bottom: 12px;">
+              ⚠️ ${alertTitle}: Blood Expiry Alert
+            </h2>
+            <p style="font-size: 16px; color: #1f2937; margin: 0;">
+              ${alertDescription}
+            </p>
+          </div>
+
+          <p style="font-size: 14px; color: #4b5563;">Dear ${staffName},</p>
+
+          <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #1f2937; margin-top: 0; border-bottom: 2px solid ${alertColor}; padding-bottom: 12px;">
+              Unit Details
+            </h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+              <div>
+                <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0; font-weight: 600;">BLOOD TYPE</p>
+                <p style="font-size: 18px; color: ${alertColor}; margin: 0; font-weight: bold;">${bloodType}</p>
+              </div>
+              <div>
+                <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0; font-weight: 600;">QUANTITY</p>
+                <p style="font-size: 18px; color: #1f2937; margin: 0; font-weight: bold;">${quantity} units</p>
+              </div>
+              <div>
+                <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0; font-weight: 600;">DAYS REMAINING</p>
+                <p style="font-size: 18px; color: ${alertColor}; margin: 0; font-weight: bold;">${daysRemaining} day${daysRemaining !== 1 ? "s" : ""}</p>
+              </div>
+              <div>
+                <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0; font-weight: 600;">EXPIRES ON</p>
+                <p style="font-size: 18px; color: #1f2937; margin: 0; font-weight: bold;">${new Date(expiryDate).toLocaleDateString()}</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; border-radius: 4px; margin: 20px 0;">
+            <h3 style="color: #15803d; margin-top: 0; margin-bottom: 12px; font-size: 16px;">
+              ✓ Recommended Actions
+            </h3>
+            <ul style="margin: 0; padding-left: 20px; color: #166534;">
+              ${
+                alertLevel === "critical"
+                  ? `
+                <li style="margin-bottom: 8px;">Use this blood unit immediately if possible</li>
+                <li style="margin-bottom: 8px;">Contact other departments that may need ${bloodType}</li>
+                <li style="margin-bottom: 8px;">If not used, properly dispose according to protocols</li>
+              `
+                  : alertLevel === "warning"
+                    ? `
+                <li style="margin-bottom: 8px;">Review current patient needs for ${bloodType}</li>
+                <li style="margin-bottom: 8px;">Coordinate with other departments for potential use</li>
+                <li style="margin-bottom: 8px;">Plan for unit usage within the next 3 days</li>
+              `
+                    : `
+                <li style="margin-bottom: 8px;">Monitor this blood unit's status</li>
+                <li style="margin-bottom: 8px;">Plan for usage or safe disposal</li>
+                <li style="margin-bottom: 8px;">Check inventory system for updates</li>
+              `
+              }
+            </ul>
+          </div>
+
+          <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #1f2937; margin-top: 0; margin-bottom: 12px; font-size: 14px;">
+              📋 Hospital Information
+            </h3>
+            <p style="margin: 8px 0; color: #4b5563;">
+              <strong>Hospital:</strong> ${hospitalName}
+            </p>
+            <p style="margin: 8px 0; color: #4b5563;">
+              <strong>Alert Level:</strong> 
+              <span style="background-color: ${alertBgColor}; color: ${alertColor}; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                ${alertTitle}
+              </span>
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${process.env.VITE_API_URL || "http://localhost:5000"}/api/health" style="background-color: ${alertColor}; color: white; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+              View Blood Inventory Dashboard
+            </a>
+          </div>
+
+          <p style="font-size: 12px; color: #6b7280; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
+            This is an automated alert from the LifeFlow Blood Management System. These alerts are critical for maintaining blood supply safety and preventing wastage. Please ensure all staff members monitoring blood inventory receive and review these notifications promptly.
+          </p>
+
+          <p style="font-size: 12px; color: #9ca3af;">
+            If you have questions about this alert or need to report an issue, please contact your hospital administrator.<br/>
+            © ${new Date().getFullYear()} LifeFlow. All rights reserved.
+          </p>
+        </div>
+      `,
+    });
+    logTestPreview(info);
+    console.log(
+      `[DEBUG] Blood expiry alert sent successfully to ${email}`
+    );
+  } catch (error) {
+    console.error(`[ERROR] Failed to send blood expiry alert to ${email}:`, error);
+    throw error;
+  }
+}
+

@@ -23,6 +23,7 @@ import {
 } from "./email";
 import { log } from "./index";
 import { MatchmakingEngine } from "./matchmaking";
+import { bloodExpiryService } from "./bloodExpiryService";
 
 const removePassword = (user: any) => {
   if (!user || typeof user !== "object") {
@@ -1309,6 +1310,139 @@ export async function registerRoutes(
         success: false,
         message: "Failed to send message. Please try again later.",
       });
+    }
+  });
+
+  // ==================== BLOOD EXPIRY ALERT ROUTES ====================
+  
+  // Get all active expiry alerts
+  app.get("/api/blood-expiry-alerts", async (_req, res) => {
+    try {
+      const alerts = await storage.getActiveBloodExpiryAlerts(false);
+      res.json(alerts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch expiry alerts" });
+    }
+  });
+
+  // Get alert summary (dashboard overview)
+  app.get("/api/blood-expiry-alerts/summary", async (_req, res) => {
+    try {
+      const summary = await bloodExpiryService.getAlertSummary();
+      res.json(summary);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch alert summary" });
+    }
+  });
+
+  // Get alerts by hospital
+  app.get("/api/blood-expiry-alerts/hospital/:hospitalId", async (req, res) => {
+    try {
+      const alerts = await storage.getBloodExpiryAlertsByHospital(
+        req.params.hospitalId
+      );
+      res.json(alerts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch hospital alerts" });
+    }
+  });
+
+  // Get alerts by severity level
+  app.get("/api/blood-expiry-alerts/level/:level", async (req, res) => {
+    try {
+      const alerts = await storage.getBloodExpiryAlertsByLevel(
+        req.params.level
+      );
+      res.json(alerts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch alerts by level" });
+    }
+  });
+
+  // Get specific alert details
+  app.get("/api/blood-expiry-alerts/:id", async (req, res) => {
+    try {
+      const alert = await storage.getBloodExpiryAlert(req.params.id);
+      if (!alert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      res.json(alert);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch alert" });
+    }
+  });
+
+  // Acknowledge an alert
+  app.post("/api/blood-expiry-alerts/:id/acknowledge", async (req, res) => {
+    try {
+      const { userId, notes } = req.body;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      const updated = await storage.acknowledgeBloodExpiryAlert(
+        req.params.id,
+        userId,
+        notes
+      );
+      if (!updated) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      res.json({
+        message: "Alert acknowledged successfully",
+        alert: updated,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to acknowledge alert" });
+    }
+  });
+
+  // Resolve an alert (mark as handled)
+  app.post("/api/blood-expiry-alerts/:id/resolve", async (req, res) => {
+    try {
+      const { userId, notes } = req.body;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      const updated = await storage.resolveBloodExpiryAlert(
+        req.params.id,
+        userId,
+        notes
+      );
+      if (!updated) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      res.json({
+        message: "Alert resolved successfully",
+        alert: updated,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to resolve alert" });
+    }
+  });
+
+  // Check and create new expiry alerts (can be called manually or scheduled)
+  app.post("/api/blood-expiry-alerts/check/create", async (req, res) => {
+    try {
+      const result = await bloodExpiryService.checkAndCreateAlerts();
+      res.json({
+        message: "Expiry check completed",
+        ...result,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check and create alerts" });
+    }
+  });
+
+  // Delete a resolved alert
+  app.delete("/api/blood-expiry-alerts/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteBloodExpiryAlert(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      res.json({ message: "Alert deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete alert" });
     }
   });
 
