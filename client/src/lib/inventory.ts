@@ -41,6 +41,18 @@ export const isInventoryStale = (value?: string | Date) => {
 export const isInventoryUsable = (status?: InventoryStatus) =>
   status !== "not_available";
 
+/**
+ * Calculate inventory status based on quantity
+ * Less than 1 unit = "not_available" (Unavailable)
+ * 1 or more units = "available" (Available)
+ */
+export const calculateStatusFromQuantity = (quantity: number): InventoryStatus => {
+  if (quantity < 1) {
+    return "not_available";
+  }
+  return "available";
+};
+
 export const inventoryStatusMeta: Record<
   InventoryStatus,
   {

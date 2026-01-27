@@ -62,6 +62,7 @@ import {
   isInventoryStale,
   isInventoryUsable,
   normalizeInventoryStatus,
+  calculateStatusFromQuantity,
 } from "@/lib/inventory";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api";
@@ -361,7 +362,9 @@ export default function HospitalStaffDashboard() {
     () =>
       inventory.reduce(
         (acc, entry) => {
-          acc[entry.status] = (acc[entry.status] ?? 0) + 1;
+          // Calculate status based on quantity instead of stored status
+          const calculatedStatus = calculateStatusFromQuantity(entry.quantity);
+          acc[calculatedStatus] = (acc[calculatedStatus] ?? 0) + 1;
           return acc;
         },
         { available: 0, limited: 0, not_available: 0 } as Record<
@@ -877,7 +880,9 @@ export default function HospitalStaffDashboard() {
                 </TableHeader>
                 <TableBody>
                   {sortedInventory.map((entry) => {
-                    const meta = inventoryStatusMeta[entry.status];
+                    // Calculate status based on quantity
+                    const calculatedStatus = calculateStatusFromQuantity(entry.quantity);
+                    const meta = inventoryStatusMeta[calculatedStatus];
                     const stale = isInventoryStale(entry.updatedAt);
                     const StatusIcon = meta.icon;
                     return (
@@ -886,7 +891,7 @@ export default function HospitalStaffDashboard() {
                         className={cn(
                           "hover:bg-muted/40 transition-colors",
                           stale && "bg-amber-50/70 border-l-2 border-amber-300",
-                          entry.status === "not_available" && "opacity-80"
+                          calculatedStatus === "not_available" && "opacity-80"
                         )}
                       >
                         <TableCell>

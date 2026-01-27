@@ -8,13 +8,18 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 export function Navbar() {
   const { user, logout } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
   const isLanding = location === "/";
   const isDashboard = location === "/dashboard";
   const isHospitalDashboard = location === "/hospital-dashboard";
   const isAdminDashboard = location === "/admin";
+
+  const handleLogout = () => {
+    logout();
+    setLocation("/");
+  };
 
   const NavLinks = () => (
     <>
@@ -57,7 +62,7 @@ export function Navbar() {
                 <span className="font-semibold">{user.name}</span>
                 <span className="text-muted-foreground text-xs capitalize">{user.role}</span>
               </div>
-              <Button variant="outline" size="sm" onClick={logout} data-testid="button-logout">
+              <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
                 Logout
               </Button>
               {user.role === "hospital" && !isHospitalDashboard && (
@@ -139,7 +144,7 @@ export function Navbar() {
                           <Button className="w-full">Go to Dashboard</Button>
                         </Link>
                       )}
-                      <Button variant="outline" onClick={() => { logout(); setIsOpen(false); }} className="w-full">
+                      <Button variant="outline" onClick={() => { handleLogout(); setIsOpen(false); }} className="w-full">
                         Logout
                       </Button>
                     </>

@@ -25,6 +25,7 @@ import {
   formatInventoryTimestamp,
   inventoryStatusMeta,
   isInventoryStale,
+  calculateStatusFromQuantity,
 } from "@/lib/inventory";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -62,9 +63,12 @@ export function BloodInventoryTable() {
 
   const filteredInventory = useMemo(() => {
     return inventory
-      .filter((entry) =>
-        statusFilter === "all" ? true : entry.status === statusFilter
-      )
+      .filter((entry) => {
+        if (statusFilter === "all") return true;
+        // Calculate status based on quantity and compare
+        const calculatedStatus = calculateStatusFromQuantity(entry.quantity);
+        return calculatedStatus === statusFilter;
+      })
       .filter((entry) =>
         bloodTypeFilter === "all" ? true : entry.bloodType === bloodTypeFilter
       )
@@ -258,7 +262,9 @@ export function BloodInventoryTable() {
               </TableHeader>
               <TableBody>
                 {filteredInventory.map((entry) => {
-                  const statusMeta = inventoryStatusMeta[entry.status];
+                  // Calculate status based on quantity
+                  const calculatedStatus = calculateStatusFromQuantity(entry.quantity);
+                  const statusMeta = inventoryStatusMeta[calculatedStatus];
                   const stale = isInventoryStale(entry.updatedAt);
                   const StatusIcon = statusMeta.icon;
                   return (
