@@ -35,7 +35,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Search, AlertTriangle, Trash2 } from "lucide-react";
+import { Loader2, Search, AlertTriangle, Trash2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CONFIG = {
@@ -63,9 +63,10 @@ export function ActiveRequestsTable() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string; patientName?: string }>({
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string; patientName?: string; isBulk?: boolean }>({
     open: false,
   });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -97,36 +98,104 @@ export function ActiveRequestsTable() {
   const criticalCount = requests.filter((r) => r.urgency === "critical").length;
 
   const handleDeleteClick = (id: string, patientName: string) => {
-    setDeleteDialog({ open: true, id, patientName });
+    setDeleteDialog({ open: true, id, patientName, isBulk: false });
+  };
+
+  const handleSelectToggle = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredRequests.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredRequests.map((req) => req._id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    const selectedCount = selectedIds.size;
+    setDeleteDialog({
+      open: true,
+      isBulk: true,
+      patientName: `${selectedCount} request${selectedCount !== 1 ? "s" : ""}`,
+    });
   };
 
   const handleDeleteConfirm = async () => {
-    if (!deleteDialog.id) return;
+    if (deleteDialog.isBulk) {
+      // Bulk delete
+      setDeletingId("bulk");
+      let successCount = 0;
+      let failCount = 0;
 
-    setDeletingId(deleteDialog.id);
-    try {
-      const response = await fetch(`/api/blood-requests/${deleteDialog.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      for (const id of Array.from(selectedIds)) {
+        try {
+          const response = await fetch(`/api/blood-requests/${id}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
 
-      if (!response.ok) {
-        throw new Error("Failed to delete request");
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          failCount++;
+        }
       }
 
-      toast({
-        title: "Request deleted",
-        description: `Blood request for ${deleteDialog.patientName} has been removed.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete request",
-        variant: "destructive",
-      });
-    } finally {
       setDeletingId(null);
       setDeleteDialog({ open: false });
+      setSelectedIds(new Set());
+
+      if (successCount > 0) {
+        toast({
+          title: "Requests deleted",
+          description: `Successfully deleted ${successCount} request${successCount !== 1 ? "s" : ""}${failCount > 0 ? ` (${failCount} failed)` : ""}.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete selected requests",
+          variant: "destructive",
+        });
+      }
+    } else if (deleteDialog.id) {
+      // Single delete
+      setDeletingId(deleteDialog.id);
+      try {
+        const response = await fetch(`/api/blood-requests/${deleteDialog.id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to delete request");
+        }
+
+        toast({
+          title: "Request deleted",
+          description: `Blood request for ${deleteDialog.patientName} has been removed.`,
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to delete request",
+          variant: "destructive",
+        });
+      } finally {
+        setDeletingId(null);
+        setDeleteDialog({ open: false });
+      }
     }
   };
 
@@ -148,20 +217,47 @@ export function ActiveRequestsTable() {
   return (
     <Card className="border-border/70">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-xl">Active Blood Requests</CardTitle>
-            <CardDescription>
-              Manage all incoming blood requests and track their status
-            </CardDescription>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Active Blood Requests</CardTitle>
+              <CardDescription>
+                Manage all incoming blood requests and track their status
+              </CardDescription>
+            </div>
+            {(pendingCount > 0 || criticalCount > 0) && (
+              <Alert className="w-auto border-yellow-200 bg-yellow-50">
+                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-sm text-yellow-800">
+                  {pendingCount} pending • {criticalCount} critical
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
-          {(pendingCount > 0 || criticalCount > 0) && (
-            <Alert className="w-auto border-yellow-200 bg-yellow-50">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-sm text-yellow-800">
-                {pendingCount} pending • {criticalCount} critical
-              </AlertDescription>
-            </Alert>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-blue-50 p-3 border border-blue-200">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedIds.size} request{selectedIds.size !== 1 ? "s" : ""} selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Clear
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleBulkDelete}
+                  disabled={!!deletingId}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete {selectedIds.size}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </CardHeader>
@@ -235,6 +331,15 @@ export function ActiveRequestsTable() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/50 bg-muted/30">
+                  <TableHead className="w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === filteredRequests.length && filteredRequests.length > 0}
+                      onChange={handleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300 cursor-pointer"
+                      title={selectedIds.size === filteredRequests.length ? "Deselect all" : "Select all"}
+                    />
+                  </TableHead>
                   <TableHead className="font-semibold">Hospital</TableHead>
                   <TableHead className="font-semibold">Patient</TableHead>
                   <TableHead className="font-semibold">Blood Type</TableHead>
@@ -254,10 +359,19 @@ export function ActiveRequestsTable() {
                   <TableRow
                     key={request._id}
                     className={cn(
-                      "border-border/40 hover:bg-muted/40 transition-colors",
+                      "border-border/40 transition-colors",
+                      selectedIds.has(request._id) ? "bg-blue-50" : "hover:bg-muted/40",
                       request.urgency === "critical" && "bg-red-50/50"
                     )}
                   >
+                    <TableCell className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(request._id)}
+                        onChange={() => handleSelectToggle(request._id)}
+                        className="h-4 w-4 rounded border-gray-300 cursor-pointer"
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {request.hospitalName}
                     </TableCell>
@@ -355,11 +469,23 @@ export function ActiveRequestsTable() {
           <Dialog open={true} onOpenChange={() => setDeleteDialog({ open: false })}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Delete Blood Request?</DialogTitle>
+                <DialogTitle>
+                  Delete {deleteDialog.isBulk ? `${selectedIds.size} Blood Requests` : "Blood Request"}?
+                </DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to delete the blood request for{" "}
-                  <span className="font-semibold text-foreground">{deleteDialog.patientName}</span>? This action cannot be
-                  undone.
+                  {deleteDialog.isBulk ? (
+                    <>
+                      Are you sure you want to delete{" "}
+                      <span className="font-semibold text-foreground">{selectedIds.size} blood request(s)</span>? This
+                      action cannot be undone.
+                    </>
+                  ) : (
+                    <>
+                      Are you sure you want to delete the blood request for{" "}
+                      <span className="font-semibold text-foreground">{deleteDialog.patientName}</span>? This action cannot
+                      be undone.
+                    </>
+                  )}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex items-center gap-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
