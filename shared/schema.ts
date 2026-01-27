@@ -29,7 +29,6 @@ export const bloodInventorySchema = z.object({
   _id: z.instanceof(ObjectId).optional(),
   hospitalId: z.string(),
   hospitalName: z.string(),
-  hospitalName: z.string().optional(),
   bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
   quantity: z.number().min(0, "Quantity cannot be negative"),
   expiryDate: z.date(),

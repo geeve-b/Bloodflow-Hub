@@ -995,7 +995,7 @@ export class MongoDBStorage implements IStorage {
       const alert = await this.createBloodExpiryAlert({
         inventoryId: inventory._id.toString(),
         hospitalId: normalized.hospitalId,
-        hospitalName: normalized.hospitalName,
+        hospitalName: normalized.hospitalName || "Unknown Hospital",
         bloodType: normalized.bloodType,
         quantity: normalized.quantity,
         expiryDate: normalized.expiryDate,
