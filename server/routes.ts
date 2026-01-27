@@ -134,6 +134,7 @@ export async function registerRoutes(
           address: req.body.address || "",
           state: req.body.state || "",
           region: req.body.region || "",
+          eligibilityStatus: "eligible",
         };
         try {
           await storage.createDonor(donorData);
@@ -1443,6 +1444,263 @@ export async function registerRoutes(
       res.json({ message: "Alert deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete alert" });
+    }
+  });
+
+  // ==================== DONATION HISTORY ROUTES ====================
+  // Record a new donation
+  app.post("/api/donations/record", async (req, res) => {
+    try {
+      const { donorId, donorUserId, donorInfo, donationDetails } = req.body;
+
+      if (!donorId || !donorUserId || !donorInfo || !donationDetails) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const donation = await donationHistoryService.recordDonation(
+        donorId,
+        donorUserId,
+        donorInfo,
+        donationDetails
+      );
+
+      res.json({
+        message: "Donation recorded successfully",
+        donation,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to record donation" });
+    }
+  });
+
+  // Get donor's donation history
+  app.get("/api/donations/history/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+      const { limit, offset, year, location, status } = req.query;
+
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const history = await donationHistoryService.getDonationHistory(
+        donorId,
+        {
+          limit: limit ? parseInt(limit as string) : undefined,
+          offset: offset ? parseInt(offset as string) : undefined,
+          year: year ? parseInt(year as string) : undefined,
+          location: location as string,
+          status: status as string,
+        }
+      );
+
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donation history" });
+    }
+  });
+
+  // Get donation statistics
+  app.get("/api/donations/stats/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const stats = await donationHistoryService.getDonationStats(donorId);
+
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donation statistics" });
+    }
+  });
+
+  // Generate donation certificate
+  app.get("/api/donations/certificate/:donationHistoryId", async (req, res) => {
+    try {
+      const { donationHistoryId } = req.params;
+
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const certificate = await donationHistoryService.generateDonationCertificate(
+        donationHistoryId
+      );
+
+      res.json(certificate);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to generate certificate" });
+    }
+  });
+
+  // ==================== ELIGIBILITY REMINDER ROUTES ====================
+  // Trigger eligibility check
+  app.post("/api/eligibility/check", async (req, res) => {
+    try {
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      await eligibilityReminderService.checkEligibility();
+
+      res.json({
+        message: "Eligibility check completed",
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check eligibility" });
+    }
+  });
+
+  // Get reminders for a donor
+  app.get("/api/eligibility/reminders/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      const reminders = await eligibilityReminderService.getReminders(donorId);
+
+      res.json({ reminders });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch reminders" });
+    }
+  });
+
+  // Mark reminder as acknowledged
+  app.post("/api/eligibility/reminders/:reminderId/acknowledge", async (req, res) => {
+    try {
+      const { reminderId } = req.params;
+
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      await eligibilityReminderService.markReminderAsAcknowledged(reminderId);
+
+      res.json({ message: "Reminder marked as acknowledged" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to acknowledge reminder" });
+    }
+  });
+
+  // Send emergency reminder
+  app.post("/api/eligibility/emergency-reminder/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+      const { reason } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({ error: "Reason is required" });
+      }
+
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      const result = await eligibilityReminderService.sendEmergencyReminder(
+        donorId,
+        reason
+      );
+
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to send emergency reminder" });
+    }
+  });
+
+  // ==================== ACHIEVEMENT BADGE ROUTES ====================
+  // Get all badge definitions
+  app.get("/api/badges/definitions", async (req, res) => {
+    try {
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const badges = await achievementBadgeService.getBadgeDefinitions();
+
+      res.json({ badges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch badge definitions" });
+    }
+  });
+
+  // Get donor's badges
+  app.get("/api/badges/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const badges = await achievementBadgeService.getDonorBadges(donorId);
+
+      res.json({ badges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donor badges" });
+    }
+  });
+
+  // Get new badges for donor
+  app.get("/api/badges/:donorId/new", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const newBadges = await achievementBadgeService.getNewBadges(donorId);
+
+      res.json({ newBadges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch new badges" });
+    }
+  });
+
+  // Mark badge as viewed
+  app.post("/api/badges/:badgeId/view", async (req, res) => {
+    try {
+      const { badgeId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      await achievementBadgeService.markBadgeAsViewed(badgeId);
+
+      res.json({ message: "Badge marked as viewed" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to mark badge as viewed" });
+    }
+  });
+
+  // Evaluate donor badges (trigger after donation)
+  app.post("/api/badges/:donorId/evaluate", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      await achievementBadgeService.evaluateDonorBadges(donorId);
+
+      res.json({ message: "Badges evaluated successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to evaluate badges" });
+    }
+  });
+
+  // Add custom badge definition (admin only)
+  app.post("/api/badges/definitions/add", async (req, res) => {
+    try {
+      const { badgeId, name, emoji, description, rule, isActive } = req.body;
+
+      if (!badgeId || !name || !emoji || !description || !rule) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const result = await achievementBadgeService.addCustomBadgeDefinition({
+        badgeId,
+        name,
+        emoji,
+        description,
+        rule,
+        isActive: isActive ?? true,
+      });
+
+      res.json({
+        message: "Badge definition added successfully",
+        insertedId: result.insertedId,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add badge definition" });
     }
   });
 

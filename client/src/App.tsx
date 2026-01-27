@@ -23,6 +23,7 @@ import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import VerifyResetOtpPage from "@/pages/VerifyResetOtpPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import DonorDashboard from "@/pages/DonorDashboard";
 
 function Router() {
   return (
@@ -39,6 +40,7 @@ function Router() {
           <Route path="/verify-reset-otp" component={VerifyResetOtpPage} />
           <Route path="/reset-password" component={ResetPasswordPage} />
           <Route path="/dashboard" component={DashboardPage} />
+          <Route path="/donor-dashboard" component={DonorDashboard} />
           <Route path="/hospital-dashboard" component={HospitalStaffDashboard} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/about" component={AboutPage} />
