@@ -142,6 +142,7 @@ export default function HospitalStaffDashboard() {
   );
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
+  const [requestsTab, setRequestsTab] = useState<"active" | "completed">("active");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | NormalizedUrgency>("all");
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -395,6 +396,17 @@ export default function HospitalStaffDashboard() {
   useEffect(() => {
     let filtered = requests;
 
+    // Filter by tab - Active (pending/approved) or Completed (fulfilled/rejected)
+    if (requestsTab === "active") {
+      filtered = filtered.filter((req) => 
+        req.status === "pending" || req.status === "approved"
+      );
+    } else if (requestsTab === "completed") {
+      filtered = filtered.filter((req) => 
+        req.status === "fulfilled" || req.status === "rejected"
+      );
+    }
+
     if (statusFilter !== "all") {
       filtered = filtered.filter((req) => (req.status || "pending") === statusFilter);
     }
@@ -404,7 +416,7 @@ export default function HospitalStaffDashboard() {
     }
 
     setFilteredRequests(filtered);
-  }, [requests, statusFilter, urgencyFilter]);
+  }, [requests, statusFilter, urgencyFilter, requestsTab]);
 
   const handleViewDetails = (request: BloodRequest) => {
     setSelectedRequest(request);
@@ -961,11 +973,35 @@ export default function HospitalStaffDashboard() {
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Active Requests</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Blood Requests</h2>
             <p className="text-muted-foreground text-sm mt-1">
               View and manage blood requests from patients and hospitals
             </p>
           </div>
+        </div>
+
+        {/* Request Tabs */}
+        <div className="flex gap-2 border-b">
+          <Button
+            variant={requestsTab === "active" ? "default" : "ghost"}
+            onClick={() => {
+              setRequestsTab("active");
+              setStatusFilter("all");
+            }}
+            className="rounded-b-none"
+          >
+            Active Requests
+          </Button>
+          <Button
+            variant={requestsTab === "completed" ? "default" : "ghost"}
+            onClick={() => {
+              setRequestsTab("completed");
+              setStatusFilter("all");
+            }}
+            className="rounded-b-none"
+          >
+            Completed Requests
+          </Button>
         </div>
 
         {/* Filters */}
@@ -986,10 +1022,18 @@ export default function HospitalStaffDashboard() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="fulfilled">Fulfilled</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
+                    {requestsTab === "active" && (
+                      <>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                      </>
+                    )}
+                    {requestsTab === "completed" && (
+                      <>
+                        <SelectItem value="fulfilled">Fulfilled</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
