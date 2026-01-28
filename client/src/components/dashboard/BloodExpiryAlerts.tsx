@@ -206,7 +206,7 @@ export function BloodExpiryAlerts() {
   const getAlertIcon = (level: string) => {
     switch (level) {
       case "critical":
-        return <AlertTriangle className="h-5 w-5 text-red-600" />;
+        return <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
       case "warning":
         return <AlertCircle className="h-5 w-5 text-yellow-600" />;
       default:
@@ -228,7 +228,7 @@ export function BloodExpiryAlerts() {
   const getBgColor = (level: string) => {
     switch (level) {
       case "critical":
-        return "bg-red-50 border-red-200";
+        return "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-700";
       case "warning":
         return "bg-yellow-50 border-yellow-200";
       default:
@@ -254,17 +254,17 @@ export function BloodExpiryAlerts() {
       {/* Summary Cards */}
       {summary && summary.totalAlerts > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-red-50 border-red-200">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-red-900">
+          <Card className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-700">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-200">
                 Critical Alerts
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {summary.criticalAlerts}
               </div>
-              <p className="text-xs text-red-700 mt-1">
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
                 Expiring within 24 hours
               </p>
             </CardContent>
@@ -322,20 +322,20 @@ export function BloodExpiryAlerts() {
 
       {/* Affected Resources */}
       {summary && summary.totalAlerts > 0 && (
-        <Card className="bg-amber-50 border-amber-200">
+        <Card className="bg-amber-50 border-amber-200 dark:bg-blue-950 dark:border-blue-700">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">
+            <CardTitle className="text-sm font-medium text-amber-900 dark:text-blue-200">
               Affected Resources
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {summary.affectedBloodTypes.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                <span className="text-sm font-medium text-amber-900">
+                <span className="text-sm font-medium text-amber-900 dark:text-blue-200">
                   Blood Types:
                 </span>
                 {summary.affectedBloodTypes.map((type) => (
-                  <Badge key={type} variant="outline" className="bg-white">
+                  <Badge key={type} variant="outline" className="bg-white dark:bg-slate-800 text-black dark:text-white">
                     <Droplets className="h-3 w-3 mr-1" />
                     {type}
                   </Badge>
@@ -344,11 +344,11 @@ export function BloodExpiryAlerts() {
             )}
             {summary.affectedHospitals.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                <span className="text-sm font-medium text-amber-900">
+                <span className="text-sm font-medium text-amber-900 dark:text-blue-200">
                   Hospitals:
                 </span>
                 {summary.affectedHospitals.map((hospital) => (
-                  <Badge key={hospital} variant="outline" className="bg-white">
+                  <Badge key={hospital} variant="outline" className="bg-white dark:bg-slate-800 text-black dark:text-white">
                     <Building2 className="h-3 w-3 mr-1" />
                     {hospital}
                   </Badge>
@@ -562,7 +562,7 @@ export function BloodExpiryAlerts() {
                           <p className="text-sm font-medium text-gray-600">
                             Days Remaining
                           </p>
-                          <p className="text-lg font-bold text-red-600">
+                          <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                             {alert.daysRemaining} day
                             {alert.daysRemaining !== 1 ? "s" : ""}
                           </p>

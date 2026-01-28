@@ -154,7 +154,7 @@ export function BloodInventoryTable() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search by hospital or blood group"
-                className="pl-9"
+                className="pl-9 bg-white dark:bg-slate-900 text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
             </div>
           </div>
@@ -195,9 +195,9 @@ export function BloodInventoryTable() {
       </div>
 
       {staleEntries.length > 0 && (
-        <Alert className="border-amber-300 bg-amber-50">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle>Some entries look stale</AlertTitle>
+        <Alert className="border-amber-300 bg-yellow-50 text-amber-900 dark:bg-blue-950 dark:border-blue-700 dark:text-blue-200">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-blue-400" />
+          <AlertTitle className="text-amber-900 dark:text-blue-200">Some entries look stale</AlertTitle>
           <AlertDescription>
             {staleEntries.length} entr
             {staleEntries.length === 1 ? "y" : "ies"} have not been updated in over {INVENTORY_STALE_THRESHOLD_HOURS}
@@ -272,7 +272,7 @@ export function BloodInventoryTable() {
                       key={`${entry._id}-${entry.hospitalId}`}
                       className={cn(
                         "hover:bg-muted/30 transition-colors",
-                        stale && "bg-amber-50/70"
+                        stale && "bg-yellow-50/70 dark:bg-blue-950/40"
                       )}
                     >
                       <TableCell>
@@ -323,8 +323,8 @@ export function BloodInventoryTable() {
                           className={cn(
                             "mt-1 text-[11px]",
                             stale
-                              ? "border-amber-300 bg-amber-50 text-amber-700"
-                              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              ? "border-amber-400 bg-yellow-100 text-amber-900 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200"
+                              : "border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200"
                           )}
                         >
                           {stale ? "Stale" : "Fresh"}
