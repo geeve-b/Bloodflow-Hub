@@ -1446,5 +1446,162 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== INTER-HOSPITAL BLOOD SHARING ====================
+  
+  // Create inter-hospital blood request
+  app.post("/api/inter-hospital-blood", async (req, res) => {
+    try {
+      const {
+        requestingHospitalId,
+        requestingHospitalName,
+        bloodType,
+        quantity,
+        urgency,
+        reason,
+      } = req.body;
+
+      if (!requestingHospitalId || !bloodType || !quantity) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const request = {
+        _id: `inter-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        requestingHospitalId,
+        requestingHospitalName: requestingHospitalName || "Unknown Hospital",
+        bloodType,
+        quantity: parseInt(quantity),
+        urgency: urgency || "normal",
+        reason: reason || "",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Store in database
+      await storage.db
+        .collection("interHospitalBloodRequests")
+        .insertOne(request);
+
+      res.json(request);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create inter-hospital request" });
+    }
+  });
+
+  // Get inter-hospital blood requests (outgoing or incoming)
+  app.get("/api/inter-hospital-blood/:direction/:hospitalId", async (req, res) => {
+    try {
+      const { direction, hospitalId } = req.params;
+
+      const filter =
+        direction === "outgoing"
+          ? { requestingHospitalId: hospitalId }
+          : { requestingHospitalId: { $ne: hospitalId } };
+
+      const requests = await storage.db
+        .collection("interHospitalBloodRequests")
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      res.json(requests);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch inter-hospital requests" });
+    }
+  });
+
+  // Accept inter-hospital blood request
+  app.put("/api/inter-hospital-blood/:requestId/accept", async (req, res) => {
+    try {
+      const { requestId } = req.params;
+      const { providingHospitalId, providingHospitalName } = req.body;
+
+      if (!providingHospitalId) {
+        return res.status(400).json({ error: "providingHospitalId is required" });
+      }
+
+      const updated = await storage.db
+        .collection("interHospitalBloodRequests")
+        .findOneAndUpdate(
+          { _id: requestId, status: "pending" },
+          {
+            $set: {
+              status: "accepted",
+              providingHospitalId,
+              providingHospitalName: providingHospitalName || "Unknown Hospital",
+              updatedAt: new Date().toISOString(),
+            },
+          },
+          { returnDocument: "after" }
+        );
+
+      if (!updated.value) {
+        return res.status(404).json({ error: "Request not found or already processed" });
+      }
+
+      res.json(updated.value);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to accept inter-hospital request" });
+    }
+  });
+
+  // Reject inter-hospital blood request
+  app.put("/api/inter-hospital-blood/:requestId/reject", async (req, res) => {
+    try {
+      const { requestId } = req.params;
+      const { rejectionReason } = req.body;
+
+      const updated = await storage.db
+        .collection("interHospitalBloodRequests")
+        .findOneAndUpdate(
+          { _id: requestId, status: "pending" },
+          {
+            $set: {
+              status: "rejected",
+              rejectionReason: rejectionReason || "Request rejected",
+              updatedAt: new Date().toISOString(),
+            },
+          },
+          { returnDocument: "after" }
+        );
+
+      if (!updated.value) {
+        return res.status(404).json({ error: "Request not found or already processed" });
+      }
+
+      res.json(updated.value);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to reject inter-hospital request" });
+    }
+  });
+
+  // Mark inter-hospital blood request as fulfilled
+  app.put("/api/inter-hospital-blood/:requestId/fulfill", async (req, res) => {
+    try {
+      const { requestId } = req.params;
+
+      const updated = await storage.db
+        .collection("interHospitalBloodRequests")
+        .findOneAndUpdate(
+          { _id: requestId, status: "accepted" },
+          {
+            $set: {
+              status: "fulfilled",
+              updatedAt: new Date().toISOString(),
+            },
+          },
+          { returnDocument: "after" }
+        );
+
+      if (!updated.value) {
+        return res.status(404).json({ error: "Request not found or not in accepted state" });
+      }
+
+      res.json(updated.value);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fulfill inter-hospital request" });
+    }
+  });
+
   return httpServer;
 }
