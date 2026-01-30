@@ -1462,160 +1462,260 @@ export async function registerRoutes(
     }
   });
 
-  // ==================== INTER-HOSPITAL BLOOD SHARING ====================
-  
-  // Create inter-hospital blood request
-  app.post("/api/inter-hospital-blood", async (req, res) => {
+  // ==================== DONATION HISTORY ROUTES ====================
+  // Record a new donation
+  app.post("/api/donations/record", async (req, res) => {
     try {
-      const {
-        requestingHospitalId,
-        requestingHospitalName,
-        bloodType,
-        quantity,
-        urgency,
-        reason,
-      } = req.body;
+      const { donorId, donorUserId, donorInfo, donationDetails } = req.body;
 
-      if (!requestingHospitalId || !bloodType || !quantity) {
+      if (!donorId || !donorUserId || !donorInfo || !donationDetails) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      const request = {
-        _id: `inter-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        requestingHospitalId,
-        requestingHospitalName: requestingHospitalName || "Unknown Hospital",
-        bloodType,
-        quantity: parseInt(quantity),
-        urgency: urgency || "normal",
-        reason: reason || "",
-        status: "pending",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const donation = await donationHistoryService.recordDonation(
+        donorId,
+        donorUserId,
+        donorInfo,
+        donationDetails
+      );
 
-      // Store in database
-      await storage.db
-        .collection("interHospitalBloodRequests")
-        .insertOne(request);
-
-      res.json(request);
+      res.json({
+        message: "Donation recorded successfully",
+        donation,
+      });
     } catch (error) {
-      res.status(500).json({ error: "Failed to create inter-hospital request" });
+      res.status(500).json({ error: "Failed to record donation" });
     }
   });
 
-  // Get inter-hospital blood requests (outgoing or incoming)
-  app.get("/api/inter-hospital-blood/:direction/:hospitalId", async (req, res) => {
+  // Get donor's donation history
+  app.get("/api/donations/history/:donorId", async (req, res) => {
     try {
-      const { direction, hospitalId } = req.params;
+      const { donorId } = req.params;
+      const { limit, offset, year, location, status } = req.query;
 
-      const filter =
-        direction === "outgoing"
-          ? { requestingHospitalId: hospitalId }
-          : { requestingHospitalId: { $ne: hospitalId } };
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const history = await donationHistoryService.getDonationHistory(
+        donorId,
+        {
+          limit: limit ? parseInt(limit as string) : undefined,
+          offset: offset ? parseInt(offset as string) : undefined,
+          year: year ? parseInt(year as string) : undefined,
+          location: location as string,
+          status: status as string,
+        }
+      );
 
-      const requests = await storage.db
-        .collection("interHospitalBloodRequests")
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .toArray();
-
-      res.json(requests);
+      res.json(history);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch inter-hospital requests" });
+      res.status(500).json({ error: "Failed to fetch donation history" });
     }
   });
 
-  // Accept inter-hospital blood request
-  app.put("/api/inter-hospital-blood/:requestId/accept", async (req, res) => {
+  // Get donation statistics
+  app.get("/api/donations/stats/:donorId", async (req, res) => {
     try {
-      const { requestId } = req.params;
-      const { providingHospitalId, providingHospitalName } = req.body;
+      const { donorId } = req.params;
 
-      if (!providingHospitalId) {
-        return res.status(400).json({ error: "providingHospitalId is required" });
-      }
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const stats = await donationHistoryService.getDonationStats(donorId);
 
-      const updated = await storage.db
-        .collection("interHospitalBloodRequests")
-        .findOneAndUpdate(
-          { _id: requestId, status: "pending" },
-          {
-            $set: {
-              status: "accepted",
-              providingHospitalId,
-              providingHospitalName: providingHospitalName || "Unknown Hospital",
-              updatedAt: new Date().toISOString(),
-            },
-          },
-          { returnDocument: "after" }
-        );
-
-      if (!updated.value) {
-        return res.status(404).json({ error: "Request not found or already processed" });
-      }
-
-      res.json(updated.value);
+      res.json(stats);
     } catch (error) {
-      res.status(500).json({ error: "Failed to accept inter-hospital request" });
+      res.status(500).json({ error: "Failed to fetch donation statistics" });
     }
   });
 
-  // Reject inter-hospital blood request
-  app.put("/api/inter-hospital-blood/:requestId/reject", async (req, res) => {
+  // Generate donation certificate
+  app.get("/api/donations/certificate/:donationHistoryId", async (req, res) => {
     try {
-      const { requestId } = req.params;
-      const { rejectionReason } = req.body;
+      const { donationHistoryId } = req.params;
 
-      const updated = await storage.db
-        .collection("interHospitalBloodRequests")
-        .findOneAndUpdate(
-          { _id: requestId, status: "pending" },
-          {
-            $set: {
-              status: "rejected",
-              rejectionReason: rejectionReason || "Request rejected",
-              updatedAt: new Date().toISOString(),
-            },
-          },
-          { returnDocument: "after" }
-        );
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const certificate = await donationHistoryService.generateDonationCertificate(
+        donationHistoryId
+      );
 
-      if (!updated.value) {
-        return res.status(404).json({ error: "Request not found or already processed" });
-      }
-
-      res.json(updated.value);
+      res.json(certificate);
     } catch (error) {
-      res.status(500).json({ error: "Failed to reject inter-hospital request" });
+      res.status(500).json({ error: "Failed to generate certificate" });
     }
   });
 
-  // Mark inter-hospital blood request as fulfilled
-  app.put("/api/inter-hospital-blood/:requestId/fulfill", async (req, res) => {
+  // ==================== ELIGIBILITY REMINDER ROUTES ====================
+  // Trigger eligibility check
+  app.post("/api/eligibility/check", async (req, res) => {
     try {
-      const { requestId } = req.params;
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      await eligibilityReminderService.checkEligibility();
 
-      const updated = await storage.db
-        .collection("interHospitalBloodRequests")
-        .findOneAndUpdate(
-          { _id: requestId, status: "accepted" },
-          {
-            $set: {
-              status: "fulfilled",
-              updatedAt: new Date().toISOString(),
-            },
-          },
-          { returnDocument: "after" }
-        );
+      res.json({
+        message: "Eligibility check completed",
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check eligibility" });
+    }
+  });
 
-      if (!updated.value) {
-        return res.status(404).json({ error: "Request not found or not in accepted state" });
+  // Get reminders for a donor
+  app.get("/api/eligibility/reminders/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      const reminders = await eligibilityReminderService.getReminders(donorId);
+
+      res.json({ reminders });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch reminders" });
+    }
+  });
+
+  // Mark reminder as acknowledged
+  app.post("/api/eligibility/reminders/:reminderId/acknowledge", async (req, res) => {
+    try {
+      const { reminderId } = req.params;
+
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      await eligibilityReminderService.markReminderAsAcknowledged(reminderId);
+
+      res.json({ message: "Reminder marked as acknowledged" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to acknowledge reminder" });
+    }
+  });
+
+  // Send emergency reminder
+  app.post("/api/eligibility/emergency-reminder/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+      const { reason } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({ error: "Reason is required" });
       }
 
-      res.json(updated.value);
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      const result = await eligibilityReminderService.sendEmergencyReminder(
+        donorId,
+        reason
+      );
+
+      res.json(result);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fulfill inter-hospital request" });
+      res.status(500).json({ error: "Failed to send emergency reminder" });
+    }
+  });
+
+  // ==================== ACHIEVEMENT BADGE ROUTES ====================
+  // Get all badge definitions
+  app.get("/api/badges/definitions", async (req, res) => {
+    try {
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const badges = await achievementBadgeService.getBadgeDefinitions();
+
+      res.json({ badges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch badge definitions" });
+    }
+  });
+
+  // Get donor's badges
+  app.get("/api/badges/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const badges = await achievementBadgeService.getDonorBadges(donorId);
+
+      res.json({ badges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donor badges" });
+    }
+  });
+
+  // Get new badges for donor
+  app.get("/api/badges/:donorId/new", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const newBadges = await achievementBadgeService.getNewBadges(donorId);
+
+      res.json({ newBadges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch new badges" });
+    }
+  });
+
+  // Mark badge as viewed
+  app.post("/api/badges/:badgeId/view", async (req, res) => {
+    try {
+      const { badgeId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      await achievementBadgeService.markBadgeAsViewed(badgeId);
+
+      res.json({ message: "Badge marked as viewed" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to mark badge as viewed" });
+    }
+  });
+
+  // Evaluate donor badges (trigger after donation)
+  app.post("/api/badges/:donorId/evaluate", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      await achievementBadgeService.evaluateDonorBadges(donorId);
+
+      res.json({ message: "Badges evaluated successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to evaluate badges" });
+    }
+  });
+
+  // Add custom badge definition (admin only)
+  app.post("/api/badges/definitions/add", async (req, res) => {
+    try {
+      const { badgeId, name, emoji, description, rule, isActive } = req.body;
+
+      if (!badgeId || !name || !emoji || !description || !rule) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const result = await achievementBadgeService.addCustomBadgeDefinition({
+        badgeId,
+        name,
+        emoji,
+        description,
+        rule,
+        isActive: isActive ?? true,
+      });
+
+      res.json({
+        message: "Badge definition added successfully",
+        insertedId: result.insertedId,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add badge definition" });
     }
   });
 
