@@ -45,8 +45,11 @@ import {
   RefreshCcw,
   Loader2,
   UserCheck,
+  Search,
+  Building2,
 } from "lucide-react";
 import { BloodExpiryAlerts } from "@/components/dashboard/BloodExpiryAlerts";
+import { InterHospitalBloodSharing } from "@/components/dashboard/InterHospitalBloodSharing";
 import {
   Select,
   SelectContent,
@@ -158,6 +161,7 @@ export default function HospitalStaffDashboard() {
     quantity: "",
     expiryDate: "",
   });
+  const [activeTab, setActiveTab] = useState<"search" | "request" | "sharing">("search");
   const {
     data: donorSuggestions = [],
     isLoading: donorSuggestionsLoading,
@@ -712,60 +716,106 @@ export default function HospitalStaffDashboard() {
 
     // Main dashboard
     return (
-    <div className="w-full py-8 px-4 md:px-8 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Hospital Staff Dashboard
-        </h1>
-        <p className="text-lg text-primary font-semibold">
-          Welcome, {user?.name || user?.username || "Staff Member"}
-        </p>
+    <div className="w-full min-h-screen bg-background">
+      {/* Header Section */}
+      <div className="border-b bg-card sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
+          <div className="flex flex-col gap-2 mb-6">
+            <h1 className="text-3xl font-bold tracking-tight">
+              Hospital Staff Dashboard
+            </h1>
+            <p className="text-lg text-primary font-semibold">
+              Welcome, {user?.name || user?.username || "Staff Member"}
+            </p>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex gap-2 border-b">
+            <Button
+              variant={activeTab === "search" ? "default" : "ghost"}
+              onClick={() => setActiveTab("search")}
+              className={cn(
+                "rounded-b-none text-base font-semibold",
+                activeTab === "search" && "bg-blue-600 hover:bg-blue-700"
+              )}
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Search Blood
+            </Button>
+            <Button
+              variant={activeTab === "request" ? "default" : "ghost"}
+              onClick={() => setActiveTab("request")}
+              className={cn(
+                "rounded-b-none text-base font-semibold",
+                activeTab === "request" && "bg-blue-600 hover:bg-blue-700"
+              )}
+            >
+              <Droplets className="h-4 w-4 mr-2" />
+              Request Blood
+            </Button>
+            <Button
+              variant={activeTab === "sharing" ? "default" : "ghost"}
+              onClick={() => setActiveTab("sharing")}
+              className={cn(
+                "rounded-b-none text-base font-semibold",
+                activeTab === "sharing" && "bg-blue-600 hover:bg-blue-700"
+              )}
+            >
+              <Building2 className="h-4 w-4 mr-2" />
+              Inter-Hospital Sharing
+            </Button>
+          </div>
+        </div>
       </div>
 
-      {/* Overview Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Requests</CardTitle>
-            <Droplets className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeRequests}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Pending or approved requests
-            </p>
-          </CardContent>
-        </Card>
+      {/* Content Section */}
+      <div className="w-full py-8 px-4 md:px-8 space-y-8">
+        {/* Tab Content */}
+        {activeTab === "search" && (
+          <>
+            {/* Overview Stats */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Requests</CardTitle>
+                  <Droplets className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{activeRequests}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pending or approved requests
+                  </p>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Critical Cases</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {criticalRequests}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Critical Cases</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-destructive">
+                    {criticalRequests}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Requires immediate attention
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+                  <FileText className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{filteredRequests.length}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Based on current filters
+                  </p>
+                </CardContent>
+              </Card>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Requires immediate attention
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
-            <FileText className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredRequests.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Based on current filters
-            </p>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Blood Inventory Expiry Alerts Section */}
       <div>
@@ -967,8 +1017,12 @@ export default function HospitalStaffDashboard() {
             </div>
           </Card>
         )}
-      </div>
+            </div>
+          </>
+        )}
 
+        {activeTab === "request" && (
+          <>
       {/* Active Requests Section */}
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1159,6 +1213,13 @@ export default function HospitalStaffDashboard() {
               </Table>
             </div>
           </Card>
+        )}
+      </div>
+          </>
+        )}
+
+        {activeTab === "sharing" && (
+          <InterHospitalBloodSharing />
         )}
       </div>
 

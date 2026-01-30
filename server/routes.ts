@@ -23,6 +23,7 @@ import {
 } from "./email";
 import { log } from "./index";
 import { MatchmakingEngine } from "./matchmaking";
+import { initializeRealtime } from "./realtime";
 import { bloodExpiryService } from "./bloodExpiryService";
 
 const removePassword = (user: any) => {
@@ -92,6 +93,7 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const realtime = initializeRealtime(httpServer);
   // ==================== HEALTH CHECK ====================
   app.get("/api/health", (req, res) => {
     console.log("[DEBUG] Health check endpoint called");
@@ -134,7 +136,7 @@ export async function registerRoutes(
           address: req.body.address || "",
           state: req.body.state || "",
           region: req.body.region || "",
-          eligibilityStatus: "eligible",
+          eligibilityStatus: "eligible" as const,
         };
         try {
           await storage.createDonor(donorData);
@@ -828,6 +830,10 @@ export async function registerRoutes(
       const payload = insertBloodRequestSchema.parse(req.body);
       console.log(`[DEBUG] Creating blood request for blood type: ${payload.bloodType}`);
       const request = await storage.createBloodRequest(payload);
+      realtime.publishBloodRequest({
+        type: "blood-request:created",
+        payload: request,
+      });
       
       // Notify eligible donors asynchronously (don't wait for emails to send)
       setImmediate(async () => {
@@ -951,6 +957,10 @@ export async function registerRoutes(
       }
       
       console.log("[DEBUG] Successfully updated blood request:", request._id);
+      realtime.publishBloodRequest({
+        type: "blood-request:updated",
+        payload: request,
+      });
       matchmakingEngine.clearCache();
       res.json(request);
     } catch (error) {
@@ -964,11 +974,16 @@ export async function registerRoutes(
 
   app.delete("/api/blood-requests/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteBloodRequest(req.params.id);
+      const requestId = req.params.id;
+      const deleted = await storage.deleteBloodRequest(requestId);
       if (!deleted) {
         return res.status(404).json({ error: "Blood request not found" });
       }
       matchmakingEngine.clearCache();
+      realtime.publishBloodRequest({
+        type: "blood-request:deleted",
+        payload: { id: requestId },
+      });
       res.json({ message: "Blood request deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete request" });

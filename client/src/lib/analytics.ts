@@ -280,8 +280,8 @@ export const calculateInventoryTurnover = (
   const result = new Map<string, TurnoverStat>();
 
   const bloodTypes = new Set<string>([
-    ...inventoryByType.keys(),
-    ...fulfilledByType.keys(),
+    ...Array.from(inventoryByType.keys()),
+    ...Array.from(fulfilledByType.keys()),
   ]);
 
   bloodTypes.forEach((type) => {
