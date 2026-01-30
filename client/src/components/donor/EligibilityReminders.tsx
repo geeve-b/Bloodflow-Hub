@@ -194,11 +194,11 @@ export function EligibilityReminders() {
         )}
 
         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-          <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
+          <h4 className="font-medium text-sm mb-2 flex items-center gap-2 text-blue-900 dark:text-blue-100">
+            <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             Donation Cooldown Periods
           </h4>
-          <ul className="text-sm space-y-1 text-muted-foreground">
+          <ul className="text-sm space-y-1 text-blue-800 dark:text-blue-200">
             <li>🩸 Whole Blood: 90 days</li>
             <li>🩸 Platelets: 15 days</li>
             <li>🩸 Plasma: 48 hours</li>

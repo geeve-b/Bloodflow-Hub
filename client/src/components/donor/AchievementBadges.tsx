@@ -239,11 +239,11 @@ export function AchievementBadges() {
 
         {/* Badge Info */}
         <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800 space-y-3">
-          <h4 className="font-medium text-sm flex items-center gap-2">
-            <Star className="w-4 h-4" />
+          <h4 className="font-medium text-sm flex items-center gap-2 text-blue-900 dark:text-blue-100">
+            <Star className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             Badge Rules
           </h4>
-          <div className="space-y-2 text-sm text-muted-foreground">
+          <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
             <div>
               <span className="font-medium">🩸 First Drop</span> - Complete your first donation
             </div>

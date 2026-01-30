@@ -42,6 +42,8 @@
   color-scheme: light;
 }
 
+@variant dark (&:where(.dark, .dark *));
+
 /* Dark theme */
 :root.dark {
   --color-background: hsl(222 47% 11%);
