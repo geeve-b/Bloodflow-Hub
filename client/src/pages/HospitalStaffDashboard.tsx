@@ -718,19 +718,21 @@ export default function HospitalStaffDashboard() {
     return (
     <div className="w-full min-h-screen bg-background">
       {/* Header Section */}
-      <div className="border-b bg-card sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
-          <div className="flex flex-col gap-2 mb-6">
-            <h1 className="text-3xl font-bold tracking-tight">
-              Hospital Staff Dashboard
-            </h1>
-            <p className="text-lg text-primary font-semibold">
-              Welcome, {user?.name || user?.username || "Staff Member"}
-            </p>
-          </div>
+      <div className="w-full py-8 px-4 md:px-8">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold tracking-tight">
+            Hospital Staff Dashboard
+          </h1>
+          <p className="text-lg text-primary font-semibold">
+            Welcome, {user?.name || user?.username || "Staff Member"}
+          </p>
+        </div>
+      </div>
 
-          {/* Tab Navigation */}
-          <div className="flex gap-2 border-b">
+      {/* Tab Navigation */}
+      <div className="border-b bg-card sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <div className="flex gap-2">
             <Button
               variant={activeTab === "search" ? "default" : "ghost"}
               onClick={() => setActiveTab("search")}
@@ -764,7 +766,7 @@ export default function HospitalStaffDashboard() {
               <Building2 className="h-4 w-4 mr-2" />
               Inter-Hospital Sharing
             </Button>
-          </div>
+            </div>
         </div>
       </div>
 
