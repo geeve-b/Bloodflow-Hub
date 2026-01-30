@@ -22,6 +22,8 @@ interface RawBloodRequest {
   contactNumber?: string;
   status?: string;
   rejectionReason?: string | null;
+  approvedByHospitalId?: string;
+  approvedByHospitalName?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -41,6 +43,8 @@ export interface BloodRequestRecord {
   contactNumber: string;
   status: BloodRequestStatus;
   rejectionReason?: string | null;
+  approvedByHospitalId?: string;
+  approvedByHospitalName?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -76,6 +80,8 @@ const mapToRecord = (entry: RawBloodRequest): BloodRequestRecord => {
     contactNumber: entry.contactNumber ?? "N/A",
     status: coerceStatus(entry.status),
     rejectionReason: entry.rejectionReason ?? null,
+    approvedByHospitalId: entry.approvedByHospitalId,
+    approvedByHospitalName: entry.approvedByHospitalName,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
   };

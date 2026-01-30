@@ -91,6 +91,8 @@ interface BloodRequest {
   reason?: string;
   status: "pending" | "approved" | "fulfilled" | "rejected";
   rejectionReason?: string;
+  approvedByHospitalId?: string;
+  approvedByHospitalName?: string;
   createdAt: string;
   updatedAt: string;
   // Extended fields (will be populated from server)
@@ -277,8 +279,21 @@ export default function HospitalStaffDashboard() {
         const normalized = Array.isArray(data)
           ? data.map((req) => ({ ...req, urgency: normalizeUrgency(req.urgency) }))
           : [];
-        setRequests(normalized);
-        setFilteredRequests(Array.isArray(data) ? data : []);
+        
+        // Filter requests: 
+        // - Pending/Active: show all pending requests
+        // - Approved: only show if THIS hospital approved it
+        // - Completed: only show if THIS hospital approved it
+        const filtered = normalized.filter((req) => {
+          if (req.status === "pending") {
+            return true; // All hospitals can see pending requests
+          }
+          // For approved, fulfilled, rejected - only show if this hospital approved/handled it
+          return req.approvedByHospitalId === user.id || req.approvedByHospitalName === user.name;
+        });
+        
+        setRequests(filtered);
+        setFilteredRequests(filtered);
       } catch (error) {
         console.error("Error fetching blood requests:", error);
         toast({
@@ -585,6 +600,11 @@ export default function HospitalStaffDashboard() {
                       : action === "fulfill"
                         ? "fulfilled"
                         : "rejected",
+                  // Include hospital info when approving
+                  ...(action === "approve" && {
+                    approvedByHospitalId: user?.id,
+                    approvedByHospitalName: user?.name,
+                  }),
                 }
           ),
         }

@@ -4,10 +4,12 @@ import {
   type BloodInventory,
   type BloodRequest,
   type BloodExpiryAlert,
+  type BloodDonationTracking,
   type Donor,
   type InsertBloodInventory,
   type InsertBloodRequest,
   type InsertBloodExpiryAlert,
+  type InsertBloodDonationTracking,
   type InsertDonor,
   type InsertStaff,
   type InsertUser,
@@ -107,6 +109,18 @@ export interface IStorage {
   resolveBloodExpiryAlert(id: string, userId: string, notes?: string): Promise<BloodExpiryAlert | undefined>;
   deleteBloodExpiryAlert(id: string): Promise<boolean>;
   checkAndCreateExpiryAlerts(): Promise<BloodExpiryAlert[]>;
+
+  // Blood Donation Tracking Methods
+  getBloodDonationTracking(id: string): Promise<BloodDonationTracking | undefined>;
+  getAllBloodDonationTracking(): Promise<BloodDonationTracking[]>;
+  getBloodDonationTrackingByDonor(donorId: string): Promise<BloodDonationTracking[]>;
+  getBloodDonationTrackingByReceiver(receiverId: string): Promise<BloodDonationTracking[]>;
+  getBloodDonationTrackingByStatus(status: string): Promise<BloodDonationTracking[]>;
+  getBloodDonationTrackingByHospital(hospitalId: string): Promise<BloodDonationTracking[]>;
+  createBloodDonationTracking(tracking: InsertBloodDonationTracking): Promise<BloodDonationTracking>;
+  updateBloodDonationTracking(id: string, tracking: Partial<InsertBloodDonationTracking>): Promise<BloodDonationTracking | undefined>;
+  updateBloodDonationTrackingStatus(id: string, status: string, note?: string, updatedBy?: string): Promise<BloodDonationTracking | undefined>;
+  deleteBloodDonationTracking(id: string): Promise<boolean>;
 }
 
 const toObjectId = (id: string) => {
@@ -1017,6 +1031,153 @@ export class MongoDBStorage implements IStorage {
     if (daysRemaining <= 1) return "critical";
     if (daysRemaining <= 3) return "warning";
     return "info";
+  }
+
+  // ==================== BLOOD DONATION TRACKING METHODS ====================
+  async getBloodDonationTracking(id: string): Promise<BloodDonationTracking | undefined> {
+    const tracking = await db
+      .collection("bloodDonationTracking")
+      .findOne({ _id: toObjectId(id) });
+    return normalize<BloodDonationTracking>(tracking);
+  }
+
+  async getAllBloodDonationTracking(): Promise<BloodDonationTracking[]> {
+    const trackings = await db
+      .collection("bloodDonationTracking")
+      .find({})
+      .toArray();
+    return normalizeMany<BloodDonationTracking>(trackings);
+  }
+
+  async getBloodDonationTrackingByDonor(donorId: string): Promise<BloodDonationTracking[]> {
+    const trackings = await db
+      .collection("bloodDonationTracking")
+      .find({ donorId })
+      .sort({ donationDate: -1 })
+      .toArray();
+    return normalizeMany<BloodDonationTracking>(trackings);
+  }
+
+  async getBloodDonationTrackingByReceiver(receiverId: string): Promise<BloodDonationTracking[]> {
+    const trackings = await db
+      .collection("bloodDonationTracking")
+      .find({ receiverId })
+      .sort({ donationDate: -1 })
+      .toArray();
+    return normalizeMany<BloodDonationTracking>(trackings);
+  }
+
+  async getBloodDonationTrackingByStatus(status: string): Promise<BloodDonationTracking[]> {
+    const trackings = await db
+      .collection("bloodDonationTracking")
+      .find({ status })
+      .sort({ donationDate: -1 })
+      .toArray();
+    return normalizeMany<BloodDonationTracking>(trackings);
+  }
+
+  async getBloodDonationTrackingByHospital(hospitalId: string): Promise<BloodDonationTracking[]> {
+    const trackings = await db
+      .collection("bloodDonationTracking")
+      .find({ hospitalId })
+      .sort({ donationDate: -1 })
+      .toArray();
+    return normalizeMany<BloodDonationTracking>(trackings);
+  }
+
+  async createBloodDonationTracking(
+    tracking: InsertBloodDonationTracking
+  ): Promise<BloodDonationTracking> {
+    const now = new Date();
+    const document = {
+      ...tracking,
+      collectionTime: tracking.collectionTime || now,
+      trackingNotes: tracking.trackingNotes || [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    const result = await db
+      .collection("bloodDonationTracking")
+      .insertOne(document);
+    return normalize<BloodDonationTracking>({
+      ...document,
+      _id: result.insertedId,
+    })!;
+  }
+
+  async updateBloodDonationTracking(
+    id: string,
+    tracking: Partial<InsertBloodDonationTracking>
+  ): Promise<BloodDonationTracking | undefined> {
+    const cleanTracking = removeUndefined(tracking as Record<string, unknown>);
+    const result = await db
+      .collection("bloodDonationTracking")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        {
+          $set: {
+            ...cleanTracking,
+            updatedAt: new Date(),
+          },
+        },
+        { returnDocument: "after" }
+      );
+    const updated = (result as any)?.value ?? result ?? null;
+    return normalize<BloodDonationTracking>(updated);
+  }
+
+  async updateBloodDonationTrackingStatus(
+    id: string,
+    status: string,
+    note?: string,
+    updatedBy?: string
+  ): Promise<BloodDonationTracking | undefined> {
+    const now = new Date();
+    const trackingNote = {
+      timestamp: now,
+      status,
+      note: note || `Status updated to ${status}`,
+      ...(updatedBy && { updatedBy }),
+    };
+
+    const updatePayload: Record<string, unknown> = {
+      status,
+      updatedAt: now,
+    };
+
+    // Set time fields based on status
+    if (status === "collected") {
+      updatePayload.collectionTime = now;
+    } else if (status === "in_transit") {
+      updatePayload.transitStartTime = now;
+    } else if (status === "received") {
+      updatePayload.receivedTime = now;
+    } else if (status === "in_use") {
+      updatePayload.usageStartTime = now;
+    } else if (status === "transfused") {
+      updatePayload.transfusionCompleteTime = now;
+      updatePayload.isSuccessful = true;
+    }
+
+    const result = await db
+      .collection("bloodDonationTracking")
+      .findOneAndUpdate(
+        { _id: toObjectId(id) },
+        {
+          $set: updatePayload,
+          $push: { trackingNotes: trackingNote },
+        },
+        { returnDocument: "after" }
+      );
+    const updated = (result as any)?.value ?? result ?? null;
+    return normalize<BloodDonationTracking>(updated);
+  }
+
+  async deleteBloodDonationTracking(id: string): Promise<boolean> {
+    const result = await db
+      .collection("bloodDonationTracking")
+      .deleteOne({ _id: toObjectId(id) });
+    return result.deletedCount === 1;
   }
 }
 

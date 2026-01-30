@@ -948,6 +948,13 @@ export async function registerRoutes(
       }
       
       const updates = insertBloodRequestSchema.partial().parse(req.body);
+      
+      // If approving the request, capture which hospital approved it
+      if (updates.status === "approved" && req.body.approvedByHospitalId) {
+        updates.approvedByHospitalId = req.body.approvedByHospitalId;
+        updates.approvedByHospitalName = req.body.approvedByHospitalName;
+      }
+      
       console.log("[DEBUG] Parsed updates:", updates);
       const request = await storage.updateBloodRequest(requestId, updates);
       
@@ -1616,6 +1623,178 @@ export async function registerRoutes(
       res.json(updated.value);
     } catch (error) {
       res.status(500).json({ error: "Failed to fulfill inter-hospital request" });
+    }
+  });
+
+  // ==================== BLOOD DONATION TRACKING ROUTES ====================
+  // Get all blood donation tracking records
+  app.get("/api/blood-donation-tracking", async (_req, res) => {
+    try {
+      const trackings = await storage.getAllBloodDonationTracking();
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch blood donation tracking" });
+    }
+  });
+
+  // Get tracking by ID
+  app.get("/api/blood-donation-tracking/:id", async (req, res) => {
+    try {
+      const tracking = await storage.getBloodDonationTracking(req.params.id);
+      if (!tracking) {
+        return res.status(404).json({ error: "Tracking record not found" });
+      }
+      res.json(tracking);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tracking record" });
+    }
+  });
+
+  // Get tracking records for a specific donor
+  app.get("/api/blood-donation-tracking/donor/:donorId", async (req, res) => {
+    try {
+      const trackings = await storage.getBloodDonationTrackingByDonor(
+        req.params.donorId
+      );
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donor tracking records" });
+    }
+  });
+
+  // Get tracking records for a specific receiver
+  app.get("/api/blood-donation-tracking/receiver/:receiverId", async (req, res) => {
+    try {
+      const trackings = await storage.getBloodDonationTrackingByReceiver(
+        req.params.receiverId
+      );
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch receiver tracking records" });
+    }
+  });
+
+  // Get tracking records by status
+  app.get("/api/blood-donation-tracking/status/:status", async (req, res) => {
+    try {
+      const trackings = await storage.getBloodDonationTrackingByStatus(
+        req.params.status
+      );
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tracking records by status" });
+    }
+  });
+
+  // Get tracking records for a specific hospital
+  app.get("/api/blood-donation-tracking/hospital/:hospitalId", async (req, res) => {
+    try {
+      const trackings = await storage.getBloodDonationTrackingByHospital(
+        req.params.hospitalId
+      );
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch hospital tracking records" });
+    }
+  });
+
+  // Create a new blood donation tracking record
+  app.post("/api/blood-donation-tracking", async (req, res) => {
+    try {
+      const payload = {
+        ...req.body,
+        donationDate: req.body.donationDate ? new Date(req.body.donationDate) : new Date(),
+        collectionTime: req.body.collectionTime ? new Date(req.body.collectionTime) : new Date(),
+        transitStartTime: req.body.transitStartTime ? new Date(req.body.transitStartTime) : undefined,
+        receivedTime: req.body.receivedTime ? new Date(req.body.receivedTime) : undefined,
+        usageStartTime: req.body.usageStartTime ? new Date(req.body.usageStartTime) : undefined,
+        transfusionCompleteTime: req.body.transfusionCompleteTime ? new Date(req.body.transfusionCompleteTime) : undefined,
+      };
+      const tracking = await storage.createBloodDonationTracking(payload);
+      realtime.publishBloodRequest({
+        type: "blood-donation-tracking:created",
+        payload: tracking,
+      });
+      res.status(201).json(tracking);
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error ? error.message : "Failed to create tracking record",
+      });
+    }
+  });
+
+  // Update a blood donation tracking record
+  app.put("/api/blood-donation-tracking/:id", async (req, res) => {
+    try {
+      const payload = {
+        ...req.body,
+        donationDate: req.body.donationDate ? new Date(req.body.donationDate) : undefined,
+        collectionTime: req.body.collectionTime ? new Date(req.body.collectionTime) : undefined,
+        transitStartTime: req.body.transitStartTime ? new Date(req.body.transitStartTime) : undefined,
+        receivedTime: req.body.receivedTime ? new Date(req.body.receivedTime) : undefined,
+        usageStartTime: req.body.usageStartTime ? new Date(req.body.usageStartTime) : undefined,
+        transfusionCompleteTime: req.body.transfusionCompleteTime ? new Date(req.body.transfusionCompleteTime) : undefined,
+      };
+      const tracking = await storage.updateBloodDonationTracking(
+        req.params.id,
+        payload
+      );
+      if (!tracking) {
+        return res.status(404).json({ error: "Tracking record not found" });
+      }
+      realtime.publishBloodRequest({
+        type: "blood-donation-tracking:updated",
+        payload: tracking,
+      });
+      res.json(tracking);
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error ? error.message : "Failed to update tracking record",
+      });
+    }
+  });
+
+  // Update blood donation tracking status
+  app.post("/api/blood-donation-tracking/:id/update-status", async (req, res) => {
+    try {
+      const { status, note, updatedBy } = req.body;
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+      }
+      const tracking = await storage.updateBloodDonationTrackingStatus(
+        req.params.id,
+        status,
+        note,
+        updatedBy
+      );
+      if (!tracking) {
+        return res.status(404).json({ error: "Tracking record not found" });
+      }
+      realtime.publishBloodRequest({
+        type: "blood-donation-tracking:status-updated",
+        payload: tracking,
+      });
+      res.json(tracking);
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error ? error.message : "Failed to update tracking status",
+      });
+    }
+  });
+
+  // Delete a blood donation tracking record
+  app.delete("/api/blood-donation-tracking/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteBloodDonationTracking(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Tracking record not found" });
+      }
+      res.json({ message: "Tracking record deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete tracking record" });
     }
   });
 
