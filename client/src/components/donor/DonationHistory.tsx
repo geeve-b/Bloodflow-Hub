@@ -294,7 +294,7 @@ export function DonationHistory() {
                   <TableHead>Blood Type</TableHead>
                   <TableHead>Units</TableHead>
                   <TableHead>Location</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -312,7 +312,7 @@ export function DonationHistory() {
                     </TableCell>
                     <TableCell>{donation.unitsCollected} units</TableCell>
                     <TableCell>{donation.location}</TableCell>
-                    <TableCell>{getStatusBadge(donation.status)}</TableCell>
+                    <TableCell className="text-right">{getStatusBadge(donation.status)}</TableCell>
                     <TableCell>
                       {donation.status === "completed" && (
                         <Button

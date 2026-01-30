@@ -926,11 +926,11 @@ export default function HospitalStaffDashboard() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
+          <Card className="overflow-hidden shadow-none">
+            <div className="overflow-x-auto bg-blue-50 dark:bg-blue-950/30">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
+                  <TableRow className="bg-blue-100 dark:bg-blue-900/40">
                     <TableHead className="font-semibold">Blood Group</TableHead>
                     <TableHead className="font-semibold text-center">
                       Units
@@ -953,8 +953,8 @@ export default function HospitalStaffDashboard() {
                       <TableRow
                         key={entry._id}
                         className={cn(
-                          "hover:bg-muted/40 transition-colors",
-                          stale && "bg-amber-50/70 border-l-2 border-amber-300",
+                          "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors",
+                          stale && "bg-amber-50/70",
                           calculatedStatus === "not_available" && "opacity-80"
                         )}
                       >
