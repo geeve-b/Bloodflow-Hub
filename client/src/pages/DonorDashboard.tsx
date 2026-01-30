@@ -15,12 +15,14 @@ export default function DonorDashboardPage() {
 
   useEffect(() => {
     // Redirect if not logged in or not a donor
-    if (!user) {
-      setLocation("/login");
-      return;
+    if (user === null) {
+      const timeout = setTimeout(() => {
+        setLocation("/login");
+      }, 100);
+      return () => clearTimeout(timeout);
     }
 
-    if (user.role !== "donor" && user.role !== "receiver") {
+    if (user && user.role !== "donor" && user.role !== "receiver") {
       setLocation("/");
     }
   }, [user, setLocation]);

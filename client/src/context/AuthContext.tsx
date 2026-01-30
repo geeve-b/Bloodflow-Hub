@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export interface AuthUser {
@@ -14,13 +14,29 @@ interface AuthContextType {
   user: AuthUser | null;
   setUser: (user: AuthUser | null) => void;
   logout: () => void;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  // Restore user from localStorage on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem("authUser");
+    if (storedUser) {
+      try {
+        setUserState(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Failed to parse stored user:", error);
+        localStorage.removeItem("authUser");
+      }
+    }
+    setIsLoading(false);
+  }, []);
 
   const login = (role: AuthUser["role"], email: string, name?: string) => {
     // Use provided name or fallback to role-based names
@@ -36,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     setUserState(mockUser);
+    localStorage.setItem("authUser", JSON.stringify(mockUser));
     toast({
       title: "Welcome back!",
       description: `Logged in as ${role}`,
@@ -44,14 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = (data: any) => {
     // Mock register logic
-    setUserState({
+    const newUser = {
       id: "2",
       username: data.fullName,
       name: data.fullName,
       email: data.email,
-      role: "donor",
+      role: "donor" as const,
       emailVerified: false,
-    });
+    };
+    setUserState(newUser);
+    localStorage.setItem("authUser", JSON.stringify(newUser));
     toast({
       title: "Registration Successful",
       description: "Your donor application is under review.",
@@ -60,17 +79,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setUser = (nextUser: AuthUser | null) => {
     setUserState(nextUser);
+    if (nextUser) {
+      localStorage.setItem("authUser", JSON.stringify(nextUser));
+    } else {
+      localStorage.removeItem("authUser");
+    }
   };
 
   const logout = () => {
     setUserState(null);
+    localStorage.removeItem("authUser");
     toast({
       title: "Logged out",
     });
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, logout }}>
+    <AuthContext.Provider value={{ user, setUser, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
