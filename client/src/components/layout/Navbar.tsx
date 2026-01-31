@@ -13,6 +13,7 @@ export function Navbar() {
 
   const isLanding = location === "/";
   const isDashboard = location === "/dashboard";
+  const isDonorDashboard = location === "/donor-dashboard";
   const isHospitalDashboard = location === "/hospital-dashboard";
   const isAdminDashboard = location === "/admin";
 
@@ -23,7 +24,7 @@ export function Navbar() {
 
   const NavLinks = () => (
     <>
-      {!isDashboard && !isHospitalDashboard && !isAdminDashboard && (
+      {!isDashboard && !isDonorDashboard && !isHospitalDashboard && !isAdminDashboard && (
         <>
           <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
             Home
@@ -65,6 +66,13 @@ export function Navbar() {
               <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
                 Logout
               </Button>
+              {!isDashboard && (
+                <Link href="/dashboard">
+                  <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-500 dark:hover:bg-red-600">
+                    Go to Dashboard
+                  </Button>
+                </Link>
+              )}
               {user.role === "hospital" && !isHospitalDashboard && (
                 <Link href="/hospital-dashboard">
                   <Button size="sm" className="bg-primary hover:bg-primary/90">
@@ -79,7 +87,12 @@ export function Navbar() {
                   </Button>
                 </Link>
               )}
-              {user.role !== "hospital" && user.role !== "admin" && !isDashboard && (
+              {(user.role === "donor" || user.role === "receiver") && !isDonorDashboard && (
+                <Link href="/donor-dashboard">
+                  <Button size="sm">Achievement</Button>
+                </Link>
+              )}
+              {user.role !== "hospital" && user.role !== "admin" && user.role !== "donor" && user.role !== "receiver" && !isDashboard && (
                 <Link href="/dashboard">
                   <Button size="sm">Dashboard</Button>
                 </Link>
@@ -138,6 +151,10 @@ export function Navbar() {
                       ) : user.role === "hospital" ? (
                         <Link href="/hospital-dashboard" onClick={() => setIsOpen(false)}>
                           <Button className="w-full bg-primary hover:bg-primary/90">Blood Dashboard</Button>
+                        </Link>
+                      ) : user.role === "donor" || user.role === "receiver" ? (
+                        <Link href="/donor-dashboard" onClick={() => setIsOpen(false)}>
+                          <Button className="w-full">My Dashboard</Button>
                         </Link>
                       ) : (
                         <Link href="/dashboard" onClick={() => setIsOpen(false)}>

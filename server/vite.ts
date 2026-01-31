@@ -28,13 +28,13 @@ export async function setupVite(server: Server, app: Express) {
   app.use(vite.middlewares);
 
   app.use("*", async (req, res, next) => {
-    // Don't handle API routes - let them fall through
-    if (req.path.startsWith("/api/")) {
-      console.log("[DEBUG] Vite catch-all skipping API route:", req.originalUrl);
+    // Don't handle API routes or uploaded files - let them fall through
+    if (req.path.startsWith("/api/") || req.path.startsWith("/uploads/")) {
+      console.log("[DEBUG] Vite catch-all skipping route:", req.originalUrl);
       return next();
     }
 
-    console.log("[DEBUG] Vite catch-all route called for:", req.originalUrl);
+    console.log("[DEBUG] Vite catch-all route serving index.html for:", req.originalUrl);
     const url = req.originalUrl;
 
     try {

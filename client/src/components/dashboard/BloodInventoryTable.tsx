@@ -252,12 +252,11 @@ export function BloodInventoryTable() {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="font-semibold">Hospital</TableHead>
-                  <TableHead className="font-semibold">Blood Group</TableHead>
-                  <TableHead className="font-semibold text-center">
+                  <TableHead className="font-semibold flex-1">Blood Group</TableHead>
+                  <TableHead className="font-semibold text-center flex-1">
                     Units Available
                   </TableHead>
-                  <TableHead className="font-semibold">Status</TableHead>
-                  <TableHead className="font-semibold">Data Freshness</TableHead>
+                  <TableHead className="font-semibold flex-1 text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -281,13 +280,13 @@ export function BloodInventoryTable() {
                           ID: {entry.hospitalId}
                         </p>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="flex-1">
                         <div className="flex items-center gap-2 font-bold text-primary">
                           <Droplets className="h-4 w-4 text-red-500" />
                           {entry.bloodType}
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center flex-1">
                         <span className="text-lg font-semibold">
                           {entry.quantity}
                         </span>
@@ -295,8 +294,8 @@ export function BloodInventoryTable() {
                           units
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
+                      <TableCell className="flex-1 text-center">
+                        <div className="space-y-1 flex flex-col items-center justify-center">
                           <Badge
                             variant="outline"
                             className={cn(
@@ -313,22 +312,6 @@ export function BloodInventoryTable() {
                             {statusMeta.description}
                           </p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm font-medium">
-                          {formatInventoryTimestamp(entry.updatedAt)}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "mt-1 text-[11px]",
-                            stale
-                              ? "border-amber-400 bg-yellow-100 text-amber-900 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200"
-                              : "border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-200"
-                          )}
-                        >
-                          {stale ? "Stale" : "Fresh"}
-                        </Badge>
                       </TableCell>
                     </TableRow>
                   );

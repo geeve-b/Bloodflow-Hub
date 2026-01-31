@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { useBloodInventory } from "@/hooks/useBloodInventory";
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, setUser: _setUser } = useAuth();
   const {
     data: liveInventory = [],
     isLoading: liveInventoryLoading,
@@ -24,9 +24,12 @@ export default function DashboardPage() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Redirect if not logged in
-    if (!user) {
-      setLocation("/login");
+    // Only redirect if explicitly not logged in, not on initial load
+    if (user === null) {
+      const timeout = setTimeout(() => {
+        setLocation("/login");
+      }, 100);
+      return () => clearTimeout(timeout);
     }
   }, [user, setLocation]);
 

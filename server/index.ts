@@ -1,10 +1,12 @@
 import "dotenv/config";
+import "./logger";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { connectDB } from "../config/db";
 import { connectDatabase, closeDatabase } from "./db";
+import { scheduledTasksService } from "./scheduledTasks";
 
 const app = express();
 const httpServer = createServer(app);
@@ -78,6 +80,9 @@ app.use((req, res, next) => {
     });
     
     await registerRoutes(httpServer, app);
+
+    // Initialize scheduled tasks
+    await scheduledTasksService.initialize();
 
     // ALWAYS serve the app on the port specified in the environment variable PORT
     // Other ports are firewalled. Default to 5000 if not specified.

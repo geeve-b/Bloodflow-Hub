@@ -948,6 +948,13 @@ export async function registerRoutes(
       }
       
       const updates = insertBloodRequestSchema.partial().parse(req.body);
+      
+      // If approving the request, capture which hospital approved it
+      if (updates.status === "approved" && req.body.approvedByHospitalId) {
+        updates.approvedByHospitalId = req.body.approvedByHospitalId;
+        updates.approvedByHospitalName = req.body.approvedByHospitalName;
+      }
+      
       console.log("[DEBUG] Parsed updates:", updates);
       const request = await storage.updateBloodRequest(requestId, updates);
       
@@ -1462,160 +1469,432 @@ export async function registerRoutes(
     }
   });
 
-  // ==================== INTER-HOSPITAL BLOOD SHARING ====================
-  
-  // Create inter-hospital blood request
-  app.post("/api/inter-hospital-blood", async (req, res) => {
+  // ==================== DONATION HISTORY ROUTES ====================
+  // Record a new donation
+  app.post("/api/donations/record", async (req, res) => {
     try {
-      const {
-        requestingHospitalId,
-        requestingHospitalName,
-        bloodType,
-        quantity,
-        urgency,
-        reason,
-      } = req.body;
+      const { donorId, donorUserId, donorInfo, donationDetails } = req.body;
 
-      if (!requestingHospitalId || !bloodType || !quantity) {
+      if (!donorId || !donorUserId || !donorInfo || !donationDetails) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      const request = {
-        _id: `inter-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        requestingHospitalId,
-        requestingHospitalName: requestingHospitalName || "Unknown Hospital",
-        bloodType,
-        quantity: parseInt(quantity),
-        urgency: urgency || "normal",
-        reason: reason || "",
-        status: "pending",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const donation = await donationHistoryService.recordDonation(
+        donorId,
+        donorUserId,
+        donorInfo,
+        donationDetails
+      );
+
+      res.json({
+        message: "Donation recorded successfully",
+        donation,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to record donation" });
+    }
+  });
+
+  // Get donor's donation history
+  app.get("/api/donations/history/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+      const { limit, offset, year, location, status } = req.query;
+
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const history = await donationHistoryService.getDonationHistory(
+        donorId,
+        {
+          limit: limit ? parseInt(limit as string) : undefined,
+          offset: offset ? parseInt(offset as string) : undefined,
+          year: year ? parseInt(year as string) : undefined,
+          location: location as string,
+          status: status as string,
+        }
+      );
+
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donation history" });
+    }
+  });
+
+  // Get donation statistics
+  app.get("/api/donations/stats/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const stats = await donationHistoryService.getDonationStats(donorId);
+
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donation statistics" });
+    }
+  });
+
+  // Generate donation certificate
+  app.get("/api/donations/certificate/:donationHistoryId", async (req, res) => {
+    try {
+      const { donationHistoryId } = req.params;
+
+      const { donationHistoryService } = await import("./donationHistory");
+      await donationHistoryService.initialize();
+      const certificate = await donationHistoryService.generateDonationCertificate(
+        donationHistoryId
+      );
+
+      res.json(certificate);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to generate certificate" });
+    }
+  });
+
+  // ==================== ELIGIBILITY REMINDER ROUTES ====================
+  // Trigger eligibility check
+  app.post("/api/eligibility/check", async (req, res) => {
+    try {
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      await eligibilityReminderService.checkEligibility();
+
+      res.json({
+        message: "Eligibility check completed",
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check eligibility" });
+    }
+  });
+
+  // Get reminders for a donor
+  app.get("/api/eligibility/reminders/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      const reminders = await eligibilityReminderService.getReminders(donorId);
+
+      res.json({ reminders });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch reminders" });
+    }
+  });
+
+  // Mark reminder as acknowledged
+  app.post("/api/eligibility/reminders/:reminderId/acknowledge", async (req, res) => {
+    try {
+      const { reminderId } = req.params;
+
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      await eligibilityReminderService.markReminderAsAcknowledged(reminderId);
+
+      res.json({ message: "Reminder marked as acknowledged" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to acknowledge reminder" });
+    }
+  });
+
+  // Send emergency reminder
+  app.post("/api/eligibility/emergency-reminder/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+      const { reason } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({ error: "Reason is required" });
+      }
+
+      const { eligibilityReminderService } = await import("./eligibilityReminder");
+      await eligibilityReminderService.initialize();
+      const result = await eligibilityReminderService.sendEmergencyReminder(
+        donorId,
+        reason
+      );
+
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to send emergency reminder" });
+    }
+  });
+
+  // ==================== ACHIEVEMENT BADGE ROUTES ====================
+  // Get all badge definitions
+  app.get("/api/badges/definitions", async (req, res) => {
+    try {
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const badges = await achievementBadgeService.getBadgeDefinitions();
+
+      res.json({ badges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch badge definitions" });
+    }
+  });
+
+  // Get donor's badges
+  app.get("/api/badges/:donorId", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const badges = await achievementBadgeService.getDonorBadges(donorId);
+
+      res.json({ badges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donor badges" });
+    }
+  });
+
+  // Get new badges for donor
+  app.get("/api/badges/:donorId/new", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const newBadges = await achievementBadgeService.getNewBadges(donorId);
+
+      res.json({ newBadges });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch new badges" });
+    }
+  });
+
+  // Mark badge as viewed
+  app.post("/api/badges/:badgeId/view", async (req, res) => {
+    try {
+      const { badgeId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      await achievementBadgeService.markBadgeAsViewed(badgeId);
+
+      res.json({ message: "Badge marked as viewed" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to mark badge as viewed" });
+    }
+  });
+
+  // Evaluate donor badges (trigger after donation)
+  app.post("/api/badges/:donorId/evaluate", async (req, res) => {
+    try {
+      const { donorId } = req.params;
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      await achievementBadgeService.evaluateDonorBadges(donorId);
+
+      res.json({ message: "Badges evaluated successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to evaluate badges" });
+    }
+  });
+
+  // Add custom badge definition (admin only)
+  app.post("/api/badges/definitions/add", async (req, res) => {
+    try {
+      const { badgeId, name, emoji, description, rule, isActive } = req.body;
+
+      if (!badgeId || !name || !emoji || !description || !rule) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const { achievementBadgeService } = await import("./achievementBadges");
+      await achievementBadgeService.initialize();
+      const result = await achievementBadgeService.addCustomBadgeDefinition({
+        badgeId,
+        name,
+        emoji,
+        description,
+        rule,
+        isActive: isActive ?? true,
+      });
+
+      res.json({
+        message: "Badge definition added successfully",
+        insertedId: result.insertedId,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add badge definition" });
+    }
+  });
+
+  // ==================== BLOOD DONATION TRACKING ROUTES ====================
+  // Get all blood donation tracking records
+  app.get("/api/blood-donation-tracking", async (_req, res) => {
+    try {
+      const trackings = await storage.getAllBloodDonationTracking();
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch blood donation tracking" });
+    }
+  });
+
+  // Get tracking by ID
+  app.get("/api/blood-donation-tracking/:id", async (req, res) => {
+    try {
+      const tracking = await storage.getBloodDonationTracking(req.params.id);
+      if (!tracking) {
+        return res.status(404).json({ error: "Tracking record not found" });
+      }
+      res.json(tracking);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tracking record" });
+    }
+  });
+
+  // Get tracking records for a specific donor
+  app.get("/api/blood-donation-tracking/donor/:donorId", async (req, res) => {
+    try {
+      const trackings = await storage.getBloodDonationTrackingByDonor(
+        req.params.donorId
+      );
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch donor tracking records" });
+    }
+  });
+
+  // Get tracking records for a specific receiver
+  app.get("/api/blood-donation-tracking/receiver/:receiverId", async (req, res) => {
+    try {
+      const trackings = await storage.getBloodDonationTrackingByReceiver(
+        req.params.receiverId
+      );
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch receiver tracking records" });
+    }
+  });
+
+  // Get tracking records by status
+  app.get("/api/blood-donation-tracking/status/:status", async (req, res) => {
+    try {
+      const trackings = await storage.getBloodDonationTrackingByStatus(
+        req.params.status
+      );
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tracking records by status" });
+    }
+  });
+
+  // Get tracking records for a specific hospital
+  app.get("/api/blood-donation-tracking/hospital/:hospitalId", async (req, res) => {
+    try {
+      const trackings = await storage.getBloodDonationTrackingByHospital(
+        req.params.hospitalId
+      );
+      res.json(trackings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch hospital tracking records" });
+    }
+  });
+
+  // Create a new blood donation tracking record
+  app.post("/api/blood-donation-tracking", async (req, res) => {
+    try {
+      const payload = {
+        ...req.body,
+        donationDate: req.body.donationDate ? new Date(req.body.donationDate) : new Date(),
+        collectionTime: req.body.collectionTime ? new Date(req.body.collectionTime) : new Date(),
+        transitStartTime: req.body.transitStartTime ? new Date(req.body.transitStartTime) : undefined,
+        receivedTime: req.body.receivedTime ? new Date(req.body.receivedTime) : undefined,
+        usageStartTime: req.body.usageStartTime ? new Date(req.body.usageStartTime) : undefined,
+        transfusionCompleteTime: req.body.transfusionCompleteTime ? new Date(req.body.transfusionCompleteTime) : undefined,
       };
-
-      // Store in database
-      await storage.db
-        .collection("interHospitalBloodRequests")
-        .insertOne(request);
-
-      res.json(request);
+      const tracking = await storage.createBloodDonationTracking(payload);
+      realtime.publishBloodRequest({
+        type: "blood-donation-tracking:created",
+        payload: tracking,
+      });
+      res.status(201).json(tracking);
     } catch (error) {
-      res.status(500).json({ error: "Failed to create inter-hospital request" });
+      res.status(400).json({
+        error:
+          error instanceof Error ? error.message : "Failed to create tracking record",
+      });
     }
   });
 
-  // Get inter-hospital blood requests (outgoing or incoming)
-  app.get("/api/inter-hospital-blood/:direction/:hospitalId", async (req, res) => {
+  // Update a blood donation tracking record
+  app.put("/api/blood-donation-tracking/:id", async (req, res) => {
     try {
-      const { direction, hospitalId } = req.params;
-
-      const filter =
-        direction === "outgoing"
-          ? { requestingHospitalId: hospitalId }
-          : { requestingHospitalId: { $ne: hospitalId } };
-
-      const requests = await storage.db
-        .collection("interHospitalBloodRequests")
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .toArray();
-
-      res.json(requests);
+      const payload = {
+        ...req.body,
+        donationDate: req.body.donationDate ? new Date(req.body.donationDate) : undefined,
+        collectionTime: req.body.collectionTime ? new Date(req.body.collectionTime) : undefined,
+        transitStartTime: req.body.transitStartTime ? new Date(req.body.transitStartTime) : undefined,
+        receivedTime: req.body.receivedTime ? new Date(req.body.receivedTime) : undefined,
+        usageStartTime: req.body.usageStartTime ? new Date(req.body.usageStartTime) : undefined,
+        transfusionCompleteTime: req.body.transfusionCompleteTime ? new Date(req.body.transfusionCompleteTime) : undefined,
+      };
+      const tracking = await storage.updateBloodDonationTracking(
+        req.params.id,
+        payload
+      );
+      if (!tracking) {
+        return res.status(404).json({ error: "Tracking record not found" });
+      }
+      realtime.publishBloodRequest({
+        type: "blood-donation-tracking:updated",
+        payload: tracking,
+      });
+      res.json(tracking);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch inter-hospital requests" });
+      res.status(400).json({
+        error:
+          error instanceof Error ? error.message : "Failed to update tracking record",
+      });
     }
   });
 
-  // Accept inter-hospital blood request
-  app.put("/api/inter-hospital-blood/:requestId/accept", async (req, res) => {
+  // Update blood donation tracking status
+  app.post("/api/blood-donation-tracking/:id/update-status", async (req, res) => {
     try {
-      const { requestId } = req.params;
-      const { providingHospitalId, providingHospitalName } = req.body;
-
-      if (!providingHospitalId) {
-        return res.status(400).json({ error: "providingHospitalId is required" });
+      const { status, note, updatedBy } = req.body;
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
       }
-
-      const updated = await storage.db
-        .collection("interHospitalBloodRequests")
-        .findOneAndUpdate(
-          { _id: requestId, status: "pending" },
-          {
-            $set: {
-              status: "accepted",
-              providingHospitalId,
-              providingHospitalName: providingHospitalName || "Unknown Hospital",
-              updatedAt: new Date().toISOString(),
-            },
-          },
-          { returnDocument: "after" }
-        );
-
-      if (!updated.value) {
-        return res.status(404).json({ error: "Request not found or already processed" });
+      const tracking = await storage.updateBloodDonationTrackingStatus(
+        req.params.id,
+        status,
+        note,
+        updatedBy
+      );
+      if (!tracking) {
+        return res.status(404).json({ error: "Tracking record not found" });
       }
-
-      res.json(updated.value);
+      realtime.publishBloodRequest({
+        type: "blood-donation-tracking:status-updated",
+        payload: tracking,
+      });
+      res.json(tracking);
     } catch (error) {
-      res.status(500).json({ error: "Failed to accept inter-hospital request" });
+      res.status(400).json({
+        error:
+          error instanceof Error ? error.message : "Failed to update tracking status",
+      });
     }
   });
 
-  // Reject inter-hospital blood request
-  app.put("/api/inter-hospital-blood/:requestId/reject", async (req, res) => {
+  // Delete a blood donation tracking record
+  app.delete("/api/blood-donation-tracking/:id", async (req, res) => {
     try {
-      const { requestId } = req.params;
-      const { rejectionReason } = req.body;
-
-      const updated = await storage.db
-        .collection("interHospitalBloodRequests")
-        .findOneAndUpdate(
-          { _id: requestId, status: "pending" },
-          {
-            $set: {
-              status: "rejected",
-              rejectionReason: rejectionReason || "Request rejected",
-              updatedAt: new Date().toISOString(),
-            },
-          },
-          { returnDocument: "after" }
-        );
-
-      if (!updated.value) {
-        return res.status(404).json({ error: "Request not found or already processed" });
+      const deleted = await storage.deleteBloodDonationTracking(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Tracking record not found" });
       }
-
-      res.json(updated.value);
+      res.json({ message: "Tracking record deleted successfully" });
     } catch (error) {
-      res.status(500).json({ error: "Failed to reject inter-hospital request" });
-    }
-  });
-
-  // Mark inter-hospital blood request as fulfilled
-  app.put("/api/inter-hospital-blood/:requestId/fulfill", async (req, res) => {
-    try {
-      const { requestId } = req.params;
-
-      const updated = await storage.db
-        .collection("interHospitalBloodRequests")
-        .findOneAndUpdate(
-          { _id: requestId, status: "accepted" },
-          {
-            $set: {
-              status: "fulfilled",
-              updatedAt: new Date().toISOString(),
-            },
-          },
-          { returnDocument: "after" }
-        );
-
-      if (!updated.value) {
-        return res.status(404).json({ error: "Request not found or not in accepted state" });
-      }
-
-      res.json(updated.value);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fulfill inter-hospital request" });
+      res.status(500).json({ error: "Failed to delete tracking record" });
     }
   });
 
