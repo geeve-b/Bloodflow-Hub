@@ -729,6 +729,52 @@ export default function HospitalStaffDashboard() {
         </div>
       </div>
 
+      {/* Overview Stats */}
+      <div className="w-full px-4 md:px-8 pb-4">
+        <div className="max-w-7xl mx-auto grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Requests</CardTitle>
+              <Droplets className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{activeRequests}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Pending or approved requests
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Critical Cases</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">
+                {criticalRequests}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Requires immediate attention
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+              <FileText className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{filteredRequests.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Based on current filters
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       {/* Tab Navigation */}
       <div className="border-b bg-card sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
@@ -775,49 +821,6 @@ export default function HospitalStaffDashboard() {
         {/* Tab Content */}
         {activeTab === "search" && (
           <>
-            {/* Overview Stats */}
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Requests</CardTitle>
-                  <Droplets className="h-4 w-4 text-primary" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{activeRequests}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Pending or approved requests
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Critical Cases</CardTitle>
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-destructive">
-                    {criticalRequests}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Requires immediate attention
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
-                  <FileText className="h-4 w-4 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{filteredRequests.length}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Based on current filters
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
 
       {/* Blood Inventory Expiry Alerts Section */}
       <div>
