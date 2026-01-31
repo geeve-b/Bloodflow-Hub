@@ -155,20 +155,20 @@ export default function DonorDashboardPage() {
             <TabsContent value="history" className="space-y-6">
               <DonationHistory />
 
-              <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 shadow-sm">
+              <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base text-amber-900 dark:text-amber-100 flex items-center gap-2">
-                    <Heart className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <CardTitle className="text-base text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                    <Heart className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     About Your Donation History
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 text-sm text-amber-800 dark:text-amber-200">
+                <CardContent className="space-y-4 text-sm text-blue-800 dark:text-blue-200">
                   <p>
                     Your complete donation history is maintained for medical and compliance
                     purposes.
                   </p>
                   <div className="space-y-2">
-                    <p className="font-medium text-amber-900 dark:text-white">You can:</p>
+                    <p className="font-medium text-blue-900 dark:text-white">You can:</p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>View all your past donations with details</li>
                       <li>Filter donations by year, location, or status</li>
@@ -184,20 +184,20 @@ export default function DonorDashboardPage() {
             <TabsContent value="badges" className="space-y-6">
               <AchievementBadges />
 
-              <Card className="bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800 shadow-sm">
+              <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base text-purple-900 dark:text-purple-100 flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <CardTitle className="text-base text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     About Achievement Badges
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 text-sm text-purple-800 dark:text-purple-200">
+                <CardContent className="space-y-4 text-sm text-blue-800 dark:text-blue-200">
                   <p>
                     Earn badges as you reach milestones in your donation journey. These badges
                     celebrate your commitment to saving lives.
                   </p>
                   <div className="space-y-2">
-                    <p className="font-medium text-purple-900 dark:text-white">Featured Badges:</p>
+                    <p className="font-medium text-blue-900 dark:text-white">Featured Badges:</p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>
                         <span className="font-medium">🩸 First Drop</span> - Your first donation
@@ -217,7 +217,7 @@ export default function DonorDashboardPage() {
                       </li>
                     </ul>
                   </div>
-                  <p className="italic text-purple-700 dark:text-purple-300">
+                  <p className="italic text-blue-700 dark:text-blue-300">
                     New badges are automatically unlocked and awarded after each successful
                     donation.
                   </p>

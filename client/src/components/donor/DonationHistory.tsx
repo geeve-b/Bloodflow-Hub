@@ -333,11 +333,11 @@ export function DonationHistory() {
           </div>
         )}
 
-        <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
             📋 Data Security
           </p>
-          <p className="text-sm text-amber-800 dark:text-amber-200">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
             Your donation history is read-only and tamper-proof. All records are maintained for medical
             and compliance purposes.
           </p>
