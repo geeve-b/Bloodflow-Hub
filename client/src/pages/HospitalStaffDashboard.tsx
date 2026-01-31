@@ -823,7 +823,7 @@ export default function HospitalStaffDashboard() {
               )}
             >
               <Droplets className="h-4 w-4 mr-2" />
-              Request Blood
+              Donor Approvals
             </Button>
             <Button
               variant={activeTab === "sharing" ? "default" : "ghost"}
