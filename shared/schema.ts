@@ -66,6 +66,8 @@ export const bloodRequestSchema = z.object({
   approvedByHospitalName: z.string().optional(),
   priorityScore: z.number().min(0).max(1).default(0.5).optional(),
   rejectionReason: z.string().optional(),
+  fulfilledByHospitalId: z.string().optional(),
+  fulfilledByHospitalName: z.string().optional(),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
 });
@@ -86,6 +88,8 @@ export const insertBloodRequestSchema = bloodRequestSchema.pick({
   hospitalLongitude: true,
   priorityScore: true,
   rejectionReason: true,
+  fulfilledByHospitalId: true,
+  fulfilledByHospitalName: true,
 });
 
 // ==================== DONOR SCHEMA ====================

@@ -91,8 +91,8 @@ interface BloodRequest {
   reason?: string;
   status: "pending" | "approved" | "fulfilled" | "rejected";
   rejectionReason?: string;
-  approvedByHospitalId?: string;
-  approvedByHospitalName?: string;
+  fulfilledByHospitalId?: string;
+  fulfilledByHospitalName?: string;
   createdAt: string;
   updatedAt: string;
   // Extended fields (will be populated from server)
@@ -428,9 +428,14 @@ export default function HospitalStaffDashboard() {
         req.status === "pending" || req.status === "approved"
       );
     } else if (requestsTab === "completed") {
-      filtered = filtered.filter((req) => 
-        req.status === "fulfilled" || req.status === "rejected"
-      );
+      filtered = filtered.filter((req) => {
+        // For fulfilled requests, only show if this hospital fulfilled it
+        if (req.status === "fulfilled") {
+          return req.fulfilledByHospitalId === user?.id;
+        }
+        // For rejected requests, show all (hospital can see requests they rejected)
+        return req.status === "rejected";
+      });
     }
 
     if (statusFilter !== "all") {
@@ -442,7 +447,7 @@ export default function HospitalStaffDashboard() {
     }
 
     setFilteredRequests(filtered);
-  }, [requests, statusFilter, urgencyFilter, requestsTab]);
+  }, [requests, statusFilter, urgencyFilter, requestsTab, user?.id]);
 
   const handleViewDetails = (request: BloodRequest) => {
     setSelectedRequest(request);
@@ -600,10 +605,9 @@ export default function HospitalStaffDashboard() {
                       : action === "fulfill"
                         ? "fulfilled"
                         : "rejected",
-                  // Include hospital info when approving
-                  ...(action === "approve" && {
-                    approvedByHospitalId: user?.id,
-                    approvedByHospitalName: user?.name,
+                  ...(action === "fulfill" && {
+                    fulfilledByHospitalId: user?.id || "",
+                    fulfilledByHospitalName: staffProfile?.hospitalName || user?.name || "Unknown Hospital",
                   }),
                 }
           ),
