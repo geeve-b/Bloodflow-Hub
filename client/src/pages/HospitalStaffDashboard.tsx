@@ -731,7 +731,7 @@ export default function HospitalStaffDashboard() {
 
       {/* Overview Stats */}
       <div className="w-full px-4 md:px-8 pb-4">
-        <div className="max-w-7xl mx-auto grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Requests</CardTitle>
@@ -777,7 +777,7 @@ export default function HospitalStaffDashboard() {
 
       {/* Tab Navigation */}
       <div className="border-b bg-card sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
+        <div className="px-4 md:px-8">
           <div className="flex gap-2">
             <Button
               variant={activeTab === "search" ? "default" : "ghost"}
