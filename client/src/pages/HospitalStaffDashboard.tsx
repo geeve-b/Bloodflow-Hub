@@ -784,7 +784,7 @@ export default function HospitalStaffDashboard() {
               onClick={() => setActiveTab("search")}
               className={cn(
                 "rounded-b-none text-base font-semibold",
-                activeTab === "search" && "bg-blue-600 hover:bg-blue-700"
+                activeTab === "search" && "bg-pink-600 hover:bg-pink-700"
               )}
             >
               <Search className="h-4 w-4 mr-2" />
@@ -795,7 +795,7 @@ export default function HospitalStaffDashboard() {
               onClick={() => setActiveTab("request")}
               className={cn(
                 "rounded-b-none text-base font-semibold",
-                activeTab === "request" && "bg-blue-600 hover:bg-blue-700"
+                activeTab === "request" && "bg-pink-600 hover:bg-pink-700"
               )}
             >
               <Droplets className="h-4 w-4 mr-2" />
@@ -806,7 +806,7 @@ export default function HospitalStaffDashboard() {
               onClick={() => setActiveTab("sharing")}
               className={cn(
                 "rounded-b-none text-base font-semibold",
-                activeTab === "sharing" && "bg-blue-600 hover:bg-blue-700"
+                activeTab === "sharing" && "bg-pink-600 hover:bg-pink-700"
               )}
             >
               <Building2 className="h-4 w-4 mr-2" />
