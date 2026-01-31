@@ -62,6 +62,8 @@ export const bloodRequestSchema = z.object({
   secondaryContactNumber: z.string().optional(),
   reason: z.string().optional(),
   status: z.enum(["pending", "approved", "fulfilled", "rejected"]).default("pending"),
+  approvedByHospitalId: z.string().optional(),
+  approvedByHospitalName: z.string().optional(),
   priorityScore: z.number().min(0).max(1).default(0.5).optional(),
   rejectionReason: z.string().optional(),
   createdAt: z.date().default(() => new Date()),
@@ -268,6 +270,79 @@ export const insertBloodExpiryAlertSchema = bloodExpiryAlertSchema.pick({
   resolvedNotes: true,
 });
 
+// ==================== BLOOD DONATION TRACKING SCHEMA ====================
+export const bloodDonationTrackingSchema = z.object({
+  _id: z.instanceof(ObjectId).optional(),
+  donorId: z.string(),
+  donorName: z.string(),
+  donorEmail: z.string().email(),
+  bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
+  quantity: z.number().min(1),
+  donationDate: z.date(),
+  // Hospital that received the donation
+  hospitalId: z.string(),
+  hospitalName: z.string(),
+  // Patient/Receiver information
+  receiverId: z.string().optional(),
+  receiverName: z.string().optional(),
+  receiverHospitalName: z.string().optional(),
+  medicalCondition: z.string().optional(),
+  urgencyLevel: z.enum(["critical", "normal"]).default("normal"),
+  // Tracking status
+  status: z.enum([
+    "collected",      // Blood collected from donor
+    "in_transit",     // Being transported
+    "received",       // Received by receiving hospital
+    "in_use",         // Currently being used for patient
+    "transfused",     // Successfully transfused to patient
+    "expired",        // Blood expired
+    "discarded",      // Blood was discarded
+  ]).default("collected"),
+  // Timeline tracking
+  collectionTime: z.date().optional(),
+  transitStartTime: z.date().optional(),
+  receivedTime: z.date().optional(),
+  usageStartTime: z.date().optional(),
+  transfusionCompleteTime: z.date().optional(),
+  // Additional tracking info
+  trackingNotes: z.array(z.object({
+    timestamp: z.date(),
+    status: z.string(),
+    note: z.string(),
+    updatedBy: z.string().optional(),
+  })).default([]),
+  // Success/Outcome
+  isSuccessful: z.boolean().optional(),
+  outcomeNotes: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const insertBloodDonationTrackingSchema = bloodDonationTrackingSchema.pick({
+  donorId: true,
+  donorName: true,
+  donorEmail: true,
+  bloodType: true,
+  quantity: true,
+  donationDate: true,
+  hospitalId: true,
+  hospitalName: true,
+  receiverId: true,
+  receiverName: true,
+  receiverHospitalName: true,
+  medicalCondition: true,
+  urgencyLevel: true,
+  status: true,
+  collectionTime: true,
+  transitStartTime: true,
+  receivedTime: true,
+  usageStartTime: true,
+  transfusionCompleteTime: true,
+  trackingNotes: true,
+  isSuccessful: true,
+  outcomeNotes: true,
+});
+
 // ==================== TYPE EXPORTS ====================
 export type User = z.infer<typeof userSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -292,3 +367,6 @@ export type InsertDonorResponse = z.infer<typeof insertDonorResponseSchema>;
 
 export type BloodExpiryAlert = z.infer<typeof bloodExpiryAlertSchema>;
 export type InsertBloodExpiryAlert = z.infer<typeof insertBloodExpiryAlertSchema>;
+
+export type BloodDonationTracking = z.infer<typeof bloodDonationTrackingSchema>;
+export type InsertBloodDonationTracking = z.infer<typeof insertBloodDonationTrackingSchema>;
