@@ -262,11 +262,11 @@ export function AchievementBadges() {
           </div>
         </div>
 
-        <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg border border-purple-200 dark:border-purple-800">
-          <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">
+        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
             ✅ How Badges Work
           </p>
-          <p className="text-sm text-purple-800 dark:text-purple-200">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
             Badges are automatically awarded after each donation. They recognize your contribution to
             saving lives and building a strong donor community. Collect them all!
           </p>
