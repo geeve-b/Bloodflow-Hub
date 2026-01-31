@@ -66,13 +66,7 @@ export function Navbar() {
               <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
                 Logout
               </Button>
-              {!isDashboard && (
-                <Link href="/dashboard">
-                  <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-500 dark:hover:bg-red-600">
-                    Go to Dashboard
-                  </Button>
-                </Link>
-              )}
+
               {user.role === "hospital" && !isHospitalDashboard && (
                 <Link href="/hospital-dashboard">
                   <Button size="sm" className="bg-primary hover:bg-primary/90">
@@ -156,11 +150,7 @@ export function Navbar() {
                         <Link href="/donor-dashboard" onClick={() => setIsOpen(false)}>
                           <Button className="w-full">My Dashboard</Button>
                         </Link>
-                      ) : (
-                        <Link href="/dashboard" onClick={() => setIsOpen(false)}>
-                          <Button className="w-full">Go to Dashboard</Button>
-                        </Link>
-                      )}
+                      ) : null}
                       <Button variant="outline" onClick={() => { handleLogout(); setIsOpen(false); }} className="w-full">
                         Logout
                       </Button>
