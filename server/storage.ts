@@ -79,7 +79,7 @@ export interface IStorage {
   getDonor(id: string): Promise<Donor | undefined>;
   getAllDonors(): Promise<Donor[]>;
   getDonorsByBloodType(bloodType: string): Promise<Donor[]>;
-  getEligibleDonorsWithEmails(bloodType: string): Promise<Array<{ donor: Donor; email: string; username: string }>>;
+  getEligibleDonorsWithEmails(bloodTypes: string | string[]): Promise<Array<{ donor: Donor; email: string; username: string }>>;
   createDonor(donor: InsertDonor): Promise<Donor>;
   updateDonor(id: string, donor: Partial<InsertDonor>): Promise<Donor | undefined>;
   deleteDonor(id: string): Promise<boolean>;
@@ -602,19 +602,22 @@ export class MongoDBStorage implements IStorage {
     return normalizeMany<Donor>(donors);
   }
 
-  async getEligibleDonorsWithEmails(bloodType: string): Promise<Array<{ donor: Donor; email: string; username: string }>> {
+  async getEligibleDonorsWithEmails(bloodTypesInput: string | string[]): Promise<Array<{ donor: Donor; email: string; username: string }>> {
     try {
-      // Find all active donors with matching blood type
+      // Handle both single string and array of strings
+      const bloodTypes = Array.isArray(bloodTypesInput) ? bloodTypesInput : [bloodTypesInput];
+      
+      // Find all active donors with matching blood types
       // Note: isActive defaults to true, but we also check for undefined to catch existing donors
       const donors = await db
         .collection("donors")
         .find({ 
-          bloodType, 
+          bloodType: { $in: bloodTypes },
           $or: [{ isActive: true }, { isActive: { $exists: false } }]
         })
         .toArray();
 
-      console.log(`[DEBUG] getEligibleDonorsWithEmails: Found ${donors.length} donors for blood type ${bloodType}`);
+      console.log(`[DEBUG] getEligibleDonorsWithEmails: Found ${donors.length} donors for blood types ${bloodTypes.join(", ")}`);
 
       if (donors.length === 0) {
         return [];
