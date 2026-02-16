@@ -89,6 +89,22 @@ const matchmakingEngine = new MatchmakingEngine(storage, {
   maxDistanceKm: 150,
 });
 
+// ==================== BLOOD COMPATIBILITY HELPERS ====================
+const BLOOD_COMPATIBILITY: Record<string, string[]> = {
+  "O-": ["O-"],
+  "O+": ["O-", "O+"],
+  "A-": ["O-", "A-"],
+  "A+": ["O-", "O+", "A-", "A+"],
+  "B-": ["O-", "B-"],
+  "B+": ["O-", "O+", "B-", "B+"],
+  "AB-": ["O-", "A-", "B-", "AB-"],
+  "AB+": ["O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"],
+};
+
+function getCompatibleDonorTypes(requestedBloodType: string): string[] {
+  return BLOOD_COMPATIBILITY[requestedBloodType] ?? [requestedBloodType];
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -839,7 +855,9 @@ export async function registerRoutes(
       setImmediate(async () => {
         try {
           console.log(`[DEBUG] Starting async notification for blood type: ${payload.bloodType}`);
-          const eligibleDonors = await storage.getEligibleDonorsWithEmails(payload.bloodType);
+          const compatibleTypes = getCompatibleDonorTypes(payload.bloodType);
+          console.log(`[DEBUG] Compatible donor blood types for ${payload.bloodType}: ${compatibleTypes.join(", ")}`);
+          const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes);
           console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors for blood type ${payload.bloodType}`);
           
           if (eligibleDonors.length > 0) {
@@ -889,7 +907,9 @@ export async function registerRoutes(
       }
 
       console.log(`[DEBUG] Notifying eligible donors for blood type: ${request.bloodType}`);
-      const eligibleDonors = await storage.getEligibleDonorsWithEmails(request.bloodType);
+      const compatibleTypes = getCompatibleDonorTypes(request.bloodType);
+      console.log(`[DEBUG] Compatible donor blood types for ${request.bloodType}: ${compatibleTypes.join(", ")}`);
+      const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes);
       
       console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors with emails`);
       

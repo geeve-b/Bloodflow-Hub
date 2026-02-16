@@ -829,7 +829,7 @@ export default function HospitalStaffDashboard() {
               )}
             >
               <Droplets className="h-4 w-4 mr-2" />
-              Request Blood
+              Donor Approvals
             </Button>
             <Button
               variant={activeTab === "sharing" ? "default" : "ghost"}
@@ -922,12 +922,12 @@ export default function HospitalStaffDashboard() {
         </div>
 
         {staleInventory.length > 0 && (
-          <div className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2 text-amber-900 font-semibold">
+          <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-white p-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2 text-gray-900 font-semibold">
               <AlertTriangle className="h-5 w-5" />
               {staleInventory.length} inventory entr{staleInventory.length === 1 ? "y" : "ies"} need updates
             </div>
-            <p className="text-sm text-amber-800">
+            <p className="text-sm text-gray-700">
               Last updated more than {INVENTORY_STALE_THRESHOLD_HOURS} hours ago. Donors will see a stale warning until refreshed.
             </p>
           </div>
@@ -987,7 +987,7 @@ export default function HospitalStaffDashboard() {
                         key={entry._id}
                         className={cn(
                           "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors",
-                          stale && "bg-amber-50/70",
+                          stale && "bg-white/70",
                           calculatedStatus === "not_available" && "opacity-80"
                         )}
                       >

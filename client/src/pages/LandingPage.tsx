@@ -4,8 +4,35 @@ import { motion } from "framer-motion";
 import generatedImage from "@assets/generated_images/abstract_medical_background_with_soft_red_and_white_tones.png";
 import { Heart, Search, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useState } from "react";
+
+// Function to extract YouTube video ID from various URL formats
+const getYouTubeVideoId = (url: string): string | null => {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+};
+
+// Function to check if URL is a video file
+const isVideoFile = (url: string): boolean => {
+  return /\.(mp4|webm|ogg|mov)$/i.test(url);
+};
 
 export default function LandingPage() {
+  const [videoLink, setVideoLink] = useState<string>("");
+  
+  const youtubeId = videoLink ? getYouTubeVideoId(videoLink) : null;
+  const isVideo = videoLink ? isVideoFile(videoLink) : false;
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -72,6 +99,141 @@ export default function LandingPage() {
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-8 text-white">
                 <p className="font-medium">"Donating blood is the simplest way to impact a life forever."</p>
               </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Advantages of Blood Donation */}
+      <section className="py-24 bg-background">
+        <div className="container px-4 md:px-8 max-w-screen-2xl">
+          <div className="mb-16 space-y-4">
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">
+              Advantages of Blood Donation
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl">
+              Giving blood is not just about saving others. It also brings health benefits to you as a donor.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            {/* Left Side - Advantages List */}
+            <div className="space-y-6">
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5 }}
+                className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="text-3xl mt-1">🏥</div>
+                  <div className="space-y-2">
+                    <h3 className="font-bold text-lg text-foreground">Free Mini Health Checkup</h3>
+                    <p className="text-muted-foreground">
+                      Blood pressure and hemoglobin level testing included with every donation.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="text-3xl mt-1">✔️</div>
+                  <div className="space-y-2">
+                    <h3 className="font-bold text-lg text-foreground">Reduces Excess Iron</h3>
+                    <p className="text-muted-foreground">
+                      Helps reduce excess iron in your body, preventing iron overload-related conditions.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="text-3xl mt-1">✔️</div>
+                  <div className="space-y-2">
+                    <h3 className="font-bold text-lg text-foreground">Stimulates Blood Cell Production</h3>
+                    <p className="text-muted-foreground">
+                      Your body responds by producing new blood cells, keeping your blood system healthy and strong.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="text-3xl mt-1">❤️</div>
+                  <div className="space-y-2">
+                    <h3 className="font-bold text-lg text-foreground">Reduces Heart-Related Risks</h3>
+                    <p className="text-muted-foreground">
+                      Regular safe donations may reduce the risk of heart-related issues and improve cardiovascular health.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Right Side - Video Space */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="rounded-xl bg-secondary/30 border border-border overflow-hidden shadow-lg flex items-center justify-center min-h-[500px]"
+            >
+              {youtubeId ? (
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={`https://www.youtube.com/embed/${youtubeId}`}
+                  title="Blood Donation Benefits Video"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="rounded-xl"
+                />
+              ) : isVideo ? (
+                <video
+                  width="100%"
+                  height="100%"
+                  controls
+                  className="rounded-xl"
+                >
+                  <source src={videoLink} />
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
+                  <div className="text-6xl">🎬</div>
+                  <h3 className="text-xl font-bold text-foreground">Video Coming Soon</h3>
+                  <p className="text-muted-foreground max-w-xs mb-4">
+                    Watch our educational video about the benefits and importance of blood donation.
+                  </p>
+                  <div className="w-full max-w-md space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Paste YouTube link or video URL here..."
+                      value={videoLink}
+                      onChange={(e) => setVideoLink(e.target.value)}
+                      className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         </div>

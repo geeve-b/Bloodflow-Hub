@@ -195,9 +195,9 @@ export function BloodInventoryTable() {
       </div>
 
       {staleEntries.length > 0 && (
-        <Alert className="border-amber-300 bg-yellow-50 text-amber-900 dark:bg-blue-950 dark:border-blue-700 dark:text-blue-200">
-          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-blue-400" />
-          <AlertTitle className="text-amber-900 dark:text-blue-200">Some entries look stale</AlertTitle>
+        <Alert className="border-gray-200 bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200">
+          <AlertTriangle className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+          <AlertTitle className="text-gray-900 dark:text-gray-200">Some entries look stale</AlertTitle>
           <AlertDescription>
             {staleEntries.length} entr
             {staleEntries.length === 1 ? "y" : "ies"} have not been updated in over {INVENTORY_STALE_THRESHOLD_HOURS}
@@ -271,7 +271,7 @@ export function BloodInventoryTable() {
                       key={`${entry._id}-${entry.hospitalId}`}
                       className={cn(
                         "hover:bg-muted/30 transition-colors",
-                        stale && "bg-yellow-50/70 dark:bg-blue-950/40"
+                        stale && "bg-white/70 dark:bg-gray-900/40"
                       )}
                     >
                       <TableCell>

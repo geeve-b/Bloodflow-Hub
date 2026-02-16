@@ -66,7 +66,13 @@ export function Navbar() {
               <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
                 Logout
               </Button>
-
+              {!isDashboard && user.role !== "hospital" && (
+                <Link href="/dashboard">
+                  <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-500 dark:hover:bg-red-600">
+                    Go to Dashboard
+                  </Button>
+                </Link>
+              )}
               {user.role === "hospital" && !isHospitalDashboard && (
                 <Link href="/hospital-dashboard">
                   <Button size="sm" className="bg-primary hover:bg-primary/90">
@@ -81,7 +87,7 @@ export function Navbar() {
                   </Button>
                 </Link>
               )}
-              {(user.role === "donor" || user.role === "receiver") && !isDonorDashboard && (
+              {user.role === "donor" && !isDonorDashboard && (
                 <Link href="/donor-dashboard">
                   <Button size="sm">Achievement</Button>
                 </Link>
