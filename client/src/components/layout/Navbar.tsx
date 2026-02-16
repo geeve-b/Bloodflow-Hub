@@ -156,7 +156,11 @@ export function Navbar() {
                         <Link href="/donor-dashboard" onClick={() => setIsOpen(false)}>
                           <Button className="w-full">My Dashboard</Button>
                         </Link>
-                      ) : null}
+                      ) : (
+                        <Link href="/dashboard" onClick={() => setIsOpen(false)}>
+                          <Button className="w-full">Go to Dashboard</Button>
+                        </Link>
+                      )}
                       <Button variant="outline" onClick={() => { handleLogout(); setIsOpen(false); }} className="w-full">
                         Logout
                       </Button>
