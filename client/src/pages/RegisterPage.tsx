@@ -358,13 +358,19 @@ export default function RegisterPage() {
                         className="w-full sm:w-96 p-0 rounded-lg shadow-xl bg-card border border-border"
                         align="start"
                       >
-                        <StepDatePicker
-                          selected={formData.dateOfBirth}
-                          onSelect={handleDateSelect}
-                          minYear={1950}
-                          maxYear={new Date().getFullYear()}
-                          disabled={(date) => date > new Date()}
-                        />
+                        {(() => {
+                          const today = new Date();
+                          const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+                          return (
+                            <StepDatePicker
+                              selected={formData.dateOfBirth}
+                              onSelect={handleDateSelect}
+                              minYear={1950}
+                              maxYear={maxDate.getFullYear()}
+                              disabled={(date) => date > maxDate}
+                            />
+                          );
+                        })()}
                       </PopoverContent>
                     </Popover>
                     <p className="text-xs text-muted-foreground">
