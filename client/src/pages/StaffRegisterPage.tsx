@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, User, Mail, Phone, Lock, Home, Briefcase, Upload, X, FileText } from "lucide-react";
+import { Eye, EyeOff, User, Mail, Phone, Lock, Home, Briefcase, Upload, X, FileText, Building2 } from "lucide-react";
 
 const API_URL = "http://localhost:3001/api";
 const ALLOWED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
@@ -53,6 +53,7 @@ export default function StaffRegisterPage() {
     address: "",
     username: "",
     designation: "nurse",
+    hospitalName: "",
     password: "",
     confirmPassword: "",
     staffIdDocument: null as File | null,
@@ -60,6 +61,13 @@ export default function StaffRegisterPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileError, setFileError] = useState<string>("");
+
+  const hospitals = [
+    { value: "PSG", label: "PSG Hospital" },
+    { value: "Karunya", label: "Karunya Hospital" },
+    { value: "Amirtha", label: "Amirtha Institute" },
+    { value: "NGP", label: "NGP Medical Center" },
+  ];
 
   const designations = [
     { value: "doctor", label: "Doctor" },
@@ -147,6 +155,7 @@ export default function StaffRegisterPage() {
     if (!formData.address.trim()) newErrors.address = "Address is required";
     if (!formData.username.trim()) newErrors.username = "Username is required";
     if (!formData.designation) newErrors.designation = "Designation is required";
+    if (!formData.hospitalName) newErrors.hospitalName = "Hospital Name is required";
     if (!formData.password) newErrors.password = "Password is required";
     if (!formData.confirmPassword)
       newErrors.confirmPassword = "Confirm Password is required";
@@ -256,7 +265,7 @@ export default function StaffRegisterPage() {
       staffFormData.append("position", formData.designation);
       staffFormData.append("phone", formData.contactNumber);
       staffFormData.append("email", formData.email);
-      staffFormData.append("hospitalName", "Your Hospital");
+      staffFormData.append("hospitalName", formData.hospitalName);
       
       // Add the file to FormData
       if (formData.staffIdDocument) {
@@ -318,6 +327,7 @@ export default function StaffRegisterPage() {
       address: "",
       username: "",
       designation: "nurse",
+      hospitalName: "",
       password: "",
       confirmPassword: "",
       staffIdDocument: null,
@@ -590,6 +600,38 @@ export default function StaffRegisterPage() {
                   <p className="text-sm text-destructive">{errors.designation}</p>
                 )}
               </div>
+            </div>
+
+            {/* Hospital Name Selection Row */}
+            <div className="space-y-2">
+              <Label htmlFor="hospitalName" className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-primary" />
+                Hospital Name *
+              </Label>
+              <Select value={formData.hospitalName} onValueChange={(value) => {
+                setFormData((prev) => ({ ...prev, hospitalName: value }));
+                if (errors.hospitalName) {
+                  setErrors((prev) => {
+                    const newErrors = { ...prev };
+                    delete newErrors.hospitalName;
+                    return newErrors;
+                  });
+                }
+              }}>
+                <SelectTrigger className={`rounded-lg ${errors.hospitalName ? "border-destructive" : ""}`}>
+                  <SelectValue placeholder="Select hospital" />
+                </SelectTrigger>
+                <SelectContent>
+                  {hospitals.map((hospital) => (
+                    <SelectItem key={hospital.value} value={hospital.value}>
+                      {hospital.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.hospitalName && (
+                <p className="text-sm text-destructive">{errors.hospitalName}</p>
+              )}
             </div>
 
             {/* Password and Confirm Password Row */}

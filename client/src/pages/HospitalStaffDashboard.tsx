@@ -215,12 +215,14 @@ export default function HospitalStaffDashboard() {
   }, [user]);
 
   const fetchInventory = useCallback(async () => {
-    if (!user || user.role !== "hospital") return;
+    if (!staffProfile || user?.role !== "hospital") return;
 
     setInventoryLoading(true);
     try {
+      // Use hospital name from staff profile instead of user ID
+      const hospitalIdParam = staffProfile.hospitalName || user?.id;
       const response = await fetch(
-        `${API_URL}/blood-inventory/hospital/${user.id}`
+        `${API_URL}/blood-inventory/hospital/${hospitalIdParam}`
       );
       if (!response.ok) {
         throw new Error("Unable to load hospital inventory");
@@ -246,7 +248,7 @@ export default function HospitalStaffDashboard() {
     } finally {
       setInventoryLoading(false);
     }
-  }, [user]);
+  }, [staffProfile, user]);
 
   useEffect(() => {
     fetchInventory();
@@ -256,8 +258,8 @@ export default function HospitalStaffDashboard() {
   useEffect(() => {
     const fetchRequests = async () => {
       // Don't redirect, just skip fetching if no user
-      if (!user) {
-        console.log("No user yet, skipping request fetch");
+      if (!user || !staffProfile) {
+        console.log("No user or staff profile yet, skipping request fetch");
         return;
       }
 
@@ -289,7 +291,7 @@ export default function HospitalStaffDashboard() {
             return true; // All hospitals can see pending requests
           }
           // For approved, fulfilled, rejected - only show if this hospital approved/handled it
-          return req.approvedByHospitalId === user.id || req.approvedByHospitalName === user.name;
+          return req.approvedByHospitalId === user.id || req.approvedByHospitalName === staffProfile.hospitalName;
         });
         
         setRequests(filtered);
@@ -310,7 +312,7 @@ export default function HospitalStaffDashboard() {
     };
 
     fetchRequests();
-  }, [user, toast]);
+  }, [user, staffProfile, toast]);
 
   const getUsableInventoryForType = (bloodType: string) =>
     inventory.find(
@@ -605,6 +607,10 @@ export default function HospitalStaffDashboard() {
                       : action === "fulfill"
                         ? "fulfilled"
                         : "rejected",
+                  ...(action === "approve" && {
+                    approvedByHospitalId: user?.id || "",
+                    approvedByHospitalName: staffProfile?.hospitalName || user?.name || "Unknown Hospital",
+                  }),
                   ...(action === "fulfill" && {
                     fulfilledByHospitalId: user?.id || "",
                     fulfilledByHospitalName: staffProfile?.hospitalName || user?.name || "Unknown Hospital",
