@@ -82,7 +82,7 @@ const INITIAL_DONORS: DonorProfile[] = [
   { id: "d2", name: "Michael Scott", bloodGroup: "O-", age: 45, lastDonation: "2024-01-10", medicalConditions: ["Asthma"], status: "pending", email: "michael@example.com" },
 ];
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<BloodStock[]>(INITIAL_INVENTORY);

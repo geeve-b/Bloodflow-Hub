@@ -1,0 +1,66 @@
+name: bloodflow-hub
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: bloodflow-hub-backend:latest
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - HOST=0.0.0.0
+      - SERVE_STATIC=false
+      - DATABASE_URL=${DATABASE_URL:-mongodb://db:27017/bloodflow}
+      - MONGO_URI=${MONGO_URI:-mongodb://db:27017/bloodflow}
+      - APP_URL=${APP_URL:-http://localhost:3000}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    networks:
+      - bloodflow-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: /api
+    image: bloodflow-hub-frontend:latest
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    networks:
+      - bloodflow-network
+    restart: unless-stopped
+
+  db:
+    image: mongo:7
+    environment:
+      - MONGO_INITDB_DATABASE=bloodflow
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bloodflow-network
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  mongo_config:
+
+networks:
+  bloodflow-network:
+    driver: bridge

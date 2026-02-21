@@ -10,7 +10,7 @@ import { useLocation } from "wouter";
 import { Droplet, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 const ADMIN_EMAIL = "bloodflowhub@gmail.com";
 
