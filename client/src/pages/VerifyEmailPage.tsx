@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 const RESEND_COOLDOWN_SECONDS = 30;
 const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 

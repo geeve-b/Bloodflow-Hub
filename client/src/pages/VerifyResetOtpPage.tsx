@@ -6,7 +6,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
 export default function VerifyResetOtpPage() {
   const [location, setLocation] = useLocation();

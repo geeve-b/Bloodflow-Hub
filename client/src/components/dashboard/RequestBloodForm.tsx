@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
 type Urgency = "critical" | "normal";
 

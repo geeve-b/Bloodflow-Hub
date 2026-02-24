@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { CalendarIcon, Eye, EyeOff, Upload } from "lucide-react";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
 
 const BLOOD_GROUPS = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];

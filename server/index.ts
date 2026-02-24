@@ -89,7 +89,7 @@ app.use((req, res, next) => {
     // this serves both the API and the client.
     // It is the only port that is not firewalled.
     const port = parseInt(process.env.PORT || "3000", 10);
-    const host = "127.0.0.1";
+    const host = process.env.HOST || "0.0.0.0";
     httpServer.listen(port, host, 128, () => {
       log(`serving on ${host}:${port}`);
     });
@@ -101,7 +101,9 @@ app.use((req, res, next) => {
     // setting up all the other routes so the catch-all route
     // doesn't interfere with the other routes
     if (process.env.NODE_ENV === "production") {
-      serveStatic(app);
+      if (process.env.SERVE_STATIC !== "false") {
+        serveStatic(app);
+      }
     } else {
       console.log("[DEBUG] About to setup Vite...");
       const { setupVite } = await import("./vite");
