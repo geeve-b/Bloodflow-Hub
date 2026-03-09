@@ -28,7 +28,7 @@ const isVideoFile = (url: string): boolean => {
 };
 
 export default function LandingPage() {
-  const [videoLink, setVideoLink] = useState<string>("");
+  const [videoLink, setVideoLink] = useState<string>("https://youtu.be/iGEgDkIt65M?si=iFk8Toun2iUJqBA9");
   
   const youtubeId = videoLink ? getYouTubeVideoId(videoLink) : null;
   const isVideo = videoLink ? isVideoFile(videoLink) : false;

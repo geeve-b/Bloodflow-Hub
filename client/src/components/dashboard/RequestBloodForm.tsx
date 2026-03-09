@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { UrgencyBadge } from "@/components/dashboard/UrgencyBadge";
+import { LocationSelector } from "@/components/dashboard/LocationSelector";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2 } from "lucide-react";
@@ -28,6 +29,10 @@ interface RequestFormValues {
   patientName: string;
   primaryMobileNumber: string;
   secondaryMobileNumber?: string;
+  country: string;
+  state: string;
+  district: string;
+  address: string;
   urgency: Urgency;
 }
 
@@ -35,6 +40,10 @@ interface ConfirmationDetails {
   id: string;
   patientName: string;
   hospitalName: string;
+  country: string;
+  state: string;
+  district: string;
+  address: string;
   bloodGroup: string;
   units: number;
   urgency: Urgency;
@@ -44,9 +53,10 @@ export function RequestBloodForm() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [urgency, setUrgency] = useState<Urgency | "">("");
+  const [urgency, setUrgency] = useState<Urgency | "">("")
   const [formRef, setFormRef] = useState<HTMLFormElement | null>(null);
   const [confirmationDetails, setConfirmationDetails] = useState<ConfirmationDetails | null>(null);
+  const [location, setLocation] = useState({ country: "", state: "", district: "" });
 
   const submitRequest = async (data: RequestFormValues) => {
     if (!user) {
@@ -60,17 +70,21 @@ export function RequestBloodForm() {
 
     setLoading(true);
 
+    const region = `${data.country}, ${data.state}, ${data.district}`.replace(/^,\s*|,\s*$/g, "");
+    
     const requestData = {
       requesterId: user.id,
       requesterName: user.name,
       hospitalName: data.hospital,
+      region: region,
+      address: data.address,
       bloodType: data.bloodGroup,
       quantity: data.units,
       urgency: data.urgency,
       reason: data.notes || "Patient blood requirement",
       patientName: data.patientName,
       contactNumber: data.primaryMobileNumber,
-      secondaryContactNumber: data.secondaryMobileNumber || undefined,
+      secondaryContactNumber: data.secondaryContactNumber || undefined,
     };
 
     try {
@@ -100,6 +114,10 @@ export function RequestBloodForm() {
         id: String(createdRequest?._id ?? createdRequest?.id ?? Date.now()),
         patientName: data.patientName,
         hospitalName: data.hospital,
+        country: data.country,
+        state: data.state,
+        district: data.district,
+        address: data.address,
         bloodGroup: data.bloodGroup,
         units: data.units,
         urgency: data.urgency,
@@ -137,6 +155,15 @@ export function RequestBloodForm() {
     }
 
     const formData = new FormData(e.currentTarget);
+    if (!location.country || !location.state || !location.district) {
+      toast({
+        title: "Validation Error",
+        description: "Please select Country, State, and District",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const data: RequestFormValues = {
       bloodGroup: formData.get("bloodGroup") as string,
       units: Number(formData.get("units")),
@@ -145,6 +172,10 @@ export function RequestBloodForm() {
       patientName: formData.get("patientName") as string,
       primaryMobileNumber: formData.get("primaryMobileNumber") as string,
       secondaryMobileNumber: formData.get("secondaryMobileNumber") as string | undefined,
+      country: location.country,
+      state: location.state,
+      district: location.district,
+      address: formData.get("address") as string,
       urgency: urgency as Urgency,
     };
 
@@ -213,6 +244,15 @@ export function RequestBloodForm() {
                 <Label htmlFor="hospital">Hospital Name</Label>
                 <Input id="hospital" name="hospital" placeholder="Where is the patient?" required />
               </div>
+            </div>
+            <LocationSelector
+              onLocationChange={setLocation}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="address">Address <span className="text-red-500">*</span></Label>
+                <Input id="address" name="address" placeholder="Complete address/location" required />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="primaryMobileNumber">
                   Primary Mobile Number <span className="text-red-500">*</span>
@@ -266,7 +306,7 @@ export function RequestBloodForm() {
             </div>
             <UrgencyBadge urgency={confirmationDetails.urgency} size="sm" />
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Request ID</p>
               <Badge variant="outline" className="font-mono text-xs">
@@ -280,6 +320,22 @@ export function RequestBloodForm() {
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Hospital</p>
               <p className="font-semibold text-foreground">{confirmationDetails.hospitalName}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Country</p>
+              <p className="font-semibold text-foreground">{confirmationDetails.country}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">State</p>
+              <p className="font-semibold text-foreground">{confirmationDetails.state}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">District</p>
+              <p className="font-semibold text-foreground">{confirmationDetails.district}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Address</p>
+              <p className="font-semibold text-foreground text-sm">{confirmationDetails.address}</p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Blood Requirement</p>

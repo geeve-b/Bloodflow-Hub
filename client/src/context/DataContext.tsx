@@ -16,6 +16,10 @@ export interface DonorRequest {
   bloodGroup: string;
   unitsNeeded: number;
   hospitalName: string;
+  country: string;
+  state: string;
+  district: string;
+  address: string;
   status: "pending" | "fulfilled" | "approved" | "rejected";
   urgency: "critical" | "normal";
   requestDate: string;
@@ -61,6 +65,8 @@ const INITIAL_REQUESTS: DonorRequest[] = [
     bloodGroup: "B-",
     unitsNeeded: 2,
     hospitalName: "City General",
+    region: "Downtown",
+    address: "123 Main St, City General Hospital",
     status: "pending",
     urgency: "critical",
     requestDate: "2024-05-21",
@@ -71,6 +77,8 @@ const INITIAL_REQUESTS: DonorRequest[] = [
     bloodGroup: "O-",
     unitsNeeded: 1,
     hospitalName: "St. Mary's",
+    region: "Midtown",
+    address: "456 Oak Ave, St. Mary's Medical Center",
     status: "fulfilled",
     urgency: "normal",
     requestDate: "2024-05-21",

@@ -4,6 +4,8 @@ export interface BloodRequestFilters {
   bloodType?: string;
   urgency?: "low" | "medium" | "high" | "critical";
   location?: string;
+  region?: string;
+  address?: string;
   status?: "pending" | "approved" | "fulfilled" | "rejected";
   search?: string;
 }
@@ -28,10 +30,22 @@ export function buildMongoQuery(filters: BloodRequestFilters): Record<string, an
     query.status = filters.status;
   }
 
+  if (filters.region) {
+    const regionRegex = new RegExp(filters.region, "i");
+    query.region = { $regex: regionRegex };
+  }
+
+  if (filters.address) {
+    const addressRegex = new RegExp(filters.address, "i");
+    query.address = { $regex: addressRegex };
+  }
+
   if (filters.location) {
     const locationRegex = new RegExp(filters.location, "i");
     query.$or = [
       { hospitalName: { $regex: locationRegex } },
+      { region: { $regex: locationRegex } },
+      { address: { $regex: locationRegex } },
     ];
   }
 
@@ -41,6 +55,8 @@ export function buildMongoQuery(filters: BloodRequestFilters): Record<string, an
       { bloodType: { $regex: searchRegex } },
       { hospitalName: { $regex: searchRegex } },
       { requesterName: { $regex: searchRegex } },
+      { region: { $regex: searchRegex } },
+      { address: { $regex: searchRegex } },
     ];
 
     if (query.$or) {
