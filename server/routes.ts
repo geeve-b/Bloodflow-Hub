@@ -857,7 +857,8 @@ export async function registerRoutes(
           console.log(`[DEBUG] Starting async notification for blood type: ${payload.bloodType}`);
           const compatibleTypes = getCompatibleDonorTypes(payload.bloodType);
           console.log(`[DEBUG] Compatible donor blood types for ${payload.bloodType}: ${compatibleTypes.join(", ")}`);
-          const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes);
+          const region = payload.region || payload.state || payload.country;
+          const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes, region);
           console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors for blood type ${payload.bloodType}`);
           
           if (eligibleDonors.length > 0) {
@@ -872,6 +873,10 @@ export async function registerRoutes(
                 urgency: payload.urgency,
                 hospitalName: payload.hospitalName,
                 requesterName: payload.requesterName,
+                country: payload.country,
+                state: payload.state,
+                district: payload.district,
+                address: payload.address,
               }).catch(error => {
                 console.error(`[ERROR] Failed to send email to ${email}:`, error);
               });
@@ -909,7 +914,8 @@ export async function registerRoutes(
       console.log(`[DEBUG] Notifying eligible donors for blood type: ${request.bloodType}`);
       const compatibleTypes = getCompatibleDonorTypes(request.bloodType);
       console.log(`[DEBUG] Compatible donor blood types for ${request.bloodType}: ${compatibleTypes.join(", ")}`);
-      const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes);
+      const region = request.region || request.state || request.country;
+      const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes, region);
       
       console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors with emails`);
       
@@ -926,6 +932,10 @@ export async function registerRoutes(
             urgency: request.urgency,
             hospitalName: request.hospitalName,
             requesterName: request.requesterName,
+            country: request.country,
+            state: request.state,
+            district: request.district,
+            address: request.address,
           }).catch(error => {
             // Log error but don't fail
             console.error(`[ERROR] Failed to send email to ${email}:`, error);

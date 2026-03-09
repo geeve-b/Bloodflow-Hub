@@ -79,7 +79,7 @@ export interface IStorage {
   getDonor(id: string): Promise<Donor | undefined>;
   getAllDonors(): Promise<Donor[]>;
   getDonorsByBloodType(bloodType: string): Promise<Donor[]>;
-  getEligibleDonorsWithEmails(bloodTypes: string | string[]): Promise<Array<{ donor: Donor; email: string; username: string }>>;
+  getEligibleDonorsWithEmails(bloodTypes: string | string[], region?: string): Promise<Array<{ donor: Donor; email: string; username: string }>>;
   createDonor(donor: InsertDonor): Promise<Donor>;
   updateDonor(id: string, donor: Partial<InsertDonor>): Promise<Donor | undefined>;
   deleteDonor(id: string): Promise<boolean>;
@@ -602,22 +602,39 @@ export class MongoDBStorage implements IStorage {
     return normalizeMany<Donor>(donors);
   }
 
-  async getEligibleDonorsWithEmails(bloodTypesInput: string | string[]): Promise<Array<{ donor: Donor; email: string; username: string }>> {
+  async getEligibleDonorsWithEmails(bloodTypesInput: string | string[], region?: string): Promise<Array<{ donor: Donor; email: string; username: string }>> {
     try {
       // Handle both single string and array of strings
       const bloodTypes = Array.isArray(bloodTypesInput) ? bloodTypesInput : [bloodTypesInput];
       
-      // Find all active donors with matching blood types
+      // Build query with blood type filter
+      const query: any = {
+        bloodType: { $in: bloodTypes },
+        $or: [{ isActive: true }, { isActive: { $exists: false } }]
+      };
+
+      // Add region filter if provided - match any of: region, state, or address
+      if (region) {
+        const regionRegex = new RegExp(region, "i");
+        query.$and = [
+          {
+            $or: [
+              { region: { $regex: regionRegex } },
+              { state: { $regex: regionRegex } },
+              { address: { $regex: regionRegex } }
+            ]
+          }
+        ];
+      }
+      
+      // Find all active donors with matching blood types and region
       // Note: isActive defaults to true, but we also check for undefined to catch existing donors
       const donors = await db
         .collection("donors")
-        .find({ 
-          bloodType: { $in: bloodTypes },
-          $or: [{ isActive: true }, { isActive: { $exists: false } }]
-        })
+        .find(query)
         .toArray();
 
-      console.log(`[DEBUG] getEligibleDonorsWithEmails: Found ${donors.length} donors for blood types ${bloodTypes.join(", ")}`);
+      console.log(`[DEBUG] getEligibleDonorsWithEmails: Found ${donors.length} donors for blood types ${bloodTypes.join(", ")}${region ? ` in region ${region}` : ""}`);
 
       if (donors.length === 0) {
         return [];

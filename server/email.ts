@@ -259,8 +259,12 @@ export async function sendBloodRequestNotification(params: {
   urgency: string;
   hospitalName: string;
   requesterName: string;
+  country?: string;
+  state?: string;
+  district?: string;
+  address?: string;
 }): Promise<void> {
-  const { donorEmail, donorName, bloodType, urgency, hospitalName, requesterName } = params;
+  const { donorEmail, donorName, bloodType, urgency, hospitalName, requesterName, country, state, district, address } = params;
   const fromName = process.env.SMTP_FROM_NAME || "LifeFlow";
   const supportEmail =
     process.env.SMTP_FROM_EMAIL ||
@@ -308,6 +312,10 @@ export async function sendBloodRequestNotification(params: {
               <p style="margin: 8px 0;"><strong>Hospital:</strong> ${hospitalName}</p>
               <p style="margin: 8px 0;"><strong>Requester:</strong> ${requesterName}</p>
               <p style="margin: 8px 0;"><strong>Urgency Level:</strong> ${urgencyLabel.replace(/^[^A-Z]*\s?/, "")}</p>
+              ${country ? `<p style="margin: 8px 0;"><strong>Country:</strong> ${country}</p>` : ""}
+              ${state ? `<p style="margin: 8px 0;"><strong>State/Province:</strong> ${state}</p>` : ""}
+              ${district ? `<p style="margin: 8px 0;"><strong>District/City:</strong> ${district}</p>` : ""}
+              ${address ? `<p style="margin: 8px 0;"><strong>Address:</strong> ${address}</p>` : ""}
             </div>
           </div>
 
