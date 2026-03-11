@@ -26,6 +26,7 @@ import UserManagement from "@/components/dashboard/UserManagement";
 import AdminAnalytics from "@/components/dashboard/AdminAnalytics";
 import { BloodExpiryAlerts } from "@/components/dashboard/BloodExpiryAlerts";
 import { ActiveRequestsTable } from "@/components/dashboard/ActiveRequestsTable";
+import HospitalManagement from "@/components/dashboard/HospitalManagement";
 
 const ADMIN_EMAIL = "bloodflowhub@gmail.com";
 
@@ -223,6 +224,11 @@ export default function AdminDashboard() {
       {/* Blood Expiry Alerts Section */}
       <section>
         <BloodExpiryAlerts />
+      </section>
+
+      {/* Hospital Management Section */}
+      <section>
+        <HospitalManagement />
       </section>
 
       {/* User Management Section */}

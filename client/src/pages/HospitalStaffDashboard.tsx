@@ -891,7 +891,6 @@ export default function HospitalStaffDashboard() {
             </Button>
           </div>
           <Button
-            className="bg-green-600 hover:bg-green-700"
             onClick={() => setShowAddBloodModal(true)}
           >
             <Droplets className="h-4 w-4 mr-2" />

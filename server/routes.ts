@@ -14,6 +14,8 @@ import {
   insertStaffSchema,
 } from "@shared/schema";
 import { storage } from "./storage";
+import { db, isDbConnected } from "./db";
+import { ObjectId } from "mongodb";
 import {
   sendContactEmail,
   sendVerificationEmail,
@@ -1309,6 +1311,140 @@ export async function registerRoutes(
       res.json({ message: "Receiver deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete receiver" });
+    }
+  });
+
+  // ==================== HOSPITAL MANAGEMENT ROUTES ====================
+  app.get("/api/hospitals", async (_req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const hospitalUsers = users.filter((u) => u.role === "hospital").map(removePassword);
+      const allStaff = await storage.getAllStaff();
+      const hospitals = hospitalUsers.map((user) => {
+        const staffProfile = allStaff.find((s) => s.userId === (user as any)._id?.toString());
+        return { ...user, staffProfile: staffProfile || null };
+      });
+      res.json(hospitals);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch hospitals" });
+    }
+  });
+
+  app.post("/api/hospitals", async (req, res) => {
+    try {
+      if (!isDbConnected()) {
+        return res.status(503).json({ error: "Database not connected. Please whitelist your IP in MongoDB Atlas Network Access settings." });
+      }
+      const { username, email, password, firstName, lastName, staffId, department, position, phone, hospitalName } = req.body;
+      if (!username || !email || !password) {
+        return res.status(400).json({ error: "username, email, and password are required" });
+      }
+      const existingEmail = await storage.getUserByEmail(email);
+      if (existingEmail) return res.status(409).json({ error: "Email already in use" });
+      const existingUsername = await storage.getUserByUsername(username);
+      if (existingUsername) return res.status(409).json({ error: "Username already in use" });
+
+      const user = await storage.createUser({ username, email, password, role: "hospital" });
+      const userId = (user as any)._id?.toString();
+
+      if (firstName && lastName && userId) {
+        await storage.createStaff({
+          userId,
+          firstName,
+          lastName,
+          staffId: staffId || "N/A",
+          department: department || "General",
+          position: position || "Staff",
+          phone: phone || "",
+          email,
+          hospitalName: hospitalName || "",
+        });
+      }
+
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(userId) },
+        { $set: { approvalStatus: "pending", updatedAt: new Date() } }
+      );
+
+      res.status(201).json(removePassword(user));
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to create hospital" });
+    }
+  });
+
+  app.put("/api/hospitals/:id", async (req, res) => {
+    try {
+      const { username, email, firstName, lastName, staffId, department, position, phone, hospitalName } = req.body;
+      const userUpdates: Record<string, any> = {};
+      if (username !== undefined) userUpdates.username = username;
+      if (email !== undefined) userUpdates.email = email;
+      if (Object.keys(userUpdates).length > 0) {
+        await storage.updateUser(req.params.id, userUpdates);
+      }
+      const allStaff = await storage.getAllStaff();
+      const staffProfile = allStaff.find((s) => s.userId === req.params.id);
+      const staffUpdates: Record<string, any> = {};
+      if (firstName !== undefined) staffUpdates.firstName = firstName;
+      if (lastName !== undefined) staffUpdates.lastName = lastName;
+      if (staffId !== undefined) staffUpdates.staffId = staffId;
+      if (department !== undefined) staffUpdates.department = department;
+      if (position !== undefined) staffUpdates.position = position;
+      if (phone !== undefined) staffUpdates.phone = phone;
+      if (hospitalName !== undefined) staffUpdates.hospitalName = hospitalName;
+      if (email !== undefined) staffUpdates.email = email;
+      if (Object.keys(staffUpdates).length > 0) {
+        if (staffProfile?._id) {
+          await storage.updateStaff((staffProfile._id as any).toString(), staffUpdates);
+        } else {
+          await storage.createStaff({
+            userId: req.params.id,
+            firstName: firstName || "",
+            lastName: lastName || "",
+            staffId: staffId || "N/A",
+            department: department || "General",
+            position: position || "Staff",
+            phone: phone || "",
+            email: email || "",
+            hospitalName: hospitalName || "",
+          });
+        }
+      }
+      const updatedUser = await storage.getUser(req.params.id);
+      if (!updatedUser) return res.status(404).json({ error: "Hospital not found" });
+      res.json(removePassword(updatedUser));
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to update hospital" });
+    }
+  });
+
+  app.patch("/api/hospitals/:id/approve", async (req, res) => {
+    try {
+      if (!isDbConnected()) return res.status(503).json({ error: "Database not connected" });
+      const user = await storage.getUser(req.params.id);
+      if (!user || user.role !== "hospital") return res.status(404).json({ error: "Hospital not found" });
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { approvalStatus: "approved", updatedAt: new Date() } }
+      );
+      res.json({ message: "Hospital approved successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to approve hospital" });
+    }
+  });
+
+  app.patch("/api/hospitals/:id/reject", async (req, res) => {
+    try {
+      if (!isDbConnected()) return res.status(503).json({ error: "Database not connected" });
+      const { reason } = req.body;
+      const user = await storage.getUser(req.params.id);
+      if (!user || user.role !== "hospital") return res.status(404).json({ error: "Hospital not found" });
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { approvalStatus: "rejected", rejectionReason: reason || "", updatedAt: new Date() } }
+      );
+      res.json({ message: "Hospital registration rejected" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to reject hospital" });
     }
   });
 

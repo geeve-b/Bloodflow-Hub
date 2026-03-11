@@ -279,7 +279,6 @@ export function InterHospitalBloodSharing() {
         </div>
         <Button
           onClick={() => setShowRequestModal(true)}
-          className="bg-blue-600 hover:bg-blue-700"
         >
           <Building2 className="h-4 w-4 mr-2" />
           Request Blood from Hospital

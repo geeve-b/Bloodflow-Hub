@@ -66,9 +66,27 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    await connectDB();
-    // Connect to MongoDB
-    await connectDatabase();
+    // Attempt database connections with timeouts in parallel
+    console.log("[DEBUG] Attempting database connections...");
+    
+    const connectPromises = await Promise.allSettled([
+      (async () => {
+        try {
+          await connectDB();
+        } catch (error) {
+          console.warn("⚠ Mongoose connection failed, using fallback");
+        }
+      })(),
+      (async () => {
+        try {
+          await connectDatabase();
+        } catch (error) {
+          console.warn("⚠ MongoDB native connection failed, using fallback");
+        }
+      })(),
+    ]);
+
+    console.log("[DEBUG] Database connections completed");
 
     // Setup error handler BEFORE routes
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -94,7 +112,13 @@ app.use((req, res, next) => {
       log(`serving on ${host}:${port}`);
     });
     httpServer.on("error", (err: any) => {
-      console.error(`Server error:`, err);
+      if (err.code === "EADDRINUSE") {
+        console.error(`Port ${port} is already in use. Kill the existing process and retry.`);
+        console.error(`Run: powershell -Command "Get-Process node | Stop-Process -Force"`);
+        process.exit(1);
+      } else {
+        console.error(`Server error:`, err);
+      }
     });
 
     // importantly only setup vite in development and after
