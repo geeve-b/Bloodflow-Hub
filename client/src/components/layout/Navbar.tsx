@@ -68,7 +68,7 @@ export function Navbar() {
               </Button>
               {!isDashboard && user.role !== "hospital" && (
                 <Link href="/dashboard">
-                  <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-500 dark:hover:bg-red-600">
+                  <Button size="sm">
                     Go to Dashboard
                   </Button>
                 </Link>

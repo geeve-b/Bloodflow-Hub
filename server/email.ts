@@ -274,6 +274,20 @@ export async function sendBloodRequestNotification(params: {
 
   const appUrl = process.env.APP_URL || "http://localhost:5000";
 
+  // IMPORTANT DEBUG: Verify email address is correct
+  console.log(`[DEBUG] sendBloodRequestNotification called with donorEmail: "${donorEmail}", donorName: "${donorName}"`);
+  
+  // Allow any non-empty email address (including fallback formats)
+  if (!donorEmail || donorEmail.trim() === "") {
+    console.error(`[ERROR] CRITICAL: Empty donorEmail passed to sendBloodRequestNotification!`);
+    throw new Error("donorEmail is empty");
+  }
+  
+  // Log if using fallback email
+  if (donorEmail.includes("@donor.bloodflow.local")) {
+    console.warn(`[WARN] Using fallback email format for donor: ${donorEmail}`);
+  }
+
   // Map urgency to color and display text
   const urgencyColors: Record<string, string> = {
     critical: "#dc2626",
