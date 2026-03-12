@@ -127,47 +127,47 @@ export default function AdminDashboard() {
       description: "All registered users in the system",
       value: stats.totalUsers,
       icon: Users,
-      color: "border border-sky-200 bg-sky-50 text-sky-700",
+      color: "border border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/70 dark:bg-sky-950/50 dark:text-sky-300",
     },
     {
       title: "Verified Users",
       description: "Email verified accounts",
       value: stats.verifiedUsers,
       icon: CheckCircle,
-      color: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+      color: "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300",
     },
     {
       title: "Unverified Users",
       description: "Pending email verification",
       value: stats.unverifiedUsers,
       icon: Clock,
-      color: "border border-amber-200 bg-amber-50 text-amber-700",
+      color: "border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300",
     },
     {
       title: "Active Donors",
       description: "Registered blood donors",
       value: stats.totalDonors,
       icon: UserCheck,
-      color: "border border-rose-200 bg-rose-50 text-rose-700",
+      color: "border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/50 dark:text-rose-300",
     },
     {
       title: "Hospitals",
       description: "Hospital staff accounts",
       value: stats.totalHospitals,
       icon: Database,
-      color: "border border-indigo-200 bg-indigo-50 text-indigo-700",
+      color: "border border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/70 dark:bg-indigo-950/50 dark:text-indigo-300",
     },
     {
       title: "Blood Receivers",
       description: "Patients seeking blood",
       value: stats.totalReceivers,
       icon: TrendingUp,
-      color: "border border-orange-200 bg-orange-50 text-orange-700",
+      color: "border border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800/70 dark:bg-orange-950/50 dark:text-orange-300",
     },
   ];
 
   return (
-    <div className="w-full bg-linear-to-b from-slate-50 via-white to-slate-100/80 py-10">
+    <div className="w-full bg-linear-to-b from-slate-50 via-background to-slate-100/80 py-10 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900/80">
       <div className="mx-auto w-full max-w-[1600px] space-y-8 px-4 md:px-8">
       <header className="space-y-3">
         <div className="flex items-center gap-3">
@@ -192,7 +192,7 @@ export default function AdminDashboard() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {adminWidgets.map(({ title, description, value, icon: Icon, color }) => (
-              <Card key={title} className="border-border/70 bg-white/90 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+              <Card key={title} className="border-border/70 bg-card/90 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:bg-card/95">
                 <CardHeader className="space-y-1">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold">{title}</CardTitle>
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
 
       {/* Quick Stats */}
       <section className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-border/70 bg-white/90 shadow-sm">
+        <Card className="border-border/70 bg-card/90 shadow-sm dark:bg-card/95">
           <CardHeader>
             <CardTitle className="text-lg">Verification Status</CardTitle>
             <CardDescription>Email verification breakdown</CardDescription>
@@ -276,7 +276,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-white/90 shadow-sm">
+        <Card className="border-border/70 bg-card/90 shadow-sm dark:bg-card/95">
           <CardHeader>
             <CardTitle className="text-lg">User Distribution</CardTitle>
             <CardDescription>Breakdown by user role</CardDescription>

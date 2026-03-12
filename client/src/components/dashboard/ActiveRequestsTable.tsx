@@ -39,20 +39,20 @@ import { Loader2, Search, AlertTriangle, Trash2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CONFIG = {
-  pending: { label: "Pending", color: "bg-yellow-100 text-yellow-800" },
-  approved: { label: "Approved", color: "bg-blue-100 text-blue-800" },
-  fulfilled: { label: "Fulfilled", color: "bg-green-100 text-green-800" },
-  rejected: { label: "Rejected", color: "bg-red-100 text-red-800" },
+  pending: { label: "Pending", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300" },
+  approved: { label: "Approved", color: "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300" },
+  fulfilled: { label: "Fulfilled", color: "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300" },
+  rejected: { label: "Rejected", color: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300" },
 };
 
 const URGENCY_CONFIG = {
   critical: {
     label: "Critical",
-    color: "border border-red-200 bg-red-50 text-red-700",
+    color: "border border-red-200 bg-red-50 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300",
   },
   normal: {
     label: "Normal",
-    color: "border border-sky-200 bg-sky-50 text-sky-700",
+    color: "border border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/70 dark:bg-sky-950/50 dark:text-sky-300",
   },
 };
 
@@ -221,7 +221,7 @@ export function ActiveRequestsTable() {
   }
 
   return (
-    <Card className="border-border/70 bg-white/95 shadow-sm">
+    <Card className="border-border/70 bg-card/95 shadow-sm">
       <CardHeader>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
@@ -232,9 +232,9 @@ export function ActiveRequestsTable() {
               </CardDescription>
             </div>
             {(pendingCount > 0 || criticalCount > 0) && (
-              <Alert className="w-auto border-slate-200 bg-slate-50">
-                <AlertTriangle className="h-4 w-4 text-slate-600" />
-                <AlertDescription className="text-sm text-slate-700">
+              <Alert className="w-auto border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/70">
+                <AlertTriangle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                <AlertDescription className="text-sm text-slate-700 dark:text-slate-200">
                   {pendingCount} pending • {criticalCount} critical
                 </AlertDescription>
               </Alert>
