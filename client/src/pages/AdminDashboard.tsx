@@ -127,60 +127,61 @@ export default function AdminDashboard() {
       description: "All registered users in the system",
       value: stats.totalUsers,
       icon: Users,
-      color: "bg-blue-500/10 text-blue-700",
+      color: "border border-sky-200 bg-sky-50 text-sky-700",
     },
     {
       title: "Verified Users",
       description: "Email verified accounts",
       value: stats.verifiedUsers,
       icon: CheckCircle,
-      color: "bg-green-500/10 text-green-700",
+      color: "border border-emerald-200 bg-emerald-50 text-emerald-700",
     },
     {
       title: "Unverified Users",
       description: "Pending email verification",
       value: stats.unverifiedUsers,
       icon: Clock,
-      color: "bg-yellow-500/10 text-yellow-700",
+      color: "border border-amber-200 bg-amber-50 text-amber-700",
     },
     {
       title: "Active Donors",
       description: "Registered blood donors",
       value: stats.totalDonors,
       icon: UserCheck,
-      color: "bg-red-500/10 text-red-700",
+      color: "border border-rose-200 bg-rose-50 text-rose-700",
     },
     {
       title: "Hospitals",
       description: "Hospital staff accounts",
       value: stats.totalHospitals,
       icon: Database,
-      color: "bg-purple-500/10 text-purple-700",
+      color: "border border-indigo-200 bg-indigo-50 text-indigo-700",
     },
     {
       title: "Blood Receivers",
       description: "Patients seeking blood",
       value: stats.totalReceivers,
       icon: TrendingUp,
-      color: "bg-orange-500/10 text-orange-700",
+      color: "border border-orange-200 bg-orange-50 text-orange-700",
     },
   ];
 
   return (
-    <div className="w-full py-10 px-4 md:px-8 space-y-8">
-      <header className="space-y-2">
+    <div className="w-full bg-linear-to-b from-slate-50 via-white to-slate-100/80 py-10">
+      <div className="mx-auto w-full max-w-[1600px] space-y-8 px-4 md:px-8">
+      <header className="space-y-3">
         <div className="flex items-center gap-3">
-          <div className="rounded-full bg-primary/10 p-3">
+          <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 shadow-sm">
             <ShieldCheck className="h-6 w-6 text-primary" />
           </div>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Administrator Control Center</h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground md:text-base">
               Monitor system activity, user statistics, and manage all registered users in BloodFlow Hub.
             </p>
           </div>
         </div>
-        <Separator className="max-w-xl" />
+        <Separator className="max-w-xl bg-border/70" />
       </header>
 
       {/* Statistics Section */}
@@ -191,7 +192,7 @@ export default function AdminDashboard() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {adminWidgets.map(({ title, description, value, icon: Icon, color }) => (
-              <Card key={title} className="border-border/70 hover:shadow-md transition-shadow">
+              <Card key={title} className="border-border/70 bg-white/90 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                 <CardHeader className="space-y-1">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold">{title}</CardTitle>
@@ -232,7 +233,7 @@ export default function AdminDashboard() {
 
       {/* Quick Stats */}
       <section className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-border/70">
+        <Card className="border-border/70 bg-white/90 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Verification Status</CardTitle>
             <CardDescription>Email verification breakdown</CardDescription>
@@ -275,7 +276,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70">
+        <Card className="border-border/70 bg-white/90 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">User Distribution</CardTitle>
             <CardDescription>Breakdown by user role</CardDescription>
@@ -306,6 +307,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </section>
+      </div>
     </div>
   );
 }

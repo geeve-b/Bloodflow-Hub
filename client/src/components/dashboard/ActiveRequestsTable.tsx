@@ -46,8 +46,14 @@ const STATUS_CONFIG = {
 };
 
 const URGENCY_CONFIG = {
-  critical: { label: "Critical", color: "bg-red-100 text-red-800" },
-  normal: { label: "Normal", color: "bg-gray-100 text-gray-800" },
+  critical: {
+    label: "Critical",
+    color: "border border-red-200 bg-red-50 text-red-700",
+  },
+  normal: {
+    label: "Normal",
+    color: "border border-sky-200 bg-sky-50 text-sky-700",
+  },
 };
 
 export function ActiveRequestsTable() {
@@ -215,7 +221,7 @@ export function ActiveRequestsTable() {
   }
 
   return (
-    <Card className="border-border/70">
+    <Card className="border-border/70 bg-white/95 shadow-sm">
       <CardHeader>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
@@ -226,17 +232,17 @@ export function ActiveRequestsTable() {
               </CardDescription>
             </div>
             {(pendingCount > 0 || criticalCount > 0) && (
-              <Alert className="w-auto border-yellow-200 bg-yellow-50">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                <AlertDescription className="text-sm text-yellow-800">
+              <Alert className="w-auto border-slate-200 bg-slate-50">
+                <AlertTriangle className="h-4 w-4 text-slate-600" />
+                <AlertDescription className="text-sm text-slate-700">
                   {pendingCount} pending • {criticalCount} critical
                 </AlertDescription>
               </Alert>
             )}
           </div>
           {selectedIds.size > 0 && (
-            <div className="flex items-center justify-between gap-3 rounded-lg bg-blue-50 p-3 border border-blue-200">
-              <span className="text-sm font-medium text-blue-900">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <span className="text-sm font-medium text-foreground">
                 {selectedIds.size} request{selectedIds.size !== 1 ? "s" : ""} selected
               </span>
               <div className="flex gap-2">
@@ -360,8 +366,9 @@ export function ActiveRequestsTable() {
                     key={request._id}
                     className={cn(
                       "border-border/40 transition-colors",
-                      selectedIds.has(request._id) ? "bg-blue-50" : "hover:bg-muted/40",
-                      request.urgency === "critical" && "bg-red-50/50"
+                      selectedIds.has(request._id)
+                        ? "bg-primary/5"
+                        : "hover:bg-muted/40"
                     )}
                   >
                     <TableCell className="w-12">
@@ -489,7 +496,7 @@ export function ActiveRequestsTable() {
                 </DialogDescription>
               </DialogHeader>
               <div className="flex items-center gap-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span>This will be removed from all dashboards in real-time.</span>
               </div>
               <DialogFooter className="gap-2">
