@@ -14,6 +14,13 @@ const ALLOWED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "image
 const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
+const STATE_CITY_OPTIONS: Record<string, string[]> = {
+  "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Trichy"],
+  Karnataka: ["Bengaluru", "Mysuru", "Mangaluru", "Hubballi"],
+  Kerala: ["Kochi", "Thiruvananthapuram", "Kozhikode", "Thrissur"],
+  "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Guntur", "Tirupati"],
+};
+
 const createUniqueHospitalCode = () => {
   const timeCode = Date.now().toString(36).slice(-4);
   const randomCode = Math.random().toString(36).slice(2, 6);
@@ -42,6 +49,8 @@ export default function StaffRegisterPage() {
     contactNumber: "",
     email: "",
     address: "",
+    state: "",
+    city: "",
     hospitalName: "",
     password: "",
     confirmPassword: "",
@@ -50,6 +59,7 @@ export default function StaffRegisterPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileError, setFileError] = useState<string>("");
+  const availableCities = formData.state ? STATE_CITY_OPTIONS[formData.state] ?? [] : [];
 
   const usernameBase = sanitizeHospitalToken(formData.hospitalName || "hospital");
   const normalizedUsernameCode = usernameCode;
@@ -115,6 +125,8 @@ export default function StaffRegisterPage() {
       newErrors.contactNumber = "Contact Number is required";
     if (!formData.email.trim()) newErrors.email = "Email is required";
     if (!formData.address.trim()) newErrors.address = "Address is required";
+    if (!formData.state) newErrors.state = "State is required";
+    if (!formData.city) newErrors.city = "City is required";
     if (!formData.hospitalName) newErrors.hospitalName = "Hospital Name is required";
     if (!formData.password) newErrors.password = "Password is required";
     if (!formData.confirmPassword)
@@ -276,6 +288,8 @@ export default function StaffRegisterPage() {
       contactNumber: "",
       email: "",
       address: "",
+      state: "",
+      city: "",
       hospitalName: "",
       password: "",
       confirmPassword: "",
@@ -443,6 +457,70 @@ export default function StaffRegisterPage() {
               {errors.address && (
                 <p className="text-sm text-destructive">{errors.address}</p>
               )}
+            </div>
+
+            {/* State and City */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="state">State *</Label>
+                <Select
+                  value={formData.state}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, state: value, city: "" }));
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.state;
+                      delete next.city;
+                      return next;
+                    });
+                  }}
+                >
+                  <SelectTrigger id="state" className={`rounded-lg ${errors.state ? "border-destructive" : ""}`}>
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(STATE_CITY_OPTIONS).map((stateName) => (
+                      <SelectItem key={stateName} value={stateName}>
+                        {stateName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.state && (
+                  <p className="text-sm text-destructive">{errors.state}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="city">City *</Label>
+                <Select
+                  value={formData.city}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, city: value }));
+                    if (errors.city) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.city;
+                        return next;
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger id="city" disabled={!formData.state} className={`rounded-lg ${errors.city ? "border-destructive" : ""}`}>
+                    <SelectValue placeholder={formData.state ? "Select city" : "Select state first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCities.map((cityName) => (
+                      <SelectItem key={cityName} value={cityName}>
+                        {cityName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.city && (
+                  <p className="text-sm text-destructive">{errors.city}</p>
+                )}
+              </div>
             </div>
 
             {/* System Username ID */}
