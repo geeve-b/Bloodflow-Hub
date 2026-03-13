@@ -266,7 +266,7 @@ export default function RegisterPage() {
         <Card className="shadow-lg rounded-2xl">
           <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 dark:from-primary/10 dark:via-primary/5 dark:to-primary/10 rounded-t-2xl">
             <CardTitle className="text-3xl font-bold text-foreground">
-              {selectedRole === "donor" ? "Donor Registration" : "Hospital Staff Registration"}
+              {selectedRole === "donor" ? "Donor Registration" : "Hospital Registration"}
             </CardTitle>
             <CardDescription className="text-base text-muted-foreground mt-2">
               {selectedRole === "donor"
@@ -288,7 +288,7 @@ export default function RegisterPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="donor">Donor</SelectItem>
-                    <SelectItem value="hospital">Hospital Staff</SelectItem>
+                    <SelectItem value="hospital">Hospital Login</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-2">

@@ -143,7 +143,7 @@ export default function LoginPage() {
       if (selectedRole === "donor" && resolvedRole === "hospital") {
         toast({
           title: "Invalid Login",
-          description: "Hospital staff cannot login through the Donor portal. Please use the Hospital Staff tab.",
+          description: "Hospital users cannot login through the Donor portal. Please use the Hospital Login tab.",
           variant: "destructive",
         });
         return;
@@ -152,7 +152,7 @@ export default function LoginPage() {
       if (selectedRole === "hospital" && resolvedRole === "donor") {
         toast({
           title: "Invalid Login",
-          description: "Donors cannot login through the Hospital Staff portal. Please use the User/Donor tab.",
+          description: "Donors cannot login through the Hospital Login portal. Please use the User/Donor tab.",
           variant: "destructive",
         });
         return;
@@ -206,7 +206,7 @@ export default function LoginPage() {
           <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as "user" | "hospital")} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="user">User / Donor</TabsTrigger>
-              <TabsTrigger value="hospital">Hospital Staff</TabsTrigger>
+              <TabsTrigger value="hospital">Hospital Login</TabsTrigger>
             </TabsList>
             
             <TabsContent value="user">
@@ -278,11 +278,14 @@ export default function LoginPage() {
                   <Input 
                     id="identifier-hosp" 
                     type="text" 
-                    placeholder="staff_001 or staff@example.com" 
+                    placeholder="hospital username or staff@example.com" 
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required 
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Use your hospital username assigned during registration or your email.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -320,7 +323,7 @@ export default function LoginPage() {
                   disabled={loading}
                   className="w-full rounded-xl bg-[#ff5fa2] text-black hover:bg-[#e84b8f] dark:hover:bg-[#d84482] dark:text-black transition-colors shadow-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#ff5fa2] disabled:opacity-70 disabled:pointer-events-none"
                 >
-                  {loading ? "Signing in..." : "Sign In as Staff"}
+                  {loading ? "Signing in..." : "Sign In as Hospital"}
                 </Button>
               </form>
             </TabsContent>
