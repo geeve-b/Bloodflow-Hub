@@ -1,19 +1,32 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, User, Mail, Phone, Lock, Home, Briefcase, Upload, X, FileText, Building2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Phone, Lock, Home, Upload, X, FileText, Building2 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 const ALLOWED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
 const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+const createUniqueHospitalCode = () => {
+  const timeCode = Date.now().toString(36).slice(-4);
+  const randomCode = Math.random().toString(36).slice(2, 6);
+  return `H${timeCode}${randomCode}`.toUpperCase();
+};
+
+const sanitizeHospitalToken = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
 
 export default function StaffRegisterPage() {
   const [location, setLocation] = useLocation();
@@ -21,38 +34,14 @@ export default function StaffRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
-  // Get role from query params, default to "hospital"
-  const getInitialRole = () => {
-    const params = new URLSearchParams(window.location.search);
-    const roleParam = params.get("role");
-    return roleParam === "donor" ? "donor" : "hospital";
-  };
-  
-  const [selectedRole, setSelectedRole] = useState<"hospital" | "donor">("hospital");
-
-  useEffect(() => {
-    const initialRole = getInitialRole();
-    setSelectedRole(initialRole);
-  }, []);
-
-  useEffect(() => {
-    // If role changes to donor, redirect immediately
-    if (selectedRole === "donor") {
-      setLocation("/register?role=donor");
-    }
-  }, [selectedRole, setLocation]);
+  const [usernameCode, setUsernameCode] = useState(createUniqueHospitalCode);
 
   // Form state
   const [formData, setFormData] = useState({
-    fullName: "",
     staffId: "",
-    gender: "male",
     contactNumber: "",
     email: "",
     address: "",
-    username: "",
-    designation: "nurse",
     hospitalName: "",
     password: "",
     confirmPassword: "",
@@ -62,18 +51,15 @@ export default function StaffRegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileError, setFileError] = useState<string>("");
 
+  const usernameBase = sanitizeHospitalToken(formData.hospitalName || "hospital");
+  const normalizedUsernameCode = usernameCode;
+  const hospitalLoginUsername = `${usernameBase || "hospital"}_${normalizedUsernameCode || "HOSP001"}`;
+
   const hospitals = [
     { value: "PSG", label: "PSG Hospital" },
     { value: "Karunya", label: "Karunya Hospital" },
     { value: "Amirtha", label: "Amirtha Institute" },
     { value: "NGP", label: "NGP Medical Center" },
-  ];
-
-  const designations = [
-    { value: "doctor", label: "Doctor" },
-    { value: "nurse", label: "Nurse" },
-    { value: "technician", label: "Technician" },
-    { value: "receptionist", label: "Receptionist" },
   ];
 
   const handleInputChange = (
@@ -86,28 +72,6 @@ export default function StaffRegisterPage() {
       setErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors[name];
-        return newErrors;
-      });
-    }
-  };
-
-  const handleSelectChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, designation: value }));
-    if (errors.designation) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors.designation;
-        return newErrors;
-      });
-    }
-  };
-
-  const handleGenderChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, gender: value }));
-    if (errors.gender) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors.gender;
         return newErrors;
       });
     }
@@ -146,15 +110,11 @@ export default function StaffRegisterPage() {
     let fileValidationError = "";
 
     // Required field validation
-    if (!formData.fullName.trim()) newErrors.fullName = "Full Name is required";
     if (!formData.staffId.trim()) newErrors.staffId = "Staff ID is required";
-    if (!formData.gender) newErrors.gender = "Gender is required";
     if (!formData.contactNumber.trim())
       newErrors.contactNumber = "Contact Number is required";
     if (!formData.email.trim()) newErrors.email = "Email is required";
     if (!formData.address.trim()) newErrors.address = "Address is required";
-    if (!formData.username.trim()) newErrors.username = "Username is required";
-    if (!formData.designation) newErrors.designation = "Designation is required";
     if (!formData.hospitalName) newErrors.hospitalName = "Hospital Name is required";
     if (!formData.password) newErrors.password = "Password is required";
     if (!formData.confirmPassword)
@@ -191,14 +151,6 @@ export default function StaffRegisterPage() {
       !/^\d{10,15}$/.test(formData.contactNumber.replace(/\D/g, ""))
     ) {
       newErrors.contactNumber = "Please enter a valid contact number (10-15 digits)";
-    }
-
-    // Username validation
-    if (
-      formData.username.trim() &&
-      formData.username.length < 3
-    ) {
-      newErrors.username = "Username must be at least 3 characters";
     }
 
     // Password validation
@@ -240,7 +192,7 @@ export default function StaffRegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: formData.username,
+          username: hospitalLoginUsername,
           password: formData.password,
           email: formData.email,
           role: "hospital",
@@ -254,15 +206,16 @@ export default function StaffRegisterPage() {
 
       const userData = await registerResponse.json();
       const userId = userData.user?._id || userData.userId;
+      const staffNameBase = usernameBase || "hospital";
 
       // Then, create the staff profile with file upload using FormData
       const staffFormData = new FormData();
       staffFormData.append("userId", userId);
-      staffFormData.append("firstName", formData.fullName.split(" ")[0]);
-      staffFormData.append("lastName", formData.fullName.split(" ").slice(1).join(" ") || "Staff");
+      staffFormData.append("firstName", staffNameBase);
+      staffFormData.append("lastName", normalizedUsernameCode || "HOSP001");
       staffFormData.append("staffId", formData.staffId);
       staffFormData.append("department", "General");
-      staffFormData.append("position", formData.designation);
+      staffFormData.append("position", "hospital-login");
       staffFormData.append("phone", formData.contactNumber);
       staffFormData.append("email", formData.email);
       staffFormData.append("hospitalName", formData.hospitalName);
@@ -285,7 +238,7 @@ export default function StaffRegisterPage() {
       toast({
         title: "Success",
         description:
-          "Staff registration successful! Please verify your email to login.",
+          `Hospital registration successful! Your hospital login username is ${hospitalLoginUsername}.`,
       });
 
       // Store pending verification info
@@ -319,14 +272,10 @@ export default function StaffRegisterPage() {
 
   const handleReset = () => {
     setFormData({
-      fullName: "",
       staffId: "",
-      gender: "male",
       contactNumber: "",
       email: "",
       address: "",
-      username: "",
-      designation: "nurse",
       hospitalName: "",
       password: "",
       confirmPassword: "",
@@ -334,70 +283,24 @@ export default function StaffRegisterPage() {
     });
     setErrors({});
     setFileError("");
+    setUsernameCode(createUniqueHospitalCode());
   };
-
-  const genderOptions = [
-    { value: "male", label: "Male" },
-    { value: "female", label: "Female" },
-    { value: "other", label: "Other" },
-  ];
 
   return (
     <div className="min-h-screen py-12 px-4 bg-background">
       <div className="max-w-4xl mx-auto">
         <Card className="shadow-lg rounded-2xl">
           <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 dark:from-primary/10 dark:via-primary/5 dark:to-primary/10 rounded-t-2xl">
-            <CardTitle className="text-3xl font-bold text-foreground">Staff Registration</CardTitle>
+            <CardTitle className="text-3xl font-bold text-foreground">Hospital Registration</CardTitle>
             <CardDescription className="text-base text-muted-foreground mt-2">
-              Join our hospital staff network to manage blood inventory
+              Join our hospital network to manage blood inventory
             </CardDescription>
           </CardHeader>
 
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Role Selection Section */}
-            <div className="bg-secondary/30 dark:bg-secondary/40 p-6 rounded-lg border border-border">
-              <Label className="text-sm font-semibold text-foreground block mb-3">
-                Registration Type
-              </Label>
-              <Select value={selectedRole} onValueChange={(value: any) => setSelectedRole(value)}>
-                <SelectTrigger className="w-full rounded-lg border-border shadow-sm focus:ring-2 focus:ring-primary">
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hospital">Hospital Staff</SelectItem>
-                  <SelectItem value="donor">Donor</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-2">
-                {selectedRole === "hospital"
-                  ? "Register as hospital staff to manage blood inventory"
-                  : "Register as a blood donor to contribute to saving lives"}
-              </p>
-            </div>
-
-            {/* Full Name */}
-            <div className="space-y-2">
-              <Label htmlFor="fullName" className="flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" />
-                Full Name *
-              </Label>
-              <Input
-                id="fullName"
-                name="fullName"
-                type="text"
-                placeholder="John Doe"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                className={`rounded-lg ${errors.fullName ? "border-destructive" : ""}`}
-              />
-              {errors.fullName && (
-                <p className="text-sm text-destructive">{errors.fullName}</p>
-              )}
-            </div>
-
-            {/* Staff ID and Gender Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Staff ID */}
+            <div className="grid grid-cols-1 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="staffId">Staff ID / Employee ID *</Label>
                 <Input
@@ -411,25 +314,6 @@ export default function StaffRegisterPage() {
                 />
                 {errors.staffId && (
                   <p className="text-sm text-destructive">{errors.staffId}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Gender *</Label>
-                <RadioGroup value={formData.gender} onValueChange={handleGenderChange}>
-                  <div className="flex items-center gap-4">
-                    {genderOptions.map((option) => (
-                      <div key={option.value} className="flex items-center gap-2">
-                        <RadioGroupItem value={option.value} id={option.value} />
-                        <Label htmlFor={option.value} className="font-normal cursor-pointer">
-                          {option.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </RadioGroup>
-                {errors.gender && (
-                  <p className="text-sm text-destructive">{errors.gender}</p>
                 )}
               </div>
             </div>
@@ -561,45 +445,20 @@ export default function StaffRegisterPage() {
               )}
             </div>
 
-            {/* Username and Designation Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username *</Label>
+            {/* System Username ID */}
+            <div className="space-y-2">
+                <Label htmlFor="usernameCode">Username ID (Auto Assigned)</Label>
                 <Input
-                  id="username"
-                  name="username"
+                  id="usernameCode"
+                  name="usernameCode"
                   type="text"
-                  placeholder="john_staff"
-                  value={formData.username}
-                  onChange={handleInputChange}
-                  className={`rounded-lg ${errors.username ? "border-destructive" : ""}`}
+                  value={usernameCode}
+                  readOnly
+                  className="rounded-lg bg-muted"
                 />
-                {errors.username && (
-                  <p className="text-sm text-destructive">{errors.username}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="designation" className="flex items-center gap-2">
-                  <Briefcase className="h-4 w-4 text-primary" />
-                  Designation / Role *
-                </Label>
-                <Select value={formData.designation} onValueChange={handleSelectChange}>
-                  <SelectTrigger className={`rounded-lg ${errors.designation ? "border-destructive" : ""}`}>
-                    <SelectValue placeholder="Select designation" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {designations.map((designation) => (
-                      <SelectItem key={designation.value} value={designation.value}>
-                        {designation.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.designation && (
-                  <p className="text-sm text-destructive">{errors.designation}</p>
-                )}
-              </div>
+                <p className="text-xs text-muted-foreground">
+                  This ID is generated by the system and cannot be changed.
+                </p>
             </div>
 
             {/* Hospital Name Selection Row */}
@@ -607,7 +466,7 @@ export default function StaffRegisterPage() {
               <Label htmlFor="hospitalName" className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-primary" />
                 Hospital Name *
-              </Label>
+                </Label>
               <Select value={formData.hospitalName} onValueChange={(value) => {
                 setFormData((prev) => ({ ...prev, hospitalName: value }));
                 if (errors.hospitalName) {

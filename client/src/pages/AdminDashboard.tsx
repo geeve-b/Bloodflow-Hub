@@ -152,7 +152,7 @@ export default function AdminDashboard() {
     },
     {
       title: "Hospitals",
-      description: "Hospital staff accounts",
+      description: "Hospital login accounts",
       value: stats.totalHospitals,
       icon: Database,
       color: "border border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/70 dark:bg-indigo-950/50 dark:text-indigo-300",
