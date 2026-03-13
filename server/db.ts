@@ -12,14 +12,27 @@ const client = new MongoClient(process.env.DATABASE_URL);
 export const mongoClient = client;
 export const db = client.db("bloodflow_hub");
 
-// Connect to MongoDB
+// Track connection state
+let _isConnected = false;
+export const isDbConnected = () => _isConnected;
+
+// Connect to MongoDB with timeout and graceful fallback
 export async function connectDatabase() {
   try {
-    await client.connect();
-    console.log("Connected to MongoDB Atlas");
+    // Set a 10-second timeout for connection attempts
+    const connectPromise = client.connect();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Connection timeout")), 10000)
+    );
+
+    await Promise.race([connectPromise, timeoutPromise]);
+    _isConnected = true;
+    console.log("✓ Connected to MongoDB Atlas");
   } catch (error) {
-    console.error("Failed to connect to MongoDB:", error);
-    throw error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.warn("⚠ MongoDB connection failed:", errorMessage);
+    console.warn("⚠ Continuing in memory mode");
+    console.warn("   To fix: Whitelist your IP in MongoDB Atlas Network Access settings");
   }
 }
 

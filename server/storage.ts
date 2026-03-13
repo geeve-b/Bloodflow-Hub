@@ -16,7 +16,7 @@ import {
   type Staff,
   type User,
 } from "@shared/schema";
-import { db } from "./db";
+import { db, isDbConnected } from "./db";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -209,6 +209,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getAllUsers(): Promise<User[]> {
+    if (!isDbConnected()) return [];
     const users = await db.collection("users").find({}).toArray();
     return normalizeMany<User>(users);
   }
@@ -355,6 +356,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getAllBloodInventory(): Promise<BloodInventory[]> {
+    if (!isDbConnected()) return [];
     const inventory = await db.collection("bloodInventory").find({}).toArray();
     return normalizeMany<BloodInventory>(inventory);
   }
@@ -362,6 +364,7 @@ export class MongoDBStorage implements IStorage {
   async getBloodInventoryByHospital(
     hospitalId: string
   ): Promise<BloodInventory[]> {
+    if (!isDbConnected()) return [];
     const inventory = await db
       .collection("bloodInventory")
       .find({ hospitalId })
@@ -372,6 +375,7 @@ export class MongoDBStorage implements IStorage {
   async getBloodInventoryByType(
     bloodType: string
   ): Promise<BloodInventory[]> {
+    if (!isDbConnected()) return [];
     const inventory = await db
       .collection("bloodInventory")
       .find({ bloodType, status: "available" })
@@ -382,6 +386,7 @@ export class MongoDBStorage implements IStorage {
   async getBloodInventoryExpiringWithin(
     days: number
   ): Promise<Array<BloodInventory & { daysRemaining: number }>> {
+    if (!isDbConnected()) return [];
     const now = new Date();
     const expiryThreshold = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
@@ -457,6 +462,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getAllBloodRequests(): Promise<BloodRequest[]> {
+    if (!isDbConnected()) return [];
     const requests = await db.collection("bloodRequests").find({}).toArray();
     return normalizeMany<BloodRequest>(requests);
   }
@@ -464,6 +470,7 @@ export class MongoDBStorage implements IStorage {
   async getBloodRequestsByStatus(
     status: string
   ): Promise<BloodRequest[]> {
+    if (!isDbConnected()) return [];
     const requests = await db
       .collection("bloodRequests")
       .find({ status })
@@ -484,6 +491,7 @@ export class MongoDBStorage implements IStorage {
       limit: number;
     }
   ): Promise<{ requests: BloodRequest[]; total: number }> {
+    if (!isDbConnected()) return { requests: [], total: 0 };
     const query: any = {};
 
     if (filters.bloodType) {
@@ -590,11 +598,13 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getAllDonors(): Promise<Donor[]> {
+    if (!isDbConnected()) return [];
     const donors = await db.collection("donors").find({}).toArray();
     return normalizeMany<Donor>(donors);
   }
 
   async getDonorsByBloodType(bloodType: string): Promise<Donor[]> {
+    if (!isDbConnected()) return [];
     const donors = await db
       .collection("donors")
       .find({ bloodType, isActive: true })
@@ -603,6 +613,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getEligibleDonorsWithEmails(bloodTypesInput: string | string[], region?: string): Promise<Array<{ donor: Donor; email: string; username: string }>> {
+    if (!isDbConnected()) return [];
     try {
       // Handle both single string and array of strings
       const bloodTypes = Array.isArray(bloodTypesInput) ? bloodTypesInput : [bloodTypesInput];
@@ -742,6 +753,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getAllStaff(): Promise<Staff[]> {
+    if (!isDbConnected()) return [];
     const staffMembers = await db.collection("staff").find({}).toArray();
     return normalizeMany<Staff>(staffMembers);
   }
@@ -787,11 +799,13 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getAllReceivers(): Promise<any[]> {
+    if (!isDbConnected()) return [];
     const receivers = await db.collection("receivers").find({}).toArray();
     return normalizeMany<any>(receivers);
   }
 
   async getReceiversByBloodType(bloodType: string): Promise<any[]> {
+    if (!isDbConnected()) return [];
     const receivers = await db
       .collection("receivers")
       .find({ bloodType })
@@ -843,6 +857,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getAllBloodExpiryAlerts(): Promise<BloodExpiryAlert[]> {
+    if (!isDbConnected()) return [];
     const alerts = await db
       .collection("bloodExpiryAlerts")
       .find({})
@@ -852,6 +867,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getBloodExpiryAlertsByHospital(hospitalId: string): Promise<BloodExpiryAlert[]> {
+    if (!isDbConnected()) return [];
     const alerts = await db
       .collection("bloodExpiryAlerts")
       .find({ hospitalId })
@@ -861,6 +877,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getBloodExpiryAlertsByLevel(alertLevel: string): Promise<BloodExpiryAlert[]> {
+    if (!isDbConnected()) return [];
     const alerts = await db
       .collection("bloodExpiryAlerts")
       .find({ alertLevel })
@@ -870,6 +887,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getActiveBloodExpiryAlerts(resolved = false): Promise<BloodExpiryAlert[]> {
+    if (!isDbConnected()) return [];
     const alerts = await db
       .collection("bloodExpiryAlerts")
       .find({ resolved })
@@ -966,6 +984,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async checkAndCreateExpiryAlerts(): Promise<BloodExpiryAlert[]> {
+    if (!isDbConnected()) return [];
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -1062,6 +1081,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getAllBloodDonationTracking(): Promise<BloodDonationTracking[]> {
+    if (!isDbConnected()) return [];
     const trackings = await db
       .collection("bloodDonationTracking")
       .find({})
@@ -1070,6 +1090,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getBloodDonationTrackingByDonor(donorId: string): Promise<BloodDonationTracking[]> {
+    if (!isDbConnected()) return [];
     const trackings = await db
       .collection("bloodDonationTracking")
       .find({ donorId })
@@ -1079,6 +1100,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getBloodDonationTrackingByReceiver(receiverId: string): Promise<BloodDonationTracking[]> {
+    if (!isDbConnected()) return [];
     const trackings = await db
       .collection("bloodDonationTracking")
       .find({ receiverId })
@@ -1088,6 +1110,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getBloodDonationTrackingByStatus(status: string): Promise<BloodDonationTracking[]> {
+    if (!isDbConnected()) return [];
     const trackings = await db
       .collection("bloodDonationTracking")
       .find({ status })
@@ -1097,6 +1120,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getBloodDonationTrackingByHospital(hospitalId: string): Promise<BloodDonationTracking[]> {
+    if (!isDbConnected()) return [];
     const trackings = await db
       .collection("bloodDonationTracking")
       .find({ hospitalId })
