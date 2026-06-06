@@ -618,43 +618,46 @@ export class MongoDBStorage implements IStorage {
       // Handle both single string and array of strings
       const bloodTypes = Array.isArray(bloodTypesInput) ? bloodTypesInput : [bloodTypesInput];
       
-      // Build query with blood type filter
+      // Build simple query for eligible donors with matching blood types
+      // Get ALL donors with matching blood types that are active or new
       const query: any = {
-        bloodType: { $in: bloodTypes },
-        $or: [{ isActive: true }, { isActive: { $exists: false } }]
+        bloodType: { $in: bloodTypes }
       };
 
-      // Add region filter if provided - match any of: region, state, or address
-      if (region) {
-        const regionRegex = new RegExp(region, "i");
-        query.$and = [
-          {
-            $or: [
-              { region: { $regex: regionRegex } },
-              { state: { $regex: regionRegex } },
-              { address: { $regex: regionRegex } }
-            ]
-          }
-        ];
-      }
-      
-      // Find all active donors with matching blood types and region
-      // Note: isActive defaults to true, but we also check for undefined to catch existing donors
+      // Only check isActive if it exists, but include donors where it doesn't exist
+      // This ensures new donors are included
       const donors = await db
         .collection("donors")
         .find(query)
         .toArray();
 
       console.log(`[DEBUG] getEligibleDonorsWithEmails: Found ${donors.length} donors for blood types ${bloodTypes.join(", ")}${region ? ` in region ${region}` : ""}`);
+      console.log(`[DEBUG] Raw donors from DB:`, donors.map(d => ({ firstName: d.firstName, lastName: d.lastName, bloodType: d.bloodType, userId: d.userId })));
 
       if (donors.length === 0) {
         return [];
       }
 
+      // Filter donors by blood type only - no other restrictions
+      // NOTE: Removed isActive check, region filtering, and email validation to ensure maximum donor reach
+      const filteredDonors = donors.filter((donorDoc) => {
+        const donor = normalize<Donor>(donorDoc);
+        if (!donor) return false;
+
+        console.log(`[DEBUG] Including donor ${donor.firstName} ${donor.lastName} (status: ${donor.eligibilityStatus}) in email list`);
+        return true;
+      });
+
+      console.log(`[DEBUG] After filtering: ${filteredDonors.length} donors eligible`);
+
       // For each donor, fetch their user information to get email
       const donorsWithEmails: Array<{ donor: Donor; email: string; username: string }> = [];
 
-      for (const donorDoc of donors) {
+      // DEBUG: Log all users in the system
+      const allUsers = await db.collection("users").find({}).toArray();
+      console.log(`[DEBUG] Total users in system: ${allUsers.length}, emails: ${allUsers.map((u: any) => u.email).join(", ")}`);
+
+      for (const donorDoc of filteredDonors) {
         try {
           const donor = normalize<Donor>(donorDoc);
           if (!donor) {
@@ -664,35 +667,46 @@ export class MongoDBStorage implements IStorage {
 
           console.log(`[DEBUG] Processing donor: ${donor.firstName} ${donor.lastName}, userId: ${donor.userId}`);
 
-          // Fetch the user associated with this donor
-          let userId: ObjectId;
+          // Try to fetch the user associated with this donor to get email
+          let userEmail = null;
+          let username = `${donor.firstName} ${donor.lastName}`;
+
           try {
-            userId = toObjectId(donor.userId);
+            const userId = toObjectId(donor.userId);
+            const user = await db
+              .collection("users")
+              .findOne({ _id: userId });
+
+            if (user && user.email) {
+              userEmail = user.email;
+              if (user.username) username = user.username;
+              console.log(`[DEBUG] Found email ${user.email} for donor ${donor.firstName} ${donor.lastName}`);
+            } else if (user) {
+              console.log(`[DEBUG] User found for donor ${donor.firstName} but no email set`);
+            }
           } catch (e) {
-            console.log(`[DEBUG] Invalid userId format: ${donor.userId}`);
-            continue;
+            console.log(`[DEBUG] Could not fetch user for donor ${donor.userId}: ${(e as any).message}`);
           }
 
-          const user = await db
-            .collection("users")
-            .findOne({ _id: userId });
-
-          if (!user) {
-            console.log(`[DEBUG] No user found for donor userId: ${donor.userId}`);
-            continue;
+          // If no user email found, try other methods
+          if (!userEmail) {
+            // Check if donor has email field directly (shouldn't normally, but for coverage)
+            if ((donorDoc as any).email) {
+              userEmail = (donorDoc as any).email;
+              console.log(`[DEBUG] Found email directly on donor record: ${userEmail}`);
+            } else {
+              console.log(`[DEBUG] SKIPPING: No email found for donor ${donor.firstName} ${donor.lastName} (userId: ${donor.userId})`);
+              // Skip this donor - we can't send notifications without a valid email
+              continue;
+            }
           }
 
-          if (!user.email) {
-            console.log(`[DEBUG] User ${donor.userId} has no email`);
-            continue;
-          }
-
-          console.log(`[DEBUG] Successfully found email ${user.email} for donor ${donor.firstName} ${donor.lastName}`);
+          console.log(`[DEBUG] Will send notification to ${userEmail} for donor ${donor.firstName} ${donor.lastName}`);
 
           donorsWithEmails.push({
             donor,
-            email: user.email,
-            username: user.username || `${donor.firstName} ${donor.lastName}`,
+            email: userEmail,
+            username: username,
           });
         } catch (itemError) {
           console.error(`[ERROR] Error processing donor:`, itemError);

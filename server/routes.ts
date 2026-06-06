@@ -118,6 +118,78 @@ export async function registerRoutes(
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  // ==================== DEBUG ENDPOINTS ====================
+  app.get("/api/debug/donors-and-emails", async (req, res) => {
+    try {
+      console.log("[DEBUG] === DEBUG ENDPOINT: Checking donors and emails ===");
+      
+      // Get all donors
+      const allDonors = await storage.getAllDonors();
+      console.log(`[DEBUG] Total donors in database: ${allDonors.length}`);
+      
+      // Get all users
+      const allUsers = await storage.getAllUsers();
+      console.log(`[DEBUG] Total users in database: ${allUsers.length}`);
+      
+      // Filter donors by blood type "O+"
+      const oPlusDonors = allDonors.filter(d => d.bloodType === "O+");
+      console.log(`[DEBUG] O+ donors: ${oPlusDonors.length}`);
+      
+      // Try to fetch emails for O+ donors
+      const eligibleDonors = await storage.getEligibleDonorsWithEmails(["O-", "O+"], undefined);
+      console.log(`[DEBUG] O-/O+ donors with emails: ${eligibleDonors.length}`);
+      
+      const donorList = allDonors.slice(0, 5).map(d => ({
+        id: d._id,
+        name: `${d.firstName} ${d.lastName}`,
+        bloodType: d.bloodType,
+        userId: d.userId,
+        status: d.eligibilityStatus,
+        isActive: d.isActive,
+      }));
+      
+      const userList = allUsers.slice(0, 5).map(u => ({
+        id: u._id,
+        username: u.username,
+        email: u.email,
+        role: u.role,
+      }));
+      
+      const eligibleList = eligibleDonors.slice(0, 5).map(e => ({
+        name: `${e.donor.firstName} ${e.donor.lastName}`,
+        email: e.email,
+        bloodType: e.donor.bloodType,
+        status: e.donor.eligibilityStatus,
+      }));
+      
+      res.json({
+        summary: {
+          totalDonors: allDonors.length,
+          totalUsers: allUsers.length,
+          oPlusDonors: oPlusDonors.length,
+          eligibleDonorsWithEmails: eligibleDonors.length,
+        },
+        samples: {
+          donors: donorList,
+          users: userList,
+          eligibleDonors: eligibleList,
+        },
+        debug: {
+          timestamp: new Date().toISOString(),
+          environmen: {
+            smtpConfigured: !!process.env.SMTP_HOST,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("[ERROR] Debug endpoint error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+    }
+  });
+
   // ==================== AUTH ROUTES ====================
   app.post("/api/register", async (req, res) => {
     console.log("[DEBUG] Register endpoint called with body:", Object.keys(req.body));
@@ -853,117 +925,12 @@ export async function registerRoutes(
         payload: request,
       });
       
-      // Notify eligible donors asynchronously (don't wait for emails to send)
-      setImmediate(async () => {
-        try {
-          console.log(`[DEBUG] Starting async notification for blood type: ${payload.bloodType}`);
-          const compatibleTypes = getCompatibleDonorTypes(payload.bloodType);
-          console.log(`[DEBUG] Compatible donor blood types for ${payload.bloodType}: ${compatibleTypes.join(", ")}`);
-          const region = payload.region || payload.state || payload.country;
-          const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes, region);
-          console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors for blood type ${payload.bloodType}`);
-          
-          if (eligibleDonors.length > 0) {
-            log(`[INFO] Found ${eligibleDonors.length} eligible donors for blood type ${payload.bloodType}`);
-            
-            // Send emails to all eligible donors without waiting
-            eligibleDonors.forEach(({ donor, email, username }) => {
-              sendBloodRequestNotification({
-                donorEmail: email,
-                donorName: `${donor.firstName} ${donor.lastName}`,
-                bloodType: payload.bloodType,
-                urgency: payload.urgency,
-                hospitalName: payload.hospitalName,
-                requesterName: payload.requesterName,
-                country: payload.country,
-                state: payload.state,
-                district: payload.district,
-                address: payload.address,
-              }).catch(error => {
-                console.error(`[ERROR] Failed to send email to ${email}:`, error);
-              });
-            });
-            
-            log(`[INFO] Queued notifications for ${eligibleDonors.length} eligible donors`);
-          } else {
-            log(`[WARNING] No eligible donors found for blood type ${payload.bloodType}`);
-          }
-        } catch (emailError) {
-          console.error("[ERROR] Failed to send donor notifications:", emailError);
-        }
-      });
-      
       res.status(201).json(request);
       matchmakingEngine.clearCache();
     } catch (error) {
       res.status(400).json({
         error:
           error instanceof Error ? error.message : "Failed to create request",
-      });
-    }
-  });
-
-  // Separate endpoint to notify donors about blood requests
-  app.post("/api/blood-requests/:id/notify-donors", async (req, res) => {
-    try {
-      const requestId = req.params.id;
-      const request = await storage.getBloodRequest(requestId);
-      
-      if (!request) {
-        return res.status(404).json({ error: "Blood request not found" });
-      }
-
-      console.log(`[DEBUG] Notifying eligible donors for blood type: ${request.bloodType}`);
-      const compatibleTypes = getCompatibleDonorTypes(request.bloodType);
-      console.log(`[DEBUG] Compatible donor blood types for ${request.bloodType}: ${compatibleTypes.join(", ")}`);
-      const region = request.region || request.state || request.country;
-      const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes, region);
-      
-      console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors with emails`);
-      
-      if (eligibleDonors.length > 0) {
-        log(`[INFO] Found ${eligibleDonors.length} eligible donors for blood type ${request.bloodType}`);
-        
-        // Send emails to all eligible donors
-        const emailPromises = eligibleDonors.map(({ donor, email, username }) => {
-          console.log(`[DEBUG] Sending email to ${email} for donor ${donor.firstName} ${donor.lastName}`);
-          return sendBloodRequestNotification({
-            donorEmail: email,
-            donorName: `${donor.firstName} ${donor.lastName}`,
-            bloodType: request.bloodType,
-            urgency: request.urgency,
-            hospitalName: request.hospitalName,
-            requesterName: request.requesterName,
-            country: request.country,
-            state: request.state,
-            district: request.district,
-            address: request.address,
-          }).catch(error => {
-            // Log error but don't fail
-            console.error(`[ERROR] Failed to send email to ${email}:`, error);
-          });
-        });
-        
-        await Promise.allSettled(emailPromises);
-        log(`[INFO] Sent notifications to ${eligibleDonors.length} eligible donors`);
-        
-        res.status(200).json({
-          message: `Notifications sent to ${eligibleDonors.length} eligible donors`,
-          donorsNotified: eligibleDonors.length,
-          requestId: request._id,
-        });
-      } else {
-        log(`[WARNING] No eligible donors found for blood type ${request.bloodType}`);
-        res.status(200).json({
-          message: "No eligible donors found",
-          donorsNotified: 0,
-          requestId: request._id,
-        });
-      }
-    } catch (error) {
-      console.error("[ERROR] Failed to notify donors:", error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "Failed to notify donors",
       });
     }
   });
@@ -1026,6 +993,98 @@ export async function registerRoutes(
       res.json({ message: "Blood request deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete request" });
+    }
+  });
+
+  // Send blood request notifications to eligible donors
+  app.post("/api/blood-requests/:id/send-notifications", async (req, res) => {
+    try {
+      const requestId = req.params.id;
+      console.log(`[DEBUG] === SEND NOTIFICATIONS START === RequestID: ${requestId}`);
+
+      // Get the blood request
+      const request = await storage.getBloodRequest(requestId);
+      if (!request) {
+        console.log(`[ERROR] Blood request not found: ${requestId}`);
+        return res.status(404).json({ error: "Blood request not found" });
+      }
+
+      console.log(`[DEBUG] Blood Request Found: ${request.bloodType} from ${request.hospitalName}`);
+
+      // Get compatible donor types
+      const compatibleTypes = getCompatibleDonorTypes(request.bloodType);
+      console.log(`[DEBUG] Compatible blood types for ${request.bloodType}: ${compatibleTypes.join(", ")}`);
+
+      // Get eligible donors with emails
+      const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes, undefined);
+      console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors`);
+
+      if (eligibleDonors.length === 0) {
+        console.log(`[WARNING] No eligible donors found for blood type ${request.bloodType}`);
+        return res.status(200).json({
+          message: "No eligible donors found for this blood type",
+          sent: 0,
+          failed: 0,
+          donors: [],
+        });
+      }
+
+      // Send emails to each donor
+      let sentCount = 0;
+      let failedCount = 0;
+      const results = [];
+
+      for (const { donor, email, username } of eligibleDonors) {
+        try {
+          console.log(`[DEBUG] Sending notification to: ${email} (${donor.firstName} ${donor.lastName})`);
+
+          await sendBloodRequestNotification({
+            donorEmail: email,
+            donorName: `${donor.firstName} ${donor.lastName}`,
+            bloodType: request.bloodType,
+            urgency: request.urgency,
+            hospitalName: request.hospitalName,
+            requesterName: request.requesterName,
+            country: request.country,
+            state: request.state || request.region,
+            district: request.region,
+            address: request.address,
+          });
+
+          sentCount++;
+          console.log(`[DEBUG] ✓ Email sent to: ${email}`);
+          results.push({
+            email,
+            name: `${donor.firstName} ${donor.lastName}`,
+            status: "sent",
+          });
+        } catch (error) {
+          failedCount++;
+          console.error(`[ERROR] Failed to send email to ${email}:`, error instanceof Error ? error.message : String(error));
+          results.push({
+            email,
+            name: `${donor.firstName} ${donor.lastName}`,
+            status: "failed",
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      console.log(`[DEBUG] === SEND NOTIFICATIONS COMPLETE === Sent: ${sentCount}, Failed: ${failedCount}`);
+      log(`[INFO] Blood request notifications: ${sentCount} sent, ${failedCount} failed`);
+
+      res.status(200).json({
+        message: `Notifications sent to ${sentCount} donors (${failedCount} failed)`,
+        sent: sentCount,
+        failed: failedCount,
+        total: eligibleDonors.length,
+        results: results,
+      });
+    } catch (error) {
+      console.error("[ERROR] Failed to send notifications:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to send notifications",
+      });
     }
   });
 
