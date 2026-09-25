@@ -1,6 +1,15 @@
-import { ObjectId } from "mongodb";
 import bcrypt from "bcryptjs";
+import { eq, and, or, ilike, desc, inArray, sql, type SQL, gte, lte } from "drizzle-orm";
 import {
+  users,
+  bloodInventory,
+  bloodRequests,
+  donors,
+  staff,
+  receivers,
+  donorResponses,
+  bloodExpiryAlerts,
+  bloodDonationTracking,
   type BloodInventory,
   type BloodRequest,
   type BloodExpiryAlert,
@@ -24,7 +33,10 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  updateUser(
+    id: string,
+    user: Partial<InsertUser & { approvalStatus?: string; rejectionReason?: string }>
+  ): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   setEmailVerificationCode(
     id: string,
@@ -79,7 +91,10 @@ export interface IStorage {
   getDonor(id: string): Promise<Donor | undefined>;
   getAllDonors(): Promise<Donor[]>;
   getDonorsByBloodType(bloodType: string): Promise<Donor[]>;
-  getEligibleDonorsWithEmails(bloodTypes: string | string[], region?: string): Promise<Array<{ donor: Donor; email: string; username: string }>>;
+  getEligibleDonorsWithEmails(
+    bloodTypes: string | string[],
+    region?: string
+  ): Promise<Array<{ donor: Donor; email: string; username: string }>>;
   createDonor(donor: InsertDonor): Promise<Donor>;
   updateDonor(id: string, donor: Partial<InsertDonor>): Promise<Donor | undefined>;
   deleteDonor(id: string): Promise<boolean>;
@@ -104,9 +119,20 @@ export interface IStorage {
   getBloodExpiryAlertsByLevel(alertLevel: string): Promise<BloodExpiryAlert[]>;
   getActiveBloodExpiryAlerts(resolved?: boolean): Promise<BloodExpiryAlert[]>;
   createBloodExpiryAlert(alert: InsertBloodExpiryAlert): Promise<BloodExpiryAlert>;
-  updateBloodExpiryAlert(id: string, alert: Partial<InsertBloodExpiryAlert>): Promise<BloodExpiryAlert | undefined>;
-  acknowledgeBloodExpiryAlert(id: string, userId: string, notes?: string): Promise<BloodExpiryAlert | undefined>;
-  resolveBloodExpiryAlert(id: string, userId: string, notes?: string): Promise<BloodExpiryAlert | undefined>;
+  updateBloodExpiryAlert(
+    id: string,
+    alert: Partial<InsertBloodExpiryAlert>
+  ): Promise<BloodExpiryAlert | undefined>;
+  acknowledgeBloodExpiryAlert(
+    id: string,
+    userId: string,
+    notes?: string
+  ): Promise<BloodExpiryAlert | undefined>;
+  resolveBloodExpiryAlert(
+    id: string,
+    userId: string,
+    notes?: string
+  ): Promise<BloodExpiryAlert | undefined>;
   deleteBloodExpiryAlert(id: string): Promise<boolean>;
   checkAndCreateExpiryAlerts(): Promise<BloodExpiryAlert[]>;
 
@@ -117,28 +143,33 @@ export interface IStorage {
   getBloodDonationTrackingByReceiver(receiverId: string): Promise<BloodDonationTracking[]>;
   getBloodDonationTrackingByStatus(status: string): Promise<BloodDonationTracking[]>;
   getBloodDonationTrackingByHospital(hospitalId: string): Promise<BloodDonationTracking[]>;
-  createBloodDonationTracking(tracking: InsertBloodDonationTracking): Promise<BloodDonationTracking>;
-  updateBloodDonationTracking(id: string, tracking: Partial<InsertBloodDonationTracking>): Promise<BloodDonationTracking | undefined>;
-  updateBloodDonationTrackingStatus(id: string, status: string, note?: string, updatedBy?: string): Promise<BloodDonationTracking | undefined>;
+  createBloodDonationTracking(
+    tracking: InsertBloodDonationTracking
+  ): Promise<BloodDonationTracking>;
+  updateBloodDonationTracking(
+    id: string,
+    tracking: Partial<InsertBloodDonationTracking>
+  ): Promise<BloodDonationTracking | undefined>;
+  updateBloodDonationTrackingStatus(
+    id: string,
+    status: string,
+    note?: string,
+    updatedBy?: string
+  ): Promise<BloodDonationTracking | undefined>;
   deleteBloodDonationTracking(id: string): Promise<boolean>;
 }
 
-const toObjectId = (id: string) => {
-  try {
-    return new ObjectId(id);
-  } catch (error) {
-    throw new Error(`Invalid ID format: ${id}`);
-  }
-};
-
-const normalize = <T>(doc: any | null): T | undefined => {
+const normalize = <T>(doc: any | null | undefined): T | undefined => {
   if (!doc) {
     return undefined;
   }
-  const { _id, ...rest } = doc;
-  const normalizedId =
-    typeof _id === "string" ? _id : _id?.toString ? _id.toString() : undefined;
-  return { ...rest, _id: normalizedId } as T;
+  const id = doc.id ?? doc._id;
+  const normalizedId = id ? String(id) : undefined;
+  return {
+    ...doc,
+    id: normalizedId,
+    _id: normalizedId,
+  } as T;
 };
 
 const normalizeMany = <T>(docs: any[]): T[] => {
@@ -157,78 +188,98 @@ const removeUndefined = (value: Record<string, unknown>) => {
   return result;
 };
 
-export class MongoDBStorage implements IStorage {
+export class PostgresStorage implements IStorage {
+  // In-memory fallback maps for zero-crash development when DB is not connected
+  private memUsers = new Map<string, any>();
+  private memInventory = new Map<string, any>();
+  private memRequests = new Map<string, any>();
+  private memDonors = new Map<string, any>();
+  private memStaff = new Map<string, any>();
+  private memReceivers = new Map<string, any>();
+  private memExpiryAlerts = new Map<string, any>();
+  private memDonationTracking = new Map<string, any>();
+
+  // ==================== USER METHODS ====================
   async getUser(id: string): Promise<User | undefined> {
-    const user = await db.collection("users").findOne({ _id: toObjectId(id) });
+    if (!isDbConnected()) {
+      return normalize<User>(this.memUsers.get(id));
+    }
+    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     return normalize<User>(user);
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     const normalized = username.trim().toLowerCase();
-    const user =
-      (await db.collection("users").findOne({
-        $expr: {
-          $eq: [
-            {
-              $toLower: {
-                $trim: { input: "$username" },
-              },
-            },
-            normalized,
-          ],
-        },
-      })) ??
-      (await db
-        .collection("users")
-        .findOne({ username })) ??
-      (await db
-        .collection("users")
-        .findOne({ username: normalized }));
+    if (!isDbConnected()) {
+      for (const u of Array.from(this.memUsers.values())) {
+        if (u.username?.trim().toLowerCase() === normalized) {
+          return normalize<User>(u);
+        }
+      }
+      return undefined;
+    }
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`LOWER(TRIM(${users.username})) = ${normalized}`)
+      .limit(1);
     return normalize<User>(user);
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const normalized = email.trim().toLowerCase();
-    const user =
-      (await db.collection("users").findOne({
-        $expr: {
-          $eq: [
-            {
-              $toLower: {
-                $trim: { input: "$email" },
-              },
-            },
-            normalized,
-          ],
-        },
-      })) ??
-      (await db
-        .collection("users")
-        .findOne({ email: normalized }));
+    if (!isDbConnected()) {
+      for (const u of Array.from(this.memUsers.values())) {
+        if (u.email?.trim().toLowerCase() === normalized) {
+          return normalize<User>(u);
+        }
+      }
+      return undefined;
+    }
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`LOWER(TRIM(${users.email})) = ${normalized}`)
+      .limit(1);
     return normalize<User>(user);
   }
 
   async getAllUsers(): Promise<User[]> {
-    if (!isDbConnected()) return [];
-    const users = await db.collection("users").find({}).toArray();
-    return normalizeMany<User>(users);
+    if (!isDbConnected()) {
+      return normalizeMany<User>(Array.from(this.memUsers.values()));
+    }
+    const result = await db.select().from(users);
+    return normalizeMany<User>(result);
   }
 
   async createUser(user: InsertUser): Promise<User> {
     const now = new Date();
+    const id = crypto.randomUUID();
+    const hashedPassword = await bcrypt.hash(user.password, 10);
     const document = {
-      ...user,
+      id,
       username: user.username.trim(),
       email: user.email.trim().toLowerCase(),
-      password: await bcrypt.hash(user.password, 10),
+      password: hashedPassword,
+      role: user.role ?? "donor",
       emailVerified: false,
       emailVerificationCode: null,
       emailVerificationExpiresAt: null,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+      approvalStatus: user.approvalStatus ?? null,
+      rejectionReason: user.rejectionReason ?? null,
       createdAt: now,
       updatedAt: now,
     };
-    const result = await db.collection("users").insertOne(document);
-    return normalize<User>({ ...document, _id: result.insertedId })!;
+
+    if (!isDbConnected()) {
+      this.memUsers.set(id, document);
+      return normalize<User>(document)!;
+    }
+
+    const [created] = await db.insert(users).values(document).returning();
+    return normalize<User>(created || document)!;
   }
 
   async setEmailVerificationCode(
@@ -236,39 +287,50 @@ export class MongoDBStorage implements IStorage {
     codeHash: string,
     expiresAt: Date
   ): Promise<User | undefined> {
-    const result = await db
-      .collection("users")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        {
-          $set: {
-            emailVerificationCode: codeHash,
-            emailVerificationExpiresAt: expiresAt,
-            updatedAt: new Date(),
-          },
-        },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+    const now = new Date();
+    if (!isDbConnected()) {
+      const user = this.memUsers.get(id);
+      if (!user) return undefined;
+      user.emailVerificationCode = codeHash;
+      user.emailVerificationExpiresAt = expiresAt;
+      user.updatedAt = now;
+      this.memUsers.set(id, user);
+      return normalize<User>(user);
+    }
+    const [updated] = await db
+      .update(users)
+      .set({
+        emailVerificationCode: codeHash,
+        emailVerificationExpiresAt: expiresAt,
+        updatedAt: now,
+      })
+      .where(eq(users.id, id))
+      .returning();
     return normalize<User>(updated);
   }
 
   async markEmailVerified(id: string): Promise<User | undefined> {
-    const result = await db
-      .collection("users")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        {
-          $set: {
-            emailVerified: true,
-            emailVerificationCode: null,
-            emailVerificationExpiresAt: null,
-            updatedAt: new Date(),
-          },
-        },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+    const now = new Date();
+    if (!isDbConnected()) {
+      const user = this.memUsers.get(id);
+      if (!user) return undefined;
+      user.emailVerified = true;
+      user.emailVerificationCode = null;
+      user.emailVerificationExpiresAt = null;
+      user.updatedAt = now;
+      this.memUsers.set(id, user);
+      return normalize<User>(user);
+    }
+    const [updated] = await db
+      .update(users)
+      .set({
+        emailVerified: true,
+        emailVerificationCode: null,
+        emailVerificationExpiresAt: null,
+        updatedAt: now,
+      })
+      .where(eq(users.id, id))
+      .returning();
     return normalize<User>(updated);
   }
 
@@ -277,155 +339,215 @@ export class MongoDBStorage implements IStorage {
     tokenHash: string,
     expiresAt: Date
   ): Promise<User | undefined> {
-    const result = await db
-      .collection("users")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        {
-          $set: {
-            resetPasswordToken: tokenHash,
-            resetPasswordExpires: expiresAt,
-            updatedAt: new Date(),
-          },
-        },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+    const now = new Date();
+    if (!isDbConnected()) {
+      const user = this.memUsers.get(id);
+      if (!user) return undefined;
+      user.resetPasswordToken = tokenHash;
+      user.resetPasswordExpires = expiresAt;
+      user.updatedAt = now;
+      this.memUsers.set(id, user);
+      return normalize<User>(user);
+    }
+    const [updated] = await db
+      .update(users)
+      .set({
+        resetPasswordToken: tokenHash,
+        resetPasswordExpires: expiresAt,
+        updatedAt: now,
+      })
+      .where(eq(users.id, id))
+      .returning();
     return normalize<User>(updated);
   }
 
   async clearResetPasswordToken(id: string): Promise<User | undefined> {
-    const result = await db
-      .collection("users")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        {
-          $set: {
-            resetPasswordToken: null,
-            resetPasswordExpires: null,
-            updatedAt: new Date(),
-          },
-        },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+    const now = new Date();
+    if (!isDbConnected()) {
+      const user = this.memUsers.get(id);
+      if (!user) return undefined;
+      user.resetPasswordToken = null;
+      user.resetPasswordExpires = null;
+      user.updatedAt = now;
+      this.memUsers.set(id, user);
+      return normalize<User>(user);
+    }
+    const [updated] = await db
+      .update(users)
+      .set({
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+        updatedAt: now,
+      })
+      .where(eq(users.id, id))
+      .returning();
     return normalize<User>(updated);
   }
 
   async updateUser(
     id: string,
-    user: Partial<InsertUser>
+    user: Partial<InsertUser & { approvalStatus?: string; rejectionReason?: string }>
   ): Promise<User | undefined> {
-    const { password, username, email, ...rest } = user;
-    const updatePayload = removeUndefined({
-      ...rest,
+    const updatePayload: Record<string, any> = {
       updatedAt: new Date(),
-    });
-    if (username !== undefined) {
-      updatePayload.username = username.trim();
+    };
+    if (user.username !== undefined) updatePayload.username = user.username.trim();
+    if (user.email !== undefined) updatePayload.email = user.email.trim().toLowerCase();
+    if (user.role !== undefined) updatePayload.role = user.role;
+    if (user.approvalStatus !== undefined) updatePayload.approvalStatus = user.approvalStatus;
+    if (user.rejectionReason !== undefined) updatePayload.rejectionReason = user.rejectionReason;
+    if (user.password) updatePayload.password = await bcrypt.hash(user.password, 10);
+
+    if (!isDbConnected()) {
+      const existing = this.memUsers.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memUsers.set(id, updated);
+      return normalize<User>(updated);
     }
-    if (email !== undefined) {
-      updatePayload.email = email.trim().toLowerCase();
-    }
-    if (password) {
-      updatePayload.password = await bcrypt.hash(password, 10);
-    }
-    const result = await db
-      .collection("users")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+
+    const [updated] = await db
+      .update(users)
+      .set(updatePayload)
+      .where(eq(users.id, id))
+      .returning();
     return normalize<User>(updated);
   }
 
   async deleteUser(id: string): Promise<boolean> {
-    const result = await db
-      .collection("users")
-      .deleteOne({ _id: toObjectId(id) });
-    return result.deletedCount === 1;
+    if (!isDbConnected()) {
+      return this.memUsers.delete(id);
+    }
+    const result = await db.delete(users).where(eq(users.id, id)).returning();
+    return result.length > 0;
   }
 
+  // ==================== BLOOD INVENTORY METHODS ====================
   async getBloodInventory(id: string): Promise<BloodInventory | undefined> {
-    const inventory = await db
-      .collection("bloodInventory")
-      .findOne({ _id: toObjectId(id) });
-    return normalize<BloodInventory>(inventory);
+    if (!isDbConnected()) {
+      return normalize<BloodInventory>(this.memInventory.get(id));
+    }
+    const [item] = await db
+      .select()
+      .from(bloodInventory)
+      .where(eq(bloodInventory.id, id))
+      .limit(1);
+    return normalize<BloodInventory>(item);
   }
 
   async getAllBloodInventory(): Promise<BloodInventory[]> {
-    if (!isDbConnected()) return [];
-    const inventory = await db.collection("bloodInventory").find({}).toArray();
-    return normalizeMany<BloodInventory>(inventory);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodInventory>(Array.from(this.memInventory.values()));
+    }
+    const result = await db.select().from(bloodInventory);
+    return normalizeMany<BloodInventory>(result);
   }
 
-  async getBloodInventoryByHospital(
-    hospitalId: string
-  ): Promise<BloodInventory[]> {
-    if (!isDbConnected()) return [];
-    const inventory = await db
-      .collection("bloodInventory")
-      .find({ hospitalId })
-      .toArray();
-    return normalizeMany<BloodInventory>(inventory);
+  async getBloodInventoryByHospital(hospitalId: string): Promise<BloodInventory[]> {
+    if (!isDbConnected()) {
+      return normalizeMany<BloodInventory>(
+        Array.from(this.memInventory.values()).filter(
+          (item) => item.hospitalId === hospitalId
+        )
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodInventory)
+      .where(eq(bloodInventory.hospitalId, hospitalId));
+    return normalizeMany<BloodInventory>(result);
   }
 
-  async getBloodInventoryByType(
-    bloodType: string
-  ): Promise<BloodInventory[]> {
-    if (!isDbConnected()) return [];
-    const inventory = await db
-      .collection("bloodInventory")
-      .find({ bloodType, status: "available" })
-      .toArray();
-    return normalizeMany<BloodInventory>(inventory);
+  async getBloodInventoryByType(bloodType: string): Promise<BloodInventory[]> {
+    if (!isDbConnected()) {
+      return normalizeMany<BloodInventory>(
+        Array.from(this.memInventory.values()).filter(
+          (item) => item.bloodType === bloodType && item.status === "available"
+        )
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodInventory)
+      .where(
+        and(
+          eq(bloodInventory.bloodType, bloodType),
+          eq(bloodInventory.status, "available")
+        )
+      );
+    return normalizeMany<BloodInventory>(result);
   }
 
   async getBloodInventoryExpiringWithin(
     days: number
   ): Promise<Array<BloodInventory & { daysRemaining: number }>> {
-    if (!isDbConnected()) return [];
     const now = new Date();
     const expiryThreshold = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
-    const inventory = await db
-      .collection("bloodInventory")
-      .find({
-        status: { $in: ["available", "reserved"] },
-        expiryDate: {
-          $gte: now,
-          $lte: expiryThreshold,
-        },
-      })
-      .sort({ expiryDate: 1 })
-      .toArray();
-
-    return inventory.map((item) => {
-      const normalized = normalize<BloodInventory>(item);
-      if (!normalized) return null;
-      const daysRemaining = Math.ceil(
-        (new Date(normalized.expiryDate).getTime() - now.getTime()) /
-          (24 * 60 * 60 * 1000)
+    if (!isDbConnected()) {
+      const items = Array.from(this.memInventory.values()).filter(
+        (item) =>
+          ["available", "reserved"].includes(item.status) &&
+          new Date(item.expiryDate) >= now &&
+          new Date(item.expiryDate) <= expiryThreshold
       );
-      return { ...normalized, daysRemaining };
-    }).filter((item): item is BloodInventory & { daysRemaining: number } => item !== null);
+      return items.map((item) => {
+        const daysRemaining = Math.ceil(
+          (new Date(item.expiryDate).getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
+        );
+        return { ...item, daysRemaining };
+      });
+    }
+
+    const items = await db
+      .select()
+      .from(bloodInventory)
+      .where(
+        and(
+          inArray(bloodInventory.status, ["available", "reserved"]),
+          gte(bloodInventory.expiryDate, now),
+          lte(bloodInventory.expiryDate, expiryThreshold)
+        )
+      )
+      .orderBy(bloodInventory.expiryDate);
+
+    return items
+      .map((item) => {
+        const normalized = normalize<BloodInventory>(item);
+        if (!normalized) return null;
+        const daysRemaining = Math.ceil(
+          (new Date(normalized.expiryDate).getTime() - now.getTime()) /
+            (24 * 60 * 60 * 1000)
+        );
+        return { ...normalized, daysRemaining };
+      })
+      .filter((item): item is BloodInventory & { daysRemaining: number } => item !== null);
   }
 
   async createBloodInventory(
     inventory: InsertBloodInventory
   ): Promise<BloodInventory> {
     const now = new Date();
+    const id = crypto.randomUUID();
     const document = {
-      ...inventory,
+      id,
+      hospitalId: inventory.hospitalId,
+      hospitalName: inventory.hospitalName,
+      bloodType: inventory.bloodType,
+      quantity: inventory.quantity ?? 0,
+      expiryDate: new Date(inventory.expiryDate),
+      status: inventory.status ?? "available",
       createdAt: now,
       updatedAt: now,
     };
-    const result = await db
-      .collection("bloodInventory")
-      .insertOne(document);
-    return normalize<BloodInventory>({ ...document, _id: result.insertedId })!;
+
+    if (!isDbConnected()) {
+      this.memInventory.set(id, document);
+      return normalize<BloodInventory>(document)!;
+    }
+
+    const [created] = await db.insert(bloodInventory).values(document).returning();
+    return normalize<BloodInventory>(created || document)!;
   }
 
   async updateBloodInventory(
@@ -434,48 +556,73 @@ export class MongoDBStorage implements IStorage {
   ): Promise<BloodInventory | undefined> {
     const updatePayload = removeUndefined({
       ...inventory,
+      ...(inventory.expiryDate ? { expiryDate: new Date(inventory.expiryDate) } : {}),
       updatedAt: new Date(),
     });
-    const result = await db
-      .collection("bloodInventory")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+
+    if (!isDbConnected()) {
+      const existing = this.memInventory.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memInventory.set(id, updated);
+      return normalize<BloodInventory>(updated);
+    }
+
+    const [updated] = await db
+      .update(bloodInventory)
+      .set(updatePayload)
+      .where(eq(bloodInventory.id, id))
+      .returning();
     return normalize<BloodInventory>(updated);
   }
 
   async deleteBloodInventory(id: string): Promise<boolean> {
+    if (!isDbConnected()) {
+      return this.memInventory.delete(id);
+    }
     const result = await db
-      .collection("bloodInventory")
-      .deleteOne({ _id: toObjectId(id) });
-    return result.deletedCount === 1;
+      .delete(bloodInventory)
+      .where(eq(bloodInventory.id, id))
+      .returning();
+    return result.length > 0;
   }
 
+  // ==================== BLOOD REQUEST METHODS ====================
   async getBloodRequest(id: string): Promise<BloodRequest | undefined> {
-    const request = await db
-      .collection("bloodRequests")
-      .findOne({ _id: toObjectId(id) });
+    if (!isDbConnected()) {
+      return normalize<BloodRequest>(this.memRequests.get(id));
+    }
+    const [request] = await db
+      .select()
+      .from(bloodRequests)
+      .where(eq(bloodRequests.id, id))
+      .limit(1);
     return normalize<BloodRequest>(request);
   }
 
   async getAllBloodRequests(): Promise<BloodRequest[]> {
-    if (!isDbConnected()) return [];
-    const requests = await db.collection("bloodRequests").find({}).toArray();
-    return normalizeMany<BloodRequest>(requests);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodRequest>(Array.from(this.memRequests.values()));
+    }
+    const result = await db
+      .select()
+      .from(bloodRequests)
+      .orderBy(desc(bloodRequests.createdAt));
+    return normalizeMany<BloodRequest>(result);
   }
 
-  async getBloodRequestsByStatus(
-    status: string
-  ): Promise<BloodRequest[]> {
-    if (!isDbConnected()) return [];
-    const requests = await db
-      .collection("bloodRequests")
-      .find({ status })
-      .toArray();
-    return normalizeMany<BloodRequest>(requests);
+  async getBloodRequestsByStatus(status: string): Promise<BloodRequest[]> {
+    if (!isDbConnected()) {
+      return normalizeMany<BloodRequest>(
+        Array.from(this.memRequests.values()).filter((r) => r.status === status)
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodRequests)
+      .where(eq(bloodRequests.status, status))
+      .orderBy(desc(bloodRequests.createdAt));
+    return normalizeMany<BloodRequest>(result);
   }
 
   async searchAndFilterBloodRequests(
@@ -491,70 +638,103 @@ export class MongoDBStorage implements IStorage {
       limit: number;
     }
   ): Promise<{ requests: BloodRequest[]; total: number }> {
-    if (!isDbConnected()) return { requests: [], total: 0 };
-    const query: any = {};
+    if (!isDbConnected()) {
+      let items = Array.from(this.memRequests.values());
+      if (filters.bloodType) items = items.filter((r) => r.bloodType === filters.bloodType);
+      if (filters.urgency) items = items.filter((r) => r.urgency === filters.urgency);
+      if (filters.status) items = items.filter((r) => r.status === filters.status);
+      if (filters.location) {
+        const loc = filters.location.toLowerCase();
+        items = items.filter(
+          (r) =>
+            r.hospitalName?.toLowerCase().includes(loc) ||
+            r.region?.toLowerCase().includes(loc) ||
+            r.address?.toLowerCase().includes(loc)
+        );
+      }
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        items = items.filter(
+          (r) =>
+            r.hospitalName?.toLowerCase().includes(s) ||
+            r.requesterName?.toLowerCase().includes(s) ||
+            r.patientName?.toLowerCase().includes(s) ||
+            r.bloodType?.toLowerCase().includes(s)
+        );
+      }
+      const total = items.length;
+      const skip = pagination?.skip || 0;
+      const limit = pagination?.limit || 100;
+      const paginated = items.slice(skip, skip + limit);
+      return { requests: normalizeMany<BloodRequest>(paginated), total };
+    }
 
+    const conditions: SQL[] = [];
     if (filters.bloodType) {
-      query.bloodType = filters.bloodType;
+      conditions.push(eq(bloodRequests.bloodType, filters.bloodType));
     }
-
     if (filters.urgency) {
-      query.urgency = filters.urgency;
+      conditions.push(eq(bloodRequests.urgency, filters.urgency));
     }
-
     if (filters.status) {
-      query.status = filters.status;
+      conditions.push(eq(bloodRequests.status, filters.status));
     }
-
     if (filters.location) {
-      const locationRegex = new RegExp(filters.location, "i");
-      query.$or = [
-        { hospitalName: { $regex: locationRegex } },
-        ...(query.$or || []),
-      ];
+      conditions.push(ilike(bloodRequests.hospitalName, `%${filters.location}%`));
     }
-
     if (filters.search) {
-      const searchRegex = new RegExp(filters.search, "i");
-      query.$or = [
-        { bloodType: { $regex: searchRegex } },
-        { hospitalName: { $regex: searchRegex } },
-        { requesterName: { $regex: searchRegex } },
-        ...(query.$or || []).filter(
-          (item: any) => !item.hospitalName || item.hospitalName !== query.$or[0]?.hospitalName
-        ),
-      ];
+      const searchPattern = `%${filters.search}%`;
+      conditions.push(
+        or(
+          ilike(bloodRequests.bloodType, searchPattern),
+          ilike(bloodRequests.hospitalName, searchPattern),
+          ilike(bloodRequests.requesterName, searchPattern),
+          ilike(bloodRequests.patientName, searchPattern),
+          ilike(bloodRequests.region, searchPattern),
+          ilike(bloodRequests.address, searchPattern)
+        )!
+      );
     }
 
-    const collection = db.collection("bloodRequests");
-    const total = await collection.countDocuments(query);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const requests = await collection
-      .find(query)
-      .skip(pagination?.skip || 0)
-      .limit(pagination?.limit || 100)
-      .sort({ createdAt: -1 })
-      .toArray();
+    const [countResult] = await db
+      .select({ count: sql<number>`cast(count(*) as int)` })
+      .from(bloodRequests)
+      .where(whereClause);
+    const total = countResult?.count ?? 0;
+
+    const results = await db
+      .select()
+      .from(bloodRequests)
+      .where(whereClause)
+      .orderBy(desc(bloodRequests.createdAt))
+      .offset(pagination?.skip || 0)
+      .limit(pagination?.limit || 100);
 
     return {
-      requests: normalizeMany<BloodRequest>(requests),
+      requests: normalizeMany<BloodRequest>(results),
       total,
     };
   }
 
-  async createBloodRequest(
-    request: InsertBloodRequest
-  ): Promise<BloodRequest> {
+  async createBloodRequest(request: InsertBloodRequest): Promise<BloodRequest> {
     const now = new Date();
+    const id = crypto.randomUUID();
     const document = {
+      id,
       ...request,
       createdAt: now,
       updatedAt: now,
     };
-    const result = await db
-      .collection("bloodRequests")
-      .insertOne(document);
-    return normalize<BloodRequest>({ ...document, _id: result.insertedId })!;
+
+    if (!isDbConnected()) {
+      this.memRequests.set(id, document);
+      return normalize<BloodRequest>(document)!;
+    }
+
+    const [created] = await db.insert(bloodRequests).values(document).returning();
+    return normalize<BloodRequest>(created || document)!;
   }
 
   async updateBloodRequest(
@@ -565,174 +745,148 @@ export class MongoDBStorage implements IStorage {
       ...request,
       updatedAt: new Date(),
     });
-    
-    try {
-      const result = await db
-        .collection("bloodRequests")
-        .findOneAndUpdate(
-          { _id: toObjectId(id) },
-          { $set: updatePayload },
-          { returnDocument: "after" }
-        );
-      
-      const updated = (result as any)?.value ?? result ?? null;
+
+    if (!isDbConnected()) {
+      const existing = this.memRequests.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memRequests.set(id, updated);
       return normalize<BloodRequest>(updated);
-    } catch (error) {
-      console.error(`[ERROR] Failed to update blood request ${id}:`, error);
-      return undefined;
     }
+
+    const [updated] = await db
+      .update(bloodRequests)
+      .set(updatePayload)
+      .where(eq(bloodRequests.id, id))
+      .returning();
+    return normalize<BloodRequest>(updated);
   }
 
   async deleteBloodRequest(id: string): Promise<boolean> {
+    if (!isDbConnected()) {
+      return this.memRequests.delete(id);
+    }
     const result = await db
-      .collection("bloodRequests")
-      .deleteOne({ _id: toObjectId(id) });
-    return result.deletedCount === 1;
+      .delete(bloodRequests)
+      .where(eq(bloodRequests.id, id))
+      .returning();
+    return result.length > 0;
   }
 
+  // ==================== DONOR METHODS ====================
   async getDonor(id: string): Promise<Donor | undefined> {
-    const donor = await db
-      .collection("donors")
-      .findOne({ _id: toObjectId(id) });
+    if (!isDbConnected()) {
+      return normalize<Donor>(this.memDonors.get(id));
+    }
+    const [donor] = await db.select().from(donors).where(eq(donors.id, id)).limit(1);
     return normalize<Donor>(donor);
   }
 
   async getAllDonors(): Promise<Donor[]> {
-    if (!isDbConnected()) return [];
-    const donors = await db.collection("donors").find({}).toArray();
-    return normalizeMany<Donor>(donors);
+    if (!isDbConnected()) {
+      return normalizeMany<Donor>(Array.from(this.memDonors.values()));
+    }
+    const result = await db.select().from(donors);
+    return normalizeMany<Donor>(result);
   }
 
   async getDonorsByBloodType(bloodType: string): Promise<Donor[]> {
-    if (!isDbConnected()) return [];
-    const donors = await db
-      .collection("donors")
-      .find({ bloodType, isActive: true })
-      .toArray();
-    return normalizeMany<Donor>(donors);
+    if (!isDbConnected()) {
+      return normalizeMany<Donor>(
+        Array.from(this.memDonors.values()).filter((d) => d.bloodType === bloodType)
+      );
+    }
+    const result = await db.select().from(donors).where(eq(donors.bloodType, bloodType));
+    return normalizeMany<Donor>(result);
   }
 
-  async getEligibleDonorsWithEmails(bloodTypesInput: string | string[], region?: string): Promise<Array<{ donor: Donor; email: string; username: string }>> {
-    if (!isDbConnected()) return [];
-    try {
-      // Handle both single string and array of strings
-      const bloodTypes = Array.isArray(bloodTypesInput) ? bloodTypesInput : [bloodTypesInput];
-      
-      // Build simple query for eligible donors with matching blood types
-      // Get ALL donors with matching blood types that are active or new
-      const query: any = {
-        bloodType: { $in: bloodTypes }
-      };
+  async getEligibleDonorsWithEmails(
+    bloodTypes: string | string[],
+    region?: string
+  ): Promise<Array<{ donor: Donor; email: string; username: string }>> {
+    const types = Array.isArray(bloodTypes) ? bloodTypes : [bloodTypes];
 
-      // Only check isActive if it exists, but include donors where it doesn't exist
-      // This ensures new donors are included
-      const donors = await db
-        .collection("donors")
-        .find(query)
-        .toArray();
-
-      console.log(`[DEBUG] getEligibleDonorsWithEmails: Found ${donors.length} donors for blood types ${bloodTypes.join(", ")}${region ? ` in region ${region}` : ""}`);
-      console.log(`[DEBUG] Raw donors from DB:`, donors.map(d => ({ firstName: d.firstName, lastName: d.lastName, bloodType: d.bloodType, userId: d.userId })));
-
-      if (donors.length === 0) {
-        return [];
-      }
-
-      // Filter donors by blood type only - no other restrictions
-      // NOTE: Removed isActive check, region filtering, and email validation to ensure maximum donor reach
-      const filteredDonors = donors.filter((donorDoc) => {
-        const donor = normalize<Donor>(donorDoc);
-        if (!donor) return false;
-
-        console.log(`[DEBUG] Including donor ${donor.firstName} ${donor.lastName} (status: ${donor.eligibilityStatus}) in email list`);
-        return true;
-      });
-
-      console.log(`[DEBUG] After filtering: ${filteredDonors.length} donors eligible`);
-
-      // For each donor, fetch their user information to get email
-      const donorsWithEmails: Array<{ donor: Donor; email: string; username: string }> = [];
-
-      // DEBUG: Log all users in the system
-      const allUsers = await db.collection("users").find({}).toArray();
-      console.log(`[DEBUG] Total users in system: ${allUsers.length}, emails: ${allUsers.map((u: any) => u.email).join(", ")}`);
-
-      for (const donorDoc of filteredDonors) {
-        try {
-          const donor = normalize<Donor>(donorDoc);
-          if (!donor) {
-            console.log("[DEBUG] Failed to normalize donor document");
-            continue;
-          }
-
-          console.log(`[DEBUG] Processing donor: ${donor.firstName} ${donor.lastName}, userId: ${donor.userId}`);
-
-          // Try to fetch the user associated with this donor to get email
-          let userEmail = null;
-          let username = `${donor.firstName} ${donor.lastName}`;
-
-          try {
-            const userId = toObjectId(donor.userId);
-            const user = await db
-              .collection("users")
-              .findOne({ _id: userId });
-
-            if (user && user.email) {
-              userEmail = user.email;
-              if (user.username) username = user.username;
-              console.log(`[DEBUG] Found email ${user.email} for donor ${donor.firstName} ${donor.lastName}`);
-            } else if (user) {
-              console.log(`[DEBUG] User found for donor ${donor.firstName} but no email set`);
-            }
-          } catch (e) {
-            console.log(`[DEBUG] Could not fetch user for donor ${donor.userId}: ${(e as any).message}`);
-          }
-
-          // If no user email found, try other methods
-          if (!userEmail) {
-            // Check if donor has email field directly (shouldn't normally, but for coverage)
-            if ((donorDoc as any).email) {
-              userEmail = (donorDoc as any).email;
-              console.log(`[DEBUG] Found email directly on donor record: ${userEmail}`);
-            } else {
-              console.log(`[DEBUG] SKIPPING: No email found for donor ${donor.firstName} ${donor.lastName} (userId: ${donor.userId})`);
-              // Skip this donor - we can't send notifications without a valid email
-              continue;
-            }
-          }
-
-          console.log(`[DEBUG] Will send notification to ${userEmail} for donor ${donor.firstName} ${donor.lastName}`);
-
-          donorsWithEmails.push({
-            donor,
-            email: userEmail,
-            username: username,
-          });
-        } catch (itemError) {
-          console.error(`[ERROR] Error processing donor:`, itemError);
-          continue;
+    if (!isDbConnected()) {
+      const matchingDonors = Array.from(this.memDonors.values()).filter((d) =>
+        types.includes(d.bloodType)
+      );
+      const result: Array<{ donor: Donor; email: string; username: string }> = [];
+      for (const rawDonor of matchingDonors) {
+        const donor = normalize<Donor>(rawDonor)!;
+        const user = this.memUsers.get(donor.userId);
+        const email = user?.email || (rawDonor as any).email;
+        const username = user?.username || `${donor.firstName} ${donor.lastName}`;
+        if (email) {
+          result.push({ donor, email, username });
         }
       }
-
-      console.log(`[DEBUG] Total eligible donors with valid emails: ${donorsWithEmails.length}`);
-      return donorsWithEmails;
-    } catch (error) {
-      console.error("[ERROR] Failed to get eligible donors with emails:", error);
-      throw error;
+      return result;
     }
+
+    const donorConditions: SQL[] = [inArray(donors.bloodType, types)];
+    if (region) {
+      donorConditions.push(eq(donors.region, region));
+    }
+
+    const matchingDonors = await db
+      .select()
+      .from(donors)
+      .where(and(...donorConditions));
+
+    if (matchingDonors.length === 0) return [];
+
+    const userIds = matchingDonors.map((d) => d.userId).filter(Boolean);
+    const userMap = new Map<string, { email: string; username: string }>();
+
+    if (userIds.length > 0) {
+      const userRecords = await db
+        .select({ id: users.id, email: users.email, username: users.username })
+        .from(users)
+        .where(inArray(users.id, userIds));
+
+      for (const u of userRecords) {
+        userMap.set(u.id, { email: u.email, username: u.username });
+      }
+    }
+
+    const result: Array<{ donor: Donor; email: string; username: string }> = [];
+    for (const rawDonor of matchingDonors) {
+      const donor = normalize<Donor>(rawDonor)!;
+      const user = userMap.get(donor.userId);
+      const email = user?.email || (rawDonor as any).email;
+      const username = user?.username || `${donor.firstName} ${donor.lastName}`;
+
+      if (email) {
+        result.push({
+          donor,
+          email,
+          username,
+        });
+      }
+    }
+
+    return result;
   }
 
   async createDonor(donor: InsertDonor): Promise<Donor> {
     const now = new Date();
+    const id = crypto.randomUUID();
     const document = {
+      id,
       ...donor,
       eligibilityStatus: donor.eligibilityStatus ?? "eligible",
       isActive: true,
       createdAt: now,
       updatedAt: now,
     };
-    const result = await db.collection("donors").insertOne(document);
-    return normalize<Donor>({ ...document, _id: result.insertedId })!;
+
+    if (!isDbConnected()) {
+      this.memDonors.set(id, document);
+      return normalize<Donor>(document)!;
+    }
+
+    const [created] = await db.insert(donors).values(document).returning();
+    return normalize<Donor>(created || document)!;
   }
 
   async updateDonor(
@@ -743,186 +897,270 @@ export class MongoDBStorage implements IStorage {
       ...donor,
       updatedAt: new Date(),
     });
-    const result = await db
-      .collection("donors")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+
+    if (!isDbConnected()) {
+      const existing = this.memDonors.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memDonors.set(id, updated);
+      return normalize<Donor>(updated);
+    }
+
+    const [updated] = await db
+      .update(donors)
+      .set(updatePayload)
+      .where(eq(donors.id, id))
+      .returning();
     return normalize<Donor>(updated);
   }
 
   async deleteDonor(id: string): Promise<boolean> {
-    const result = await db
-      .collection("donors")
-      .deleteOne({ _id: toObjectId(id) });
-    return result.deletedCount === 1;
+    if (!isDbConnected()) {
+      return this.memDonors.delete(id);
+    }
+    const result = await db.delete(donors).where(eq(donors.id, id)).returning();
+    return result.length > 0;
   }
 
+  // ==================== STAFF METHODS ====================
   async getStaff(id: string): Promise<Staff | undefined> {
-    const staff = await db.collection("staff").findOne({ _id: toObjectId(id) });
-    return normalize<Staff>(staff);
+    if (!isDbConnected()) {
+      return normalize<Staff>(this.memStaff.get(id));
+    }
+    const [s] = await db.select().from(staff).where(eq(staff.id, id)).limit(1);
+    return normalize<Staff>(s);
   }
 
   async getAllStaff(): Promise<Staff[]> {
-    if (!isDbConnected()) return [];
-    const staffMembers = await db.collection("staff").find({}).toArray();
-    return normalizeMany<Staff>(staffMembers);
+    if (!isDbConnected()) {
+      return normalizeMany<Staff>(Array.from(this.memStaff.values()));
+    }
+    const result = await db.select().from(staff);
+    return normalizeMany<Staff>(result);
   }
 
-  async createStaff(staff: InsertStaff): Promise<Staff> {
+  async createStaff(staffMember: InsertStaff): Promise<Staff> {
     const now = new Date();
+    const id = crypto.randomUUID();
     const document = {
-      ...staff,
+      id,
+      ...staffMember,
       createdAt: now,
       updatedAt: now,
     };
-    const result = await db.collection("staff").insertOne(document);
-    return normalize<Staff>({ ...document, _id: result.insertedId })!;
+
+    if (!isDbConnected()) {
+      this.memStaff.set(id, document);
+      return normalize<Staff>(document)!;
+    }
+
+    const [created] = await db.insert(staff).values(document).returning();
+    return normalize<Staff>(created || document)!;
   }
 
   async updateStaff(
     id: string,
-    staff: Partial<InsertStaff>
+    staffMember: Partial<InsertStaff>
   ): Promise<Staff | undefined> {
     const updatePayload = removeUndefined({
-      ...staff,
+      ...staffMember,
       updatedAt: new Date(),
     });
-    const result = await db
-      .collection("staff")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+
+    if (!isDbConnected()) {
+      const existing = this.memStaff.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memStaff.set(id, updated);
+      return normalize<Staff>(updated);
+    }
+
+    const [updated] = await db
+      .update(staff)
+      .set(updatePayload)
+      .where(eq(staff.id, id))
+      .returning();
     return normalize<Staff>(updated);
   }
 
   async deleteStaff(id: string): Promise<boolean> {
-    const result = await db.collection("staff").deleteOne({ _id: toObjectId(id) });
-    return result.deletedCount === 1;
+    if (!isDbConnected()) {
+      return this.memStaff.delete(id);
+    }
+    const result = await db.delete(staff).where(eq(staff.id, id)).returning();
+    return result.length > 0;
   }
 
+  // ==================== RECEIVER METHODS ====================
   async getReceiver(id: string): Promise<any | undefined> {
-    const receiver = await db.collection("receivers").findOne({ _id: toObjectId(id) });
-    return normalize<any>(receiver);
+    if (!isDbConnected()) {
+      return normalize<any>(this.memReceivers.get(id));
+    }
+    const [rec] = await db.select().from(receivers).where(eq(receivers.id, id)).limit(1);
+    return normalize<any>(rec);
   }
 
   async getAllReceivers(): Promise<any[]> {
-    if (!isDbConnected()) return [];
-    const receivers = await db.collection("receivers").find({}).toArray();
-    return normalizeMany<any>(receivers);
+    if (!isDbConnected()) {
+      return normalizeMany<any>(Array.from(this.memReceivers.values()));
+    }
+    const result = await db.select().from(receivers);
+    return normalizeMany<any>(result);
   }
 
   async getReceiversByBloodType(bloodType: string): Promise<any[]> {
-    if (!isDbConnected()) return [];
-    const receivers = await db
-      .collection("receivers")
-      .find({ bloodType })
-      .toArray();
-    return normalizeMany<any>(receivers);
+    if (!isDbConnected()) {
+      return normalizeMany<any>(
+        Array.from(this.memReceivers.values()).filter((r) => r.bloodType === bloodType)
+      );
+    }
+    const result = await db.select().from(receivers).where(eq(receivers.bloodType, bloodType));
+    return normalizeMany<any>(result);
   }
 
   async createReceiver(receiver: any): Promise<any> {
     const now = new Date();
+    const id = crypto.randomUUID();
     const document = {
+      id,
       ...receiver,
       createdAt: now,
       updatedAt: now,
     };
-    const result = await db.collection("receivers").insertOne(document);
-    return normalize<any>({ ...document, _id: result.insertedId })!;
+
+    if (!isDbConnected()) {
+      this.memReceivers.set(id, document);
+      return normalize<any>(document)!;
+    }
+
+    const [created] = await db.insert(receivers).values(document).returning();
+    return normalize<any>(created || document)!;
   }
 
-  async updateReceiver(
-    id: string,
-    receiver: Partial<any>
-  ): Promise<any | undefined> {
+  async updateReceiver(id: string, receiver: Partial<any>): Promise<any | undefined> {
     const updatePayload = removeUndefined({
       ...receiver,
       updatedAt: new Date(),
     });
-    const result = await db
-      .collection("receivers")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+
+    if (!isDbConnected()) {
+      const existing = this.memReceivers.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memReceivers.set(id, updated);
+      return normalize<any>(updated);
+    }
+
+    const [updated] = await db
+      .update(receivers)
+      .set(updatePayload)
+      .where(eq(receivers.id, id))
+      .returning();
     return normalize<any>(updated);
   }
 
   async deleteReceiver(id: string): Promise<boolean> {
-    const result = await db.collection("receivers").deleteOne({ _id: toObjectId(id) });
-    return result.deletedCount === 1;
+    if (!isDbConnected()) {
+      return this.memReceivers.delete(id);
+    }
+    const result = await db.delete(receivers).where(eq(receivers.id, id)).returning();
+    return result.length > 0;
   }
 
   // ==================== BLOOD EXPIRY ALERT METHODS ====================
   async getBloodExpiryAlert(id: string): Promise<BloodExpiryAlert | undefined> {
-    const alert = await db
-      .collection("bloodExpiryAlerts")
-      .findOne({ _id: toObjectId(id) });
+    if (!isDbConnected()) {
+      return normalize<BloodExpiryAlert>(this.memExpiryAlerts.get(id));
+    }
+    const [alert] = await db
+      .select()
+      .from(bloodExpiryAlerts)
+      .where(eq(bloodExpiryAlerts.id, id))
+      .limit(1);
     return normalize<BloodExpiryAlert>(alert);
   }
 
   async getAllBloodExpiryAlerts(): Promise<BloodExpiryAlert[]> {
-    if (!isDbConnected()) return [];
-    const alerts = await db
-      .collection("bloodExpiryAlerts")
-      .find({})
-      .sort({ alertSentAt: -1 })
-      .toArray();
-    return normalizeMany<BloodExpiryAlert>(alerts);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodExpiryAlert>(Array.from(this.memExpiryAlerts.values()));
+    }
+    const result = await db
+      .select()
+      .from(bloodExpiryAlerts)
+      .orderBy(desc(bloodExpiryAlerts.alertSentAt));
+    return normalizeMany<BloodExpiryAlert>(result);
   }
 
   async getBloodExpiryAlertsByHospital(hospitalId: string): Promise<BloodExpiryAlert[]> {
-    if (!isDbConnected()) return [];
-    const alerts = await db
-      .collection("bloodExpiryAlerts")
-      .find({ hospitalId })
-      .sort({ alertSentAt: -1 })
-      .toArray();
-    return normalizeMany<BloodExpiryAlert>(alerts);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodExpiryAlert>(
+        Array.from(this.memExpiryAlerts.values()).filter(
+          (a) => a.hospitalId === hospitalId
+        )
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodExpiryAlerts)
+      .where(eq(bloodExpiryAlerts.hospitalId, hospitalId))
+      .orderBy(desc(bloodExpiryAlerts.alertSentAt));
+    return normalizeMany<BloodExpiryAlert>(result);
   }
 
   async getBloodExpiryAlertsByLevel(alertLevel: string): Promise<BloodExpiryAlert[]> {
-    if (!isDbConnected()) return [];
-    const alerts = await db
-      .collection("bloodExpiryAlerts")
-      .find({ alertLevel })
-      .sort({ alertSentAt: -1 })
-      .toArray();
-    return normalizeMany<BloodExpiryAlert>(alerts);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodExpiryAlert>(
+        Array.from(this.memExpiryAlerts.values()).filter(
+          (a) => a.alertLevel === alertLevel
+        )
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodExpiryAlerts)
+      .where(eq(bloodExpiryAlerts.alertLevel, alertLevel))
+      .orderBy(desc(bloodExpiryAlerts.alertSentAt));
+    return normalizeMany<BloodExpiryAlert>(result);
   }
 
   async getActiveBloodExpiryAlerts(resolved = false): Promise<BloodExpiryAlert[]> {
-    if (!isDbConnected()) return [];
-    const alerts = await db
-      .collection("bloodExpiryAlerts")
-      .find({ resolved })
-      .sort({ alertSentAt: -1 })
-      .toArray();
-    return normalizeMany<BloodExpiryAlert>(alerts);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodExpiryAlert>(
+        Array.from(this.memExpiryAlerts.values()).filter((a) => a.resolved === resolved)
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodExpiryAlerts)
+      .where(eq(bloodExpiryAlerts.resolved, resolved))
+      .orderBy(desc(bloodExpiryAlerts.alertSentAt));
+    return normalizeMany<BloodExpiryAlert>(result);
   }
 
   async createBloodExpiryAlert(
     alert: InsertBloodExpiryAlert
   ): Promise<BloodExpiryAlert> {
     const now = new Date();
+    const id = crypto.randomUUID();
     const document = {
+      id,
       ...alert,
+      expiryDate: new Date(alert.expiryDate),
+      alertSentAt: alert.alertSentAt ? new Date(alert.alertSentAt) : now,
+      acknowledgedAt: alert.acknowledgedAt ? new Date(alert.acknowledgedAt) : null,
+      resolvedAt: alert.resolvedAt ? new Date(alert.resolvedAt) : null,
+      emailsSent: alert.emailsSent ?? [],
       createdAt: now,
       updatedAt: now,
     };
-    const result = await db
-      .collection("bloodExpiryAlerts")
-      .insertOne(document);
-    return normalize<BloodExpiryAlert>({ ...document, _id: result.insertedId })!;
+
+    if (!isDbConnected()) {
+      this.memExpiryAlerts.set(id, document);
+      return normalize<BloodExpiryAlert>(document)!;
+    }
+
+    const [created] = await db.insert(bloodExpiryAlerts).values(document).returning();
+    return normalize<BloodExpiryAlert>(created || document)!;
   }
 
   async updateBloodExpiryAlert(
@@ -931,16 +1169,26 @@ export class MongoDBStorage implements IStorage {
   ): Promise<BloodExpiryAlert | undefined> {
     const updatePayload = removeUndefined({
       ...alert,
+      ...(alert.expiryDate ? { expiryDate: new Date(alert.expiryDate) } : {}),
+      ...(alert.alertSentAt ? { alertSentAt: new Date(alert.alertSentAt) } : {}),
+      ...(alert.acknowledgedAt ? { acknowledgedAt: new Date(alert.acknowledgedAt) } : {}),
+      ...(alert.resolvedAt ? { resolvedAt: new Date(alert.resolvedAt) } : {}),
       updatedAt: new Date(),
     });
-    const result = await db
-      .collection("bloodExpiryAlerts")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+
+    if (!isDbConnected()) {
+      const existing = this.memExpiryAlerts.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memExpiryAlerts.set(id, updated);
+      return normalize<BloodExpiryAlert>(updated);
+    }
+
+    const [updated] = await db
+      .update(bloodExpiryAlerts)
+      .set(updatePayload)
+      .where(eq(bloodExpiryAlerts.id, id))
+      .returning();
     return normalize<BloodExpiryAlert>(updated);
   }
 
@@ -949,21 +1197,28 @@ export class MongoDBStorage implements IStorage {
     userId: string,
     notes?: string
   ): Promise<BloodExpiryAlert | undefined> {
+    const now = new Date();
     const updatePayload = {
       acknowledged: true,
       acknowledgedBy: userId,
-      acknowledgedAt: new Date(),
-      ...(notes && { acknowledgedNotes: notes }),
-      updatedAt: new Date(),
+      acknowledgedAt: now,
+      ...(notes ? { acknowledgedNotes: notes } : {}),
+      updatedAt: now,
     };
-    const result = await db
-      .collection("bloodExpiryAlerts")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+
+    if (!isDbConnected()) {
+      const existing = this.memExpiryAlerts.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memExpiryAlerts.set(id, updated);
+      return normalize<BloodExpiryAlert>(updated);
+    }
+
+    const [updated] = await db
+      .update(bloodExpiryAlerts)
+      .set(updatePayload)
+      .where(eq(bloodExpiryAlerts.id, id))
+      .returning();
     return normalize<BloodExpiryAlert>(updated);
   }
 
@@ -972,95 +1227,108 @@ export class MongoDBStorage implements IStorage {
     userId: string,
     notes?: string
   ): Promise<BloodExpiryAlert | undefined> {
+    const now = new Date();
     const updatePayload = {
       resolved: true,
       resolvedBy: userId,
-      resolvedAt: new Date(),
-      ...(notes && { resolvedNotes: notes }),
-      updatedAt: new Date(),
+      resolvedAt: now,
+      ...(notes ? { resolvedNotes: notes } : {}),
+      updatedAt: now,
     };
-    const result = await db
-      .collection("bloodExpiryAlerts")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+
+    if (!isDbConnected()) {
+      const existing = this.memExpiryAlerts.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memExpiryAlerts.set(id, updated);
+      return normalize<BloodExpiryAlert>(updated);
+    }
+
+    const [updated] = await db
+      .update(bloodExpiryAlerts)
+      .set(updatePayload)
+      .where(eq(bloodExpiryAlerts.id, id))
+      .returning();
     return normalize<BloodExpiryAlert>(updated);
   }
 
   async deleteBloodExpiryAlert(id: string): Promise<boolean> {
+    if (!isDbConnected()) {
+      return this.memExpiryAlerts.delete(id);
+    }
     const result = await db
-      .collection("bloodExpiryAlerts")
-      .deleteOne({ _id: toObjectId(id) });
-    return result.deletedCount === 1;
+      .delete(bloodExpiryAlerts)
+      .where(eq(bloodExpiryAlerts.id, id))
+      .returning();
+    return result.length > 0;
   }
 
   async checkAndCreateExpiryAlerts(): Promise<BloodExpiryAlert[]> {
-    if (!isDbConnected()) return [];
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    // Get all inventory expiring within 7 days
-    const expiringInventory = await db
-      .collection("bloodInventory")
-      .find({
-        status: { $in: ["available", "limited"] },
-        expiryDate: {
-          $gte: now,
-          $lte: sevenDaysLater,
-        },
-      })
-      .toArray();
+    const expiringInventory = await (async () => {
+      if (!isDbConnected()) {
+        return Array.from(this.memInventory.values()).filter(
+          (item) =>
+            ["available", "limited"].includes(item.status) &&
+            new Date(item.expiryDate) >= now &&
+            new Date(item.expiryDate) <= sevenDaysLater
+        );
+      }
+      return await db
+        .select()
+        .from(bloodInventory)
+        .where(
+          and(
+            inArray(bloodInventory.status, ["available", "limited"]),
+            gte(bloodInventory.expiryDate, now),
+            lte(bloodInventory.expiryDate, sevenDaysLater)
+          )
+        );
+    })();
 
     const createdAlerts: BloodExpiryAlert[] = [];
 
-    for (const inventory of expiringInventory) {
-      const normalized = normalize<BloodInventory>(inventory);
+    for (const inventoryItem of expiringInventory) {
+      const normalized = normalize<BloodInventory>(inventoryItem);
       if (!normalized) continue;
 
-      // Check if alert already exists for this inventory
-      const existingAlert = await db
-        .collection("bloodExpiryAlerts")
-        .findOne({
-          inventoryId: inventory._id.toString(),
-          resolved: false,
-        });
-
-      if (existingAlert) {
-        // Update existing alert
-        const daysRemaining = Math.ceil(
-          (new Date(normalized.expiryDate).getTime() - now.getTime()) /
-            (24 * 60 * 60 * 1000)
-        );
-        const alertLevel = this.calculateAlertLevel(daysRemaining);
-
-        await db.collection("bloodExpiryAlerts").findOneAndUpdate(
-          { _id: existingAlert._id },
-          {
-            $set: {
-              daysRemaining,
-              alertLevel,
-              updatedAt: now,
-            },
-          }
-        );
-        continue;
-      }
-
-      // Calculate days remaining
       const daysRemaining = Math.ceil(
         (new Date(normalized.expiryDate).getTime() - now.getTime()) /
           (24 * 60 * 60 * 1000)
       );
-
-      // Determine alert level
       const alertLevel = this.calculateAlertLevel(daysRemaining);
 
-      // Create new alert
+      const existingAlert = await (async () => {
+        if (!isDbConnected()) {
+          return Array.from(this.memExpiryAlerts.values()).find(
+            (a) => a.inventoryId === normalized.id && !a.resolved
+          );
+        }
+        const [found] = await db
+          .select()
+          .from(bloodExpiryAlerts)
+          .where(
+            and(
+              eq(bloodExpiryAlerts.inventoryId, normalized.id),
+              eq(bloodExpiryAlerts.resolved, false)
+            )
+          )
+          .limit(1);
+        return found;
+      })();
+
+      if (existingAlert) {
+        await this.updateBloodExpiryAlert(existingAlert.id, {
+          daysRemaining,
+          alertLevel,
+        });
+        continue;
+      }
+
       const alert = await this.createBloodExpiryAlert({
-        inventoryId: inventory._id.toString(),
+        inventoryId: normalized.id,
         hospitalId: normalized.hospitalId,
         hospitalName: normalized.hospitalName || "Unknown Hospital",
         bloodType: normalized.bloodType,
@@ -1088,99 +1356,157 @@ export class MongoDBStorage implements IStorage {
 
   // ==================== BLOOD DONATION TRACKING METHODS ====================
   async getBloodDonationTracking(id: string): Promise<BloodDonationTracking | undefined> {
-    const tracking = await db
-      .collection("bloodDonationTracking")
-      .findOne({ _id: toObjectId(id) });
-    return normalize<BloodDonationTracking>(tracking);
+    if (!isDbConnected()) {
+      return normalize<BloodDonationTracking>(this.memDonationTracking.get(id));
+    }
+    const [t] = await db
+      .select()
+      .from(bloodDonationTracking)
+      .where(eq(bloodDonationTracking.id, id))
+      .limit(1);
+    return normalize<BloodDonationTracking>(t);
   }
 
   async getAllBloodDonationTracking(): Promise<BloodDonationTracking[]> {
-    if (!isDbConnected()) return [];
-    const trackings = await db
-      .collection("bloodDonationTracking")
-      .find({})
-      .toArray();
-    return normalizeMany<BloodDonationTracking>(trackings);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodDonationTracking>(
+        Array.from(this.memDonationTracking.values())
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodDonationTracking)
+      .orderBy(desc(bloodDonationTracking.donationDate));
+    return normalizeMany<BloodDonationTracking>(result);
   }
 
   async getBloodDonationTrackingByDonor(donorId: string): Promise<BloodDonationTracking[]> {
-    if (!isDbConnected()) return [];
-    const trackings = await db
-      .collection("bloodDonationTracking")
-      .find({ donorId })
-      .sort({ donationDate: -1 })
-      .toArray();
-    return normalizeMany<BloodDonationTracking>(trackings);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodDonationTracking>(
+        Array.from(this.memDonationTracking.values()).filter((t) => t.donorId === donorId)
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodDonationTracking)
+      .where(eq(bloodDonationTracking.donorId, donorId))
+      .orderBy(desc(bloodDonationTracking.donationDate));
+    return normalizeMany<BloodDonationTracking>(result);
   }
 
-  async getBloodDonationTrackingByReceiver(receiverId: string): Promise<BloodDonationTracking[]> {
-    if (!isDbConnected()) return [];
-    const trackings = await db
-      .collection("bloodDonationTracking")
-      .find({ receiverId })
-      .sort({ donationDate: -1 })
-      .toArray();
-    return normalizeMany<BloodDonationTracking>(trackings);
+  async getBloodDonationTrackingByReceiver(
+    receiverId: string
+  ): Promise<BloodDonationTracking[]> {
+    if (!isDbConnected()) {
+      return normalizeMany<BloodDonationTracking>(
+        Array.from(this.memDonationTracking.values()).filter(
+          (t) => t.receiverId === receiverId
+        )
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodDonationTracking)
+      .where(eq(bloodDonationTracking.receiverId, receiverId))
+      .orderBy(desc(bloodDonationTracking.donationDate));
+    return normalizeMany<BloodDonationTracking>(result);
   }
 
   async getBloodDonationTrackingByStatus(status: string): Promise<BloodDonationTracking[]> {
-    if (!isDbConnected()) return [];
-    const trackings = await db
-      .collection("bloodDonationTracking")
-      .find({ status })
-      .sort({ donationDate: -1 })
-      .toArray();
-    return normalizeMany<BloodDonationTracking>(trackings);
+    if (!isDbConnected()) {
+      return normalizeMany<BloodDonationTracking>(
+        Array.from(this.memDonationTracking.values()).filter((t) => t.status === status)
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodDonationTracking)
+      .where(eq(bloodDonationTracking.status, status))
+      .orderBy(desc(bloodDonationTracking.donationDate));
+    return normalizeMany<BloodDonationTracking>(result);
   }
 
-  async getBloodDonationTrackingByHospital(hospitalId: string): Promise<BloodDonationTracking[]> {
-    if (!isDbConnected()) return [];
-    const trackings = await db
-      .collection("bloodDonationTracking")
-      .find({ hospitalId })
-      .sort({ donationDate: -1 })
-      .toArray();
-    return normalizeMany<BloodDonationTracking>(trackings);
+  async getBloodDonationTrackingByHospital(
+    hospitalId: string
+  ): Promise<BloodDonationTracking[]> {
+    if (!isDbConnected()) {
+      return normalizeMany<BloodDonationTracking>(
+        Array.from(this.memDonationTracking.values()).filter(
+          (t) => t.hospitalId === hospitalId
+        )
+      );
+    }
+    const result = await db
+      .select()
+      .from(bloodDonationTracking)
+      .where(eq(bloodDonationTracking.hospitalId, hospitalId))
+      .orderBy(desc(bloodDonationTracking.donationDate));
+    return normalizeMany<BloodDonationTracking>(result);
   }
 
   async createBloodDonationTracking(
     tracking: InsertBloodDonationTracking
   ): Promise<BloodDonationTracking> {
     const now = new Date();
+    const id = crypto.randomUUID();
     const document = {
+      id,
       ...tracking,
-      collectionTime: tracking.collectionTime || now,
+      donationDate: tracking.donationDate ? new Date(tracking.donationDate) : now,
+      collectionTime: tracking.collectionTime ? new Date(tracking.collectionTime) : now,
+      transitStartTime: tracking.transitStartTime ? new Date(tracking.transitStartTime) : null,
+      receivedTime: tracking.receivedTime ? new Date(tracking.receivedTime) : null,
+      usageStartTime: tracking.usageStartTime ? new Date(tracking.usageStartTime) : null,
+      transfusionCompleteTime: tracking.transfusionCompleteTime
+        ? new Date(tracking.transfusionCompleteTime)
+        : null,
       trackingNotes: tracking.trackingNotes || [],
       createdAt: now,
       updatedAt: now,
     };
-    const result = await db
-      .collection("bloodDonationTracking")
-      .insertOne(document);
-    return normalize<BloodDonationTracking>({
-      ...document,
-      _id: result.insertedId,
-    })!;
+
+    if (!isDbConnected()) {
+      this.memDonationTracking.set(id, document);
+      return normalize<BloodDonationTracking>(document)!;
+    }
+
+    const [created] = await db
+      .insert(bloodDonationTracking)
+      .values(document)
+      .returning();
+    return normalize<BloodDonationTracking>(created || document)!;
   }
 
   async updateBloodDonationTracking(
     id: string,
     tracking: Partial<InsertBloodDonationTracking>
   ): Promise<BloodDonationTracking | undefined> {
-    const cleanTracking = removeUndefined(tracking as Record<string, unknown>);
-    const result = await db
-      .collection("bloodDonationTracking")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        {
-          $set: {
-            ...cleanTracking,
-            updatedAt: new Date(),
-          },
-        },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+    const cleanTracking = removeUndefined({
+      ...tracking,
+      ...(tracking.donationDate ? { donationDate: new Date(tracking.donationDate) } : {}),
+      ...(tracking.collectionTime ? { collectionTime: new Date(tracking.collectionTime) } : {}),
+      ...(tracking.transitStartTime ? { transitStartTime: new Date(tracking.transitStartTime) } : {}),
+      ...(tracking.receivedTime ? { receivedTime: new Date(tracking.receivedTime) } : {}),
+      ...(tracking.usageStartTime ? { usageStartTime: new Date(tracking.usageStartTime) } : {}),
+      ...(tracking.transfusionCompleteTime
+        ? { transfusionCompleteTime: new Date(tracking.transfusionCompleteTime) }
+        : {}),
+      updatedAt: new Date(),
+    });
+
+    if (!isDbConnected()) {
+      const existing = this.memDonationTracking.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...cleanTracking };
+      this.memDonationTracking.set(id, updated);
+      return normalize<BloodDonationTracking>(updated);
+    }
+
+    const [updated] = await db
+      .update(bloodDonationTracking)
+      .set(cleanTracking)
+      .where(eq(bloodDonationTracking.id, id))
+      .returning();
     return normalize<BloodDonationTracking>(updated);
   }
 
@@ -1195,15 +1521,14 @@ export class MongoDBStorage implements IStorage {
       timestamp: now,
       status,
       note: note || `Status updated to ${status}`,
-      ...(updatedBy && { updatedBy }),
+      ...(updatedBy ? { updatedBy } : {}),
     };
 
-    const updatePayload: Record<string, unknown> = {
+    const updatePayload: Record<string, any> = {
       status,
       updatedAt: now,
     };
 
-    // Set time fields based on status
     if (status === "collected") {
       updatePayload.collectionTime = now;
     } else if (status === "in_transit") {
@@ -1217,27 +1542,41 @@ export class MongoDBStorage implements IStorage {
       updatePayload.isSuccessful = true;
     }
 
-    const result = await db
-      .collection("bloodDonationTracking")
-      .findOneAndUpdate(
-        { _id: toObjectId(id) },
-        {
-          $set: updatePayload,
-          $push: { trackingNotes: trackingNote },
-        },
-        { returnDocument: "after" }
-      );
-    const updated = (result as any)?.value ?? result ?? null;
+    if (!isDbConnected()) {
+      const existing = this.memDonationTracking.get(id);
+      if (!existing) return undefined;
+      const currentNotes = existing.trackingNotes || [];
+      const updated = {
+        ...existing,
+        ...updatePayload,
+        trackingNotes: [...currentNotes, trackingNote],
+      };
+      this.memDonationTracking.set(id, updated);
+      return normalize<BloodDonationTracking>(updated);
+    }
+
+    const currentRecord = await this.getBloodDonationTracking(id);
+    const currentNotes = currentRecord?.trackingNotes || [];
+    updatePayload.trackingNotes = [...currentNotes, trackingNote];
+
+    const [updated] = await db
+      .update(bloodDonationTracking)
+      .set(updatePayload)
+      .where(eq(bloodDonationTracking.id, id))
+      .returning();
     return normalize<BloodDonationTracking>(updated);
   }
 
   async deleteBloodDonationTracking(id: string): Promise<boolean> {
+    if (!isDbConnected()) {
+      return this.memDonationTracking.delete(id);
+    }
     const result = await db
-      .collection("bloodDonationTracking")
-      .deleteOne({ _id: toObjectId(id) });
-    return result.deletedCount === 1;
+      .delete(bloodDonationTracking)
+      .where(eq(bloodDonationTracking.id, id))
+      .returning();
+    return result.length > 0;
   }
 }
 
-export const storage = new MongoDBStorage();
-
+export const storage = new PostgresStorage();

@@ -13,8 +13,7 @@ services:
       - PORT=3001
       - HOST=0.0.0.0
       - SERVE_STATIC=false
-      - DATABASE_URL=${DATABASE_URL:-mongodb://db:27017/bloodflow}
-      - MONGO_URI=${MONGO_URI:-mongodb://db:27017/bloodflow}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/bloodflow_hub}
       - APP_URL=${APP_URL:-http://localhost:3000}
     depends_on:
       db:
@@ -42,24 +41,26 @@ services:
     restart: unless-stopped
 
   db:
-    image: mongo:7
+    image: postgres:16-alpine
     environment:
-      - MONGO_INITDB_DATABASE=bloodflow
+      - POSTGRES_DB=bloodflow_hub
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     volumes:
-      - mongo_data:/data/db
-      - mongo_config:/data/configdb
+      - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: pg_isready -U postgres -d bloodflow_hub
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"
     networks:
       - bloodflow-network
     restart: unless-stopped
 
 volumes:
-  mongo_data:
-  mongo_config:
+  pg_data:
 
 networks:
   bloodflow-network:

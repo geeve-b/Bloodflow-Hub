@@ -14,8 +14,7 @@ import {
   insertStaffSchema,
 } from "@shared/schema";
 import { storage } from "./storage";
-import { db, isDbConnected } from "./db";
-import { ObjectId } from "mongodb";
+import { isDbConnected } from "./db";
 import {
   sendContactEmail,
   sendVerificationEmail,
@@ -276,10 +275,7 @@ export async function registerRoutes(
       const verificationCode = generateVerificationCode();
       const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
       const codeHash = await bcrypt.hash(verificationCode, 10);
-      const userId =
-        typeof user._id === "string"
-          ? user._id
-          : user._id?.toString?.();
+      const userId = user.id || user._id;
       if (!userId) {
         console.error("[DEBUG] Missing user ID after registration");
         return res.status(500).json({ error: "Registration failed" });
@@ -371,10 +367,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid verification code" });
       }
 
-      const targetUserId =
-        typeof user._id === "string"
-          ? user._id
-          : user._id?.toString?.() ?? userId;
+      const targetUserId = user.id || user._id || userId;
       if (!targetUserId) {
         return res.status(500).json({ error: "Unable to verify email" });
       }
@@ -416,10 +409,7 @@ export async function registerRoutes(
       const verificationCode = generateVerificationCode();
       const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
       const codeHash = await bcrypt.hash(verificationCode, 10);
-      const targetUserId =
-        typeof user._id === "string"
-          ? user._id
-          : user._id?.toString?.() ?? userId;
+      const targetUserId = user.id || user._id || userId;
       if (!targetUserId) {
         return res.status(500).json({ error: "Unable to prepare verification code" });
       }
@@ -504,11 +494,8 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Invalid credentials" });
       }
       if (!user.emailVerified) {
-        const userId =
-          typeof user._id === "string"
-            ? user._id
-            : user._id?.toString?.();
-        console.log("[DEBUG] Email not verified for user:", user._id);
+        const userId = user.id || user._id;
+        console.log("[DEBUG] Email not verified for user:", userId);
         return res.status(403).json({
           error: "Email not verified",
           userId,
@@ -546,7 +533,7 @@ export async function registerRoutes(
       const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
       const codeHash = await bcrypt.hash(verificationCode, 10);
 
-      const userId = typeof user._id === "string" ? user._id : user._id?.toString?.();
+      const userId = user.id || user._id;
       if (userId) {
         await storage.setResetPasswordToken(userId, codeHash, expiresAt);
         console.log("[DEBUG] Reset token set in DB, sending email...");
@@ -633,7 +620,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid OTP" });
       }
 
-      const userId = typeof user._id === "string" ? user._id : user._id?.toString?.();
+      const userId = user.id || user._id;
       if (userId) {
         console.log(`[DEBUG] Updating password for user ${userId}`);
         const updatedUser = await storage.updateUser(userId, { password: newPassword });
@@ -1045,8 +1032,8 @@ export async function registerRoutes(
             urgency: request.urgency,
             hospitalName: request.hospitalName,
             requesterName: request.requesterName,
-            country: request.country,
-            state: request.state || request.region,
+            country: request.country ?? undefined,
+            state: (request.state || request.region) ?? undefined,
             district: request.region,
             address: request.address,
           });
@@ -1392,7 +1379,7 @@ export async function registerRoutes(
   app.post("/api/hospitals", async (req, res) => {
     try {
       if (!isDbConnected()) {
-        return res.status(503).json({ error: "Database not connected. Please whitelist your IP in MongoDB Atlas Network Access settings." });
+        return res.status(503).json({ error: "Database not connected. Please ensure PostgreSQL is running." });
       }
       const { username, email, password, firstName, lastName, staffId, department, position, phone, hospitalName } = req.body;
       if (!username || !email || !password) {
@@ -1403,12 +1390,18 @@ export async function registerRoutes(
       const existingUsername = await storage.getUserByUsername(username);
       if (existingUsername) return res.status(409).json({ error: "Username already in use" });
 
-      const user = await storage.createUser({ username, email, password, role: "hospital" });
-      const userId = (user as any)._id?.toString();
+      const user = await storage.createUser({
+        username,
+        email,
+        password,
+        role: "hospital",
+        approvalStatus: "pending",
+      });
+      const userId = (user as any).id || (user as any)._id;
 
       if (firstName && lastName && userId) {
         await storage.createStaff({
-          userId,
+          userId: String(userId),
           firstName,
           lastName,
           staffId: staffId || "N/A",
@@ -1419,11 +1412,6 @@ export async function registerRoutes(
           hospitalName: hospitalName || "",
         });
       }
-
-      await db.collection("users").updateOne(
-        { _id: new ObjectId(userId) },
-        { $set: { approvalStatus: "pending", updatedAt: new Date() } }
-      );
 
       res.status(201).json(removePassword(user));
     } catch (error) {
@@ -1452,8 +1440,8 @@ export async function registerRoutes(
       if (hospitalName !== undefined) staffUpdates.hospitalName = hospitalName;
       if (email !== undefined) staffUpdates.email = email;
       if (Object.keys(staffUpdates).length > 0) {
-        if (staffProfile?._id) {
-          await storage.updateStaff((staffProfile._id as any).toString(), staffUpdates);
+        if (staffProfile?.id || staffProfile?._id) {
+          await storage.updateStaff(String(staffProfile.id || staffProfile._id), staffUpdates);
         } else {
           await storage.createStaff({
             userId: req.params.id,
@@ -1481,10 +1469,9 @@ export async function registerRoutes(
       if (!isDbConnected()) return res.status(503).json({ error: "Database not connected" });
       const user = await storage.getUser(req.params.id);
       if (!user || user.role !== "hospital") return res.status(404).json({ error: "Hospital not found" });
-      await db.collection("users").updateOne(
-        { _id: new ObjectId(req.params.id) },
-        { $set: { approvalStatus: "approved", updatedAt: new Date() } }
-      );
+      await storage.updateUser(req.params.id, {
+        approvalStatus: "approved",
+      });
       res.json({ message: "Hospital approved successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to approve hospital" });
@@ -1497,10 +1484,10 @@ export async function registerRoutes(
       const { reason } = req.body;
       const user = await storage.getUser(req.params.id);
       if (!user || user.role !== "hospital") return res.status(404).json({ error: "Hospital not found" });
-      await db.collection("users").updateOne(
-        { _id: new ObjectId(req.params.id) },
-        { $set: { approvalStatus: "rejected", rejectionReason: reason || "", updatedAt: new Date() } }
-      );
+      await storage.updateUser(req.params.id, {
+        approvalStatus: "rejected",
+        rejectionReason: reason || "",
+      });
       res.json({ message: "Hospital registration rejected" });
     } catch (error) {
       res.status(500).json({ error: "Failed to reject hospital" });

@@ -16,9 +16,10 @@ export interface DonorRequest {
   bloodGroup: string;
   unitsNeeded: number;
   hospitalName: string;
-  country: string;
-  state: string;
-  district: string;
+  country?: string;
+  state?: string;
+  district?: string;
+  region?: string;
   address: string;
   status: "pending" | "fulfilled" | "approved" | "rejected";
   urgency: "critical" | "normal";

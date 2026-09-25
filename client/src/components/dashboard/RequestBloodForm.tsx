@@ -84,7 +84,7 @@ export function RequestBloodForm() {
       reason: data.notes || "Patient blood requirement",
       patientName: data.patientName,
       contactNumber: data.primaryMobileNumber,
-      secondaryContactNumber: data.secondaryContactNumber || undefined,
+      secondaryContactNumber: data.secondaryMobileNumber || undefined,
     };
 
     try {

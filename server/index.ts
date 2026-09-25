@@ -66,27 +66,14 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Attempt database connections with timeouts in parallel
-    console.log("[DEBUG] Attempting database connections...");
-    
-    const connectPromises = await Promise.allSettled([
-      (async () => {
-        try {
-          await connectDB();
-        } catch (error) {
-          console.warn("⚠ Mongoose connection failed, using fallback");
-        }
-      })(),
-      (async () => {
-        try {
-          await connectDatabase();
-        } catch (error) {
-          console.warn("⚠ MongoDB native connection failed, using fallback");
-        }
-      })(),
-    ]);
-
-    console.log("[DEBUG] Database connections completed");
+    // Attempt PostgreSQL database connection
+    console.log("[DEBUG] Attempting PostgreSQL database connection...");
+    try {
+      await connectDatabase();
+    } catch (error) {
+      console.warn("⚠ PostgreSQL connection failed, using fallback:", error);
+    }
+    console.log("[DEBUG] Database connection step completed");
 
     // Setup error handler BEFORE routes
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

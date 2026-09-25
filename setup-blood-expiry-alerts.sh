@@ -45,8 +45,8 @@ if [ ! -f .env ]; then
     echo -e "${YELLOW}⚠ .env file not found${NC}"
     echo "Creating .env.example..."
     cat > .env.example << 'EOF'
-# Database
-DATABASE_URL=mongodb+srv://user:password@cluster.mongodb.net/bloodflow_hub
+# PostgreSQL Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/bloodflow_hub
 
 # Email Configuration (SMTP)
 SMTP_HOST=smtp.gmail.com
@@ -57,11 +57,11 @@ SMTP_FROM_EMAIL=noreply@bloodflowhub.com
 SMTP_FROM_NAME=LifeFlow
 
 # Server
-PORT=5000
+PORT=3001
 NODE_ENV=development
 
 # API
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=http://localhost:3001
 EOF
     echo -e "${YELLOW}Created .env.example - please configure and rename to .env${NC}"
 else
@@ -78,7 +78,7 @@ echo ""
 
 # Database setup
 echo -e "${BLUE}Verifying database connection...${NC}"
-echo "Make sure MongoDB is running and DATABASE_URL is configured in .env"
+echo "Make sure PostgreSQL is running and DATABASE_URL is configured in .env"
 echo ""
 
 # Create necessary directories
@@ -94,15 +94,15 @@ echo "Setup Complete!"
 echo "==================================${NC}"
 echo ""
 echo -e "${BLUE}Next Steps:${NC}"
-echo "1. Configure .env file with your settings"
+echo "1. Configure .env file with your PostgreSQL settings"
 echo "2. Start the server: npm run dev"
 echo "3. Access dashboards:"
-echo "   - Admin Dashboard: http://localhost:5173/admin"
-echo "   - Hospital Staff: http://localhost:5173/hospital-dashboard"
+echo "   - Admin Dashboard: http://localhost:3000/admin"
+echo "   - Hospital Staff: http://localhost:3000/hospital-dashboard"
 echo "4. Run tests: PowerShell -File test-blood-expiry-alerts.ps1"
 echo ""
 echo -e "${BLUE}Important Configuration:${NC}"
-echo "- DATABASE_URL: MongoDB connection string"
+echo "- DATABASE_URL: PostgreSQL connection string"
 echo "- SMTP_HOST: Email server (e.g., smtp.gmail.com)"
 echo "- SMTP_USER: Email account"
 echo "- SMTP_PASS: Email password or app-specific password"
@@ -116,5 +116,5 @@ echo "✓ Alert acknowledgment/resolution"
 echo "✓ Real-time updates"
 echo ""
 echo -e "${BLUE}Documentation:${NC}"
-echo "See BLOOD_EXPIRY_ALERTS_GUIDE.md for detailed information"
+echo "See README.md for detailed information"
 echo ""

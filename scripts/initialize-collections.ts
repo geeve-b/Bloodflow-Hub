@@ -1,141 +1,131 @@
 import "dotenv/config";
-import { MongoClient } from "mongodb";
+import pg from "pg";
+import { ensureTablesExist, pool } from "../server/db";
 
-const MONGODB_URI = process.env.DATABASE_URL || process.env.MONGO_URI;
-
-if (!MONGODB_URI) {
-  console.error("❌ DATABASE_URL or MONGO_URI environment variable is not set");
-  process.exit(1);
-}
-
-async function initializeCollections() {
-  const client = new MongoClient(MONGODB_URI as string);
+async function initializeDatabase() {
+  console.log("==========================================");
+  console.log("  Bloodflow Hub - PostgreSQL Initializer  ");
+  console.log("==========================================");
 
   try {
-    await client.connect();
-    console.log("✓ Connected to MongoDB");
+    console.log("Connecting to PostgreSQL...");
+    const client = await pool.connect();
+    console.log("✓ Connected to PostgreSQL successfully");
+    client.release();
 
-    const db = client.db("staff");
-    console.log(`✓ Using database: staff`);
+    // Verify and create tables and indexes
+    console.log("Creating/verifying tables and indexes...");
+    await ensureTablesExist();
 
-    // Create collections
-    const collections = ["users", "donors", "receivers", "staff", "bloodInventory", "bloodRequests"];
-    
-    for (const collectionName of collections) {
-      try {
-        const collection = await db.createCollection(collectionName);
-        console.log(`✓ Created collection: ${collectionName}`);
-      } catch (err: any) {
-        if (err.code === 48) {
-          console.log(`⚠ Collection already exists: ${collectionName}`);
-        } else {
-          throw err;
-        }
-      }
-    }
+    // Insert sample data if not exists
+    const sampleDonorUserId = "sample-donor-user-id";
+    const donorCheck = await pool.query(
+      "SELECT id FROM donors WHERE user_id = $1 LIMIT 1",
+      [sampleDonorUserId]
+    );
 
-    // Create indexes
-    await db.collection("users").createIndex({ username: 1 }, { unique: true });
-    console.log("✓ Created index on users.username");
-
-    await db.collection("donors").createIndex({ userId: 1 });
-    console.log("✓ Created index on donors.userId");
-
-    await db.collection("donors").createIndex({ bloodType: 1 });
-    console.log("✓ Created index on donors.bloodType");
-
-    await db.collection("receivers").createIndex({ userId: 1 });
-    console.log("✓ Created index on receivers.userId");
-
-    await db.collection("receivers").createIndex({ bloodType: 1 });
-    console.log("✓ Created index on receivers.bloodType");
-
-    await db.collection("staff").createIndex({ userId: 1 });
-    console.log("✓ Created index on staff.userId");
-
-    await db.collection("bloodInventory").createIndex({ hospitalId: 1 });
-    console.log("✓ Created index on bloodInventory.hospitalId");
-
-    await db.collection("bloodInventory").createIndex({ bloodType: 1 });
-    console.log("✓ Created index on bloodInventory.bloodType");
-
-    // Insert sample data
-    const sampleDonor = {
-      userId: "sample-donor-user",
-      firstName: "John",
-      lastName: "Donor",
-      bloodType: "O+",
-      phone: "+1-555-0101",
-      address: "123 Main St, City",
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const sampleReceiver = {
-      userId: "sample-receiver-user",
-      firstName: "Jane",
-      lastName: "Patient",
-      bloodType: "AB-",
-      phone: "+1-555-0102",
-      address: "456 Oak Ave, City",
-      hospitalName: "Central Hospital",
-      medicalCondition: "Emergency Surgery",
-      urgencyLevel: "normal",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const sampleInventory = {
-      hospitalId: "hospital-001",
-      hospitalName: "Central Hospital",
-      bloodType: "O+",
-      quantity: 50,
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-      status: "available",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    // Check if sample data exists before inserting
-    const donorExists = await db.collection("donors").findOne({ userId: "sample-donor-user" });
-    if (!donorExists) {
-      await db.collection("donors").insertOne(sampleDonor);
+    if (donorCheck.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO donors (id, user_id, first_name, last_name, blood_type, phone, address, state, region, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+        [
+          crypto.randomUUID(),
+          sampleDonorUserId,
+          "John",
+          "Donor",
+          "O+",
+          "+1-555-0101",
+          "123 Main St, City",
+          "State",
+          "North Region",
+          true,
+        ]
+      );
       console.log("✓ Inserted sample donor");
     } else {
-      console.log("⚠ Sample donor already exists");
+      console.log("ℹ Sample donor already exists");
     }
 
-    const receiverExists = await db.collection("receivers").findOne({ userId: "sample-receiver-user" });
-    if (!receiverExists) {
-      await db.collection("receivers").insertOne(sampleReceiver);
+    const sampleReceiverUserId = "sample-receiver-user-id";
+    const receiverCheck = await pool.query(
+      "SELECT id FROM receivers WHERE user_id = $1 LIMIT 1",
+      [sampleReceiverUserId]
+    );
+
+    if (receiverCheck.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO receivers (id, user_id, first_name, last_name, blood_type, phone, address, hospital_name, medical_condition, urgency_level, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+        [
+          crypto.randomUUID(),
+          sampleReceiverUserId,
+          "Jane",
+          "Patient",
+          "AB-",
+          "+1-555-0102",
+          "456 Oak Ave, City",
+          "Central Hospital",
+          "Emergency Surgery",
+          "normal",
+        ]
+      );
       console.log("✓ Inserted sample receiver");
     } else {
-      console.log("⚠ Sample receiver already exists");
+      console.log("ℹ Sample receiver already exists");
     }
 
-    const inventoryExists = await db.collection("bloodInventory").findOne({ hospitalId: "hospital-001" });
-    if (!inventoryExists) {
-      await db.collection("bloodInventory").insertOne(sampleInventory);
+    const sampleHospitalId = "hospital-001";
+    const inventoryCheck = await pool.query(
+      "SELECT id FROM blood_inventory WHERE hospital_id = $1 LIMIT 1",
+      [sampleHospitalId]
+    );
+
+    if (inventoryCheck.rows.length === 0) {
+      const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await pool.query(
+        `INSERT INTO blood_inventory (id, hospital_id, hospital_name, blood_type, quantity, expiry_date, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+        [
+          crypto.randomUUID(),
+          sampleHospitalId,
+          "Central Hospital",
+          "O+",
+          50,
+          expiry,
+          "available",
+        ]
+      );
       console.log("✓ Inserted sample blood inventory");
     } else {
-      console.log("⚠ Sample blood inventory already exists");
+      console.log("ℹ Sample blood inventory already exists");
     }
 
-    // Show collection stats
-    console.log("\n📊 Collection Status:");
-    for (const collectionName of collections) {
-      const count = await db.collection(collectionName).countDocuments();
-      console.log(`  ${collectionName}: ${count} document(s)`);
+    // Display table statistics
+    console.log("\n📊 PostgreSQL Table Status:");
+    const tables = [
+      "users",
+      "donors",
+      "receivers",
+      "staff",
+      "blood_inventory",
+      "blood_requests",
+      "donor_responses",
+      "blood_expiry_alerts",
+      "blood_donation_tracking",
+    ];
+
+    for (const tableName of tables) {
+      const res = await pool.query(`SELECT COUNT(*) as count FROM ${tableName}`);
+      console.log(`  - ${tableName}: ${res.rows[0].count} row(s)`);
     }
 
-    console.log("\n✅ Database initialization complete!");
+    console.log("\n✅ PostgreSQL database initialization complete!");
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error("❌ Initialization error:", error);
     process.exit(1);
   } finally {
-    await client.close();
+    await pool.end();
   }
 }
 
-initializeCollections();
+initializeDatabase();

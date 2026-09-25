@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { RawData } from "ws";
 import type { Server } from "http";
-import type { BloodRequest } from "@shared/schema";
+import type { BloodRequest, BloodDonationTracking } from "@shared/schema";
 
 interface ClientMetadata {
   socket: WebSocket;
@@ -13,7 +13,10 @@ interface ClientMetadata {
 export type BloodRequestEvent =
   | { type: "blood-request:created"; payload: BloodRequest }
   | { type: "blood-request:updated"; payload: BloodRequest }
-  | { type: "blood-request:deleted"; payload: { id: string } };
+  | { type: "blood-request:deleted"; payload: { id: string } }
+  | { type: "blood-donation-tracking:created"; payload: BloodDonationTracking }
+  | { type: "blood-donation-tracking:updated"; payload: BloodDonationTracking }
+  | { type: "blood-donation-tracking:status-updated"; payload: BloodDonationTracking };
 
 export type ConnectionEvent =
   | { type: "connection:ack" }

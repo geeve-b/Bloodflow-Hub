@@ -168,10 +168,10 @@ export class MatchmakingEngine {
       }
 
       if (
-        donor.latitude !== undefined &&
-        donor.longitude !== undefined &&
-        request.hospitalLatitude !== undefined &&
-        request.hospitalLongitude !== undefined
+        donor.latitude != null &&
+        donor.longitude != null &&
+        request.hospitalLatitude != null &&
+        request.hospitalLongitude != null
       ) {
         const distance = haversineDistance(
           donor.latitude,
@@ -210,10 +210,10 @@ export class MatchmakingEngine {
     let distanceScore = 0;
     let distanceKm: number | undefined;
     if (
-      donor.latitude !== undefined &&
-      donor.longitude !== undefined &&
-      request.hospitalLatitude !== undefined &&
-      request.hospitalLongitude !== undefined
+      donor.latitude != null &&
+      donor.longitude != null &&
+      request.hospitalLatitude != null &&
+      request.hospitalLongitude != null
     ) {
       distanceKm = haversineDistance(
         donor.latitude,

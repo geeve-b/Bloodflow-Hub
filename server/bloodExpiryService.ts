@@ -1,7 +1,5 @@
 import { storage } from "./storage";
 import { sendBloodExpiryAlertEmail } from "./email";
-import { db } from "./db";
-import { ObjectId } from "mongodb";
 
 export interface ExpiryAlertDetails {
   daysRemaining: number;
@@ -18,8 +16,8 @@ export interface ExpiryAlertDetails {
  */
 export class BloodExpiryService {
   private readonly CRITICAL_THRESHOLD = 1; // 1 day or less
-  private readonly WARNING_THRESHOLD = 3;  // 3 days or less
-  private readonly INFO_THRESHOLD = 7;     // 7 days or less
+  private readonly WARNING_THRESHOLD = 3; // 3 days or less
+  private readonly INFO_THRESHOLD = 7; // 7 days or less
 
   /**
    * Check for expiring blood units and create alerts
@@ -62,13 +60,11 @@ export class BloodExpiryService {
    */
   async sendAlertNotifications(alert: any): Promise<number> {
     try {
-      const hospitalId = alert.hospitalId;
-
       // Get all staff members for this hospital
-      const staffMembers = await db
-        .collection("staff")
-        .find({ hospitalName: alert.hospitalName })
-        .toArray();
+      const allStaff = await storage.getAllStaff();
+      const staffMembers = allStaff.filter(
+        (s) => s.hospitalName === alert.hospitalName
+      );
 
       if (staffMembers.length === 0) {
         console.log(
@@ -117,7 +113,7 @@ export class BloodExpiryService {
 
       // Update alert with sent emails
       if (emailsSent.length > 0) {
-        await storage.updateBloodExpiryAlert(alert._id, {
+        await storage.updateBloodExpiryAlert(alert.id || alert._id, {
           emailsSent,
         });
       }
