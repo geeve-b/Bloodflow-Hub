@@ -10,6 +10,7 @@ import {
   donorResponses,
   bloodExpiryAlerts,
   bloodDonationTracking,
+  interHospitalRequests,
   type BloodInventory,
   type BloodRequest,
   type BloodExpiryAlert,
@@ -19,6 +20,8 @@ import {
   type InsertBloodRequest,
   type InsertBloodExpiryAlert,
   type InsertBloodDonationTracking,
+  type InterHospitalRequest,
+  type InsertInterHospitalRequest,
   type InsertDonor,
   type InsertStaff,
   type InsertUser,
@@ -157,6 +160,18 @@ export interface IStorage {
     updatedBy?: string
   ): Promise<BloodDonationTracking | undefined>;
   deleteBloodDonationTracking(id: string): Promise<boolean>;
+
+  // Inter-hospital blood request methods
+  getInterHospitalRequest(id: string): Promise<InterHospitalRequest | undefined>;
+  getOutgoingInterHospitalRequests(hospitalId: string): Promise<InterHospitalRequest[]>;
+  getIncomingInterHospitalRequests(hospitalId: string): Promise<InterHospitalRequest[]>;
+  createInterHospitalRequest(
+    request: Omit<InsertInterHospitalRequest, "id">
+  ): Promise<InterHospitalRequest>;
+  updateInterHospitalRequest(
+    id: string,
+    updates: Partial<InsertInterHospitalRequest>
+  ): Promise<InterHospitalRequest | undefined>;
 }
 
 const normalize = <T>(doc: any | null | undefined): T | undefined => {
@@ -198,6 +213,7 @@ export class PostgresStorage implements IStorage {
   private memReceivers = new Map<string, any>();
   private memExpiryAlerts = new Map<string, any>();
   private memDonationTracking = new Map<string, any>();
+  private memInterHospital = new Map<string, any>();
 
   // ==================== USER METHODS ====================
   async getUser(id: string): Promise<User | undefined> {
@@ -1576,6 +1592,113 @@ export class PostgresStorage implements IStorage {
       .where(eq(bloodDonationTracking.id, id))
       .returning();
     return result.length > 0;
+  }
+
+  // ==================== INTER-HOSPITAL REQUEST METHODS ====================
+  async getInterHospitalRequest(id: string): Promise<InterHospitalRequest | undefined> {
+    if (!isDbConnected()) {
+      return normalize<InterHospitalRequest>(this.memInterHospital.get(id));
+    }
+    const [request] = await db
+      .select()
+      .from(interHospitalRequests)
+      .where(eq(interHospitalRequests.id, id))
+      .limit(1);
+    return normalize<InterHospitalRequest>(request);
+  }
+
+  async getOutgoingInterHospitalRequests(hospitalId: string): Promise<InterHospitalRequest[]> {
+    if (!isDbConnected()) {
+      return normalizeMany<InterHospitalRequest>(
+        Array.from(this.memInterHospital.values())
+          .filter((r) => r.requestingHospitalId === hospitalId)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      );
+    }
+    const result = await db
+      .select()
+      .from(interHospitalRequests)
+      .where(eq(interHospitalRequests.requestingHospitalId, hospitalId))
+      .orderBy(desc(interHospitalRequests.createdAt));
+    return normalizeMany<InterHospitalRequest>(result);
+  }
+
+  // Incoming = requests from other hospitals that are still open to anyone,
+  // or that this hospital has already responded to.
+  async getIncomingInterHospitalRequests(hospitalId: string): Promise<InterHospitalRequest[]> {
+    if (!isDbConnected()) {
+      return normalizeMany<InterHospitalRequest>(
+        Array.from(this.memInterHospital.values())
+          .filter(
+            (r) =>
+              r.requestingHospitalId !== hospitalId &&
+              (r.status === "pending" || r.providingHospitalId === hospitalId)
+          )
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      );
+    }
+    const result = await db
+      .select()
+      .from(interHospitalRequests)
+      .where(
+        and(
+          sql`${interHospitalRequests.requestingHospitalId} <> ${hospitalId}`,
+          or(
+            eq(interHospitalRequests.status, "pending"),
+            eq(interHospitalRequests.providingHospitalId, hospitalId)
+          )
+        )
+      )
+      .orderBy(desc(interHospitalRequests.createdAt));
+    return normalizeMany<InterHospitalRequest>(result);
+  }
+
+  async createInterHospitalRequest(
+    request: Omit<InsertInterHospitalRequest, "id">
+  ): Promise<InterHospitalRequest> {
+    const now = new Date();
+    const id = crypto.randomUUID();
+    const document = {
+      ...request,
+      id,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (!isDbConnected()) {
+      this.memInterHospital.set(id, document);
+      return normalize<InterHospitalRequest>(document)!;
+    }
+
+    const [created] = await db.insert(interHospitalRequests).values(document).returning();
+    return normalize<InterHospitalRequest>(created || document)!;
+  }
+
+  async updateInterHospitalRequest(
+    id: string,
+    updates: Partial<InsertInterHospitalRequest>
+  ): Promise<InterHospitalRequest | undefined> {
+    const updatePayload = removeUndefined({
+      ...updates,
+      id: undefined,
+      updatedAt: new Date(),
+    });
+
+    if (!isDbConnected()) {
+      const existing = this.memInterHospital.get(id);
+      if (!existing) return undefined;
+      const updated = { ...existing, ...updatePayload };
+      this.memInterHospital.set(id, updated);
+      return normalize<InterHospitalRequest>(updated);
+    }
+
+    const [updated] = await db
+      .update(interHospitalRequests)
+      .set(updatePayload)
+      .where(eq(interHospitalRequests.id, id))
+      .returning();
+    return normalize<InterHospitalRequest>(updated);
   }
 }
 

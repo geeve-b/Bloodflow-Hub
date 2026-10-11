@@ -216,6 +216,24 @@ export async function ensureTablesExist() {
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS inter_hospital_requests (
+      id VARCHAR(64) PRIMARY KEY,
+      requesting_hospital_id VARCHAR(64) NOT NULL,
+      requesting_hospital_name TEXT NOT NULL,
+      requesting_hospital_location TEXT,
+      requesting_hospital_phone VARCHAR(64),
+      providing_hospital_id VARCHAR(64),
+      providing_hospital_name TEXT,
+      blood_type VARCHAR(8) NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      urgency VARCHAR(32) NOT NULL DEFAULT 'normal',
+      reason TEXT,
+      status VARCHAR(32) NOT NULL DEFAULT 'pending',
+      rejection_reason TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
     -- Create optimal indexes
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -236,6 +254,8 @@ export async function ensureTablesExist() {
     CREATE INDEX IF NOT EXISTS idx_donation_tracking_donor ON blood_donation_tracking(donor_id);
     CREATE INDEX IF NOT EXISTS idx_donation_tracking_receiver ON blood_donation_tracking(receiver_id);
     CREATE INDEX IF NOT EXISTS idx_donation_tracking_hospital ON blood_donation_tracking(hospital_id);
+    CREATE INDEX IF NOT EXISTS idx_inter_hospital_requesting ON inter_hospital_requests(requesting_hospital_id);
+    CREATE INDEX IF NOT EXISTS idx_inter_hospital_providing ON inter_hospital_requests(providing_hospital_id);
   `;
 
   await pool.query(ddl);

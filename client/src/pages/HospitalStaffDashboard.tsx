@@ -640,7 +640,7 @@ export default function HospitalStaffDashboard() {
       // Send notification email if approved
       if (action === "approve") {
         try {
-          await fetch(`${API_URL}/blood-requests/${selectedRequest._id}/notify-donors`, {
+          await fetch(`${API_URL}/blood-requests/${selectedRequest._id}/send-notifications`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

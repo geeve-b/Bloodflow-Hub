@@ -12,6 +12,7 @@ import {
   insertDonorSchema,
   insertUserSchema,
   insertStaffSchema,
+  insertInterHospitalRequestSchema,
 } from "@shared/schema";
 import { storage } from "./storage";
 import { isDbConnected } from "./db";
@@ -34,6 +35,8 @@ const removePassword = (user: any) => {
   const {
     password: _password,
     emailVerificationCode: _emailVerificationCode,
+    resetPasswordToken: _resetPasswordToken,
+    resetPasswordExpires: _resetPasswordExpires,
     ...rest
   } = user as Record<string, unknown>;
   return rest;
@@ -75,7 +78,7 @@ const fileFilter = (_req: any, file: any, cb: any) => {
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid file type. Only PDF, JPG, JPEG, PNG are allowed"));
+    cb(Object.assign(new Error("Invalid file type. Only PDF, JPG, JPEG, PNG are allowed"), { status: 400 }));
   }
 };
 
@@ -119,6 +122,9 @@ export async function registerRoutes(
 
   // ==================== DEBUG ENDPOINTS ====================
   app.get("/api/debug/donors-and-emails", async (req, res) => {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(404).json({ error: "Not found" });
+    }
     try {
       console.log("[DEBUG] === DEBUG ENDPOINT: Checking donors and emails ===");
       
@@ -556,7 +562,7 @@ export async function registerRoutes(
 
   app.post("/api/verify-reset-otp", async (req, res) => {
     const { email, otp } = req.body;
-    console.log(`[DEBUG] Verifying OTP for ${email}. OTP provided: ${otp}`);
+    console.log(`[DEBUG] Verifying OTP for ${email}`);
     
     if (!email || !otp) {
       return res.status(400).json({ error: "Email and OTP are required" });
@@ -875,12 +881,6 @@ export async function registerRoutes(
   app.get("/api/blood-requests/:id", async (req, res) => {
     try {
       const requestId = req.params.id;
-      
-      // Validate ID format
-      if (!requestId || requestId.length !== 24) {
-        return res.status(400).json({ error: "Invalid request ID format" });
-      }
-      
       const request = await storage.getBloodRequest(requestId);
       if (!request) {
         return res.status(404).json({ error: "Blood request not found" });
@@ -926,13 +926,7 @@ export async function registerRoutes(
     try {
       const requestId = req.params.id;
       console.log("[DEBUG] Updating blood request:", requestId, "with data:", req.body);
-      
-      // Validate ID format
-      if (!requestId || requestId.length !== 24) {
-        console.log("[DEBUG] Invalid request ID format:", requestId);
-        return res.status(400).json({ error: "Invalid request ID format" });
-      }
-      
+
       const updates = insertBloodRequestSchema.partial().parse(req.body);
       
       // If approving the request, capture which hospital approved it
@@ -1213,6 +1207,80 @@ export async function registerRoutes(
     }
   );
 
+  // ==================== INTER-HOSPITAL BLOOD SHARING ROUTES ====================
+  app.get("/api/inter-hospital-blood/:direction/:hospitalId", async (req, res) => {
+    try {
+      const { direction, hospitalId } = req.params;
+      if (direction === "outgoing") {
+        return res.json(await storage.getOutgoingInterHospitalRequests(hospitalId));
+      }
+      if (direction === "incoming") {
+        return res.json(await storage.getIncomingInterHospitalRequests(hospitalId));
+      }
+      res.status(400).json({ error: "Direction must be 'incoming' or 'outgoing'" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch inter-hospital requests" });
+    }
+  });
+
+  app.post("/api/inter-hospital-blood", async (req, res) => {
+    try {
+      const payload = insertInterHospitalRequestSchema.parse(req.body);
+      const request = await storage.createInterHospitalRequest(payload);
+      res.status(201).json(request);
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Failed to create inter-hospital request",
+      });
+    }
+  });
+
+  app.put("/api/inter-hospital-blood/:id/accept", async (req, res) => {
+    try {
+      const { providingHospitalId, providingHospitalName } = req.body ?? {};
+      if (!providingHospitalId) {
+        return res.status(400).json({ error: "providingHospitalId is required" });
+      }
+      const existing = await storage.getInterHospitalRequest(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "Inter-hospital request not found" });
+      }
+      if (existing.status !== "pending") {
+        return res.status(409).json({ error: `Request is already ${existing.status}` });
+      }
+      if (existing.requestingHospitalId === providingHospitalId) {
+        return res.status(400).json({ error: "A hospital cannot accept its own request" });
+      }
+      const updated = await storage.updateInterHospitalRequest(req.params.id, {
+        status: "accepted",
+        providingHospitalId,
+        providingHospitalName: providingHospitalName || null,
+      });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to accept inter-hospital request" });
+    }
+  });
+
+  app.put("/api/inter-hospital-blood/:id/reject", async (req, res) => {
+    try {
+      const existing = await storage.getInterHospitalRequest(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "Inter-hospital request not found" });
+      }
+      if (existing.status !== "pending") {
+        return res.status(409).json({ error: `Request is already ${existing.status}` });
+      }
+      const updated = await storage.updateInterHospitalRequest(req.params.id, {
+        status: "rejected",
+        rejectionReason: req.body?.rejectionReason || null,
+      });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to reject inter-hospital request" });
+    }
+  });
+
   // ==================== STAFF ROUTES ====================
   app.get("/api/staff", async (_req, res) => {
     try {
@@ -1323,7 +1391,7 @@ export async function registerRoutes(
 
   app.post("/api/receivers", async (req, res) => {
     try {
-      const payload = req.body;
+      const { id: _id, _id: _legacyId, ...payload } = req.body ?? {};
       const receiver = await storage.createReceiver(payload);
       res.status(201).json(receiver);
     } catch (error) {
@@ -1335,7 +1403,7 @@ export async function registerRoutes(
 
   app.put("/api/receivers/:id", async (req, res) => {
     try {
-      const updates = req.body;
+      const { id: _id, _id: _legacyId, ...updates } = req.body ?? {};
       const receiver = await storage.updateReceiver(req.params.id, updates);
       if (!receiver) {
         return res.status(404).json({ error: "Receiver not found" });
@@ -1492,11 +1560,6 @@ export async function registerRoutes(
     } catch (error) {
       res.status(500).json({ error: "Failed to reject hospital" });
     }
-  });
-
-  // ==================== HEALTH CHECK ====================
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", message: "Bloodflow-Hub API is running" });
   });
 
   // Contact form endpoint
@@ -1759,6 +1822,9 @@ export async function registerRoutes(
       const certificate = await donationHistoryService.generateDonationCertificate(
         donationHistoryId
       );
+      if (!certificate) {
+        return res.status(404).json({ error: "Certificate not available" });
+      }
 
       res.json(certificate);
     } catch (error) {

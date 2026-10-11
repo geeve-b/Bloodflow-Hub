@@ -94,7 +94,7 @@ export function InterHospitalBloodSharing() {
   // Fetch requests
   useEffect(() => {
     fetchRequests();
-  }, [activeTab]);
+  }, [activeTab, user?.id]);
 
   const fetchRequests = async () => {
     if (!user) return;

@@ -79,7 +79,7 @@ export const bloodInventorySchema = z.object({
   hospitalName: z.string(),
   bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
   quantity: z.number().min(0, "Quantity cannot be negative"),
-  expiryDate: z.date(),
+  expiryDate: z.coerce.date(),
   status: z.enum(["available", "limited", "not_available"]).default("available"),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
@@ -593,6 +593,38 @@ export const insertBloodDonationTrackingSchema = bloodDonationTrackingSchema.pic
   outcomeNotes: true,
 });
 
+// ==================== INTER-HOSPITAL BLOOD REQUEST TABLE & SCHEMA ====================
+export const interHospitalRequests = pgTable("inter_hospital_requests", {
+  id: varchar("id", { length: 64 })
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  requestingHospitalId: varchar("requesting_hospital_id", { length: 64 }).notNull(),
+  requestingHospitalName: text("requesting_hospital_name").notNull(),
+  requestingHospitalLocation: text("requesting_hospital_location"),
+  requestingHospitalPhone: varchar("requesting_hospital_phone", { length: 64 }),
+  providingHospitalId: varchar("providing_hospital_id", { length: 64 }),
+  providingHospitalName: text("providing_hospital_name"),
+  bloodType: varchar("blood_type", { length: 8 }).notNull(),
+  quantity: integer("quantity").default(1).notNull(),
+  urgency: varchar("urgency", { length: 32 }).default("normal").notNull(),
+  reason: text("reason"),
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertInterHospitalRequestSchema = z.object({
+  requestingHospitalId: z.string().min(1),
+  requestingHospitalName: z.string().min(1),
+  requestingHospitalLocation: z.string().optional().nullable(),
+  requestingHospitalPhone: z.string().optional().nullable(),
+  bloodType: z.enum(["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]),
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
+  urgency: z.enum(["critical", "normal"]).default("normal"),
+  reason: z.string().optional().nullable(),
+});
+
 // ==================== TYPE EXPORTS ====================
 export type User = typeof users.$inferSelect & {
   _id?: string;
@@ -638,3 +670,8 @@ export type BloodDonationTracking = typeof bloodDonationTracking.$inferSelect & 
   _id?: string;
 };
 export type InsertBloodDonationTracking = typeof bloodDonationTracking.$inferInsert;
+
+export type InterHospitalRequest = typeof interHospitalRequests.$inferSelect & {
+  _id?: string;
+};
+export type InsertInterHospitalRequest = typeof interHospitalRequests.$inferInsert;

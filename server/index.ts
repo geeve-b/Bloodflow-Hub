@@ -75,16 +75,24 @@ app.use((req, res, next) => {
     }
     console.log("[DEBUG] Database connection step completed");
 
-    // Setup error handler BEFORE routes
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
+    await registerRoutes(httpServer, app);
+
+    // Unknown API routes must 404 as JSON instead of falling through to the SPA catch-all
+    app.use("/api", (req, res) => {
+      res.status(404).json({ error: `API route not found: ${req.method} ${req.originalUrl}` });
+    });
+
+    // Error handler must be registered AFTER routes so it receives their errors
+    app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+      if (res.headersSent) {
+        return next(err);
+      }
+      const status = err.status || err.statusCode || (err.name === "MulterError" ? 400 : 500);
       const message = err.message || "Internal Server Error";
 
       console.log("[DEBUG] Error handler caught:", message);
-      res.status(status).json({ message });
+      res.status(status).json({ error: message, message });
     });
-    
-    await registerRoutes(httpServer, app);
 
     // Initialize scheduled tasks
     await scheduledTasksService.initialize();
