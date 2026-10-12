@@ -1,85 +1,65 @@
 import { useAuth } from "@/context/AuthContext";
-import { useData } from "@/context/DataContext";
 import { BloodInventoryTable } from "@/components/dashboard/BloodInventoryTable";
 import { RequestBloodForm } from "@/components/dashboard/RequestBloodForm";
-import { DonorApprovalList } from "@/components/dashboard/DonorApprovalList";
 import { UrgencyBadge } from "@/components/dashboard/UrgencyBadge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Users, AlertTriangle, Droplets, Mail, Heart, Phone } from "lucide-react";
-import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { Activity, AlertTriangle, ClipboardList, Droplets, Mail, Heart, Phone, Trophy } from "lucide-react";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useBloodInventory } from "@/hooks/useBloodInventory";
+import { aggregateUsableInventory } from "@/lib/inventory";
+import { useBloodRequests } from "@/hooks/useBloodRequests";
+
+const statusColorByValue: Record<string, string> = {
+  pending: "bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-200 dark:border-yellow-900",
+  fulfilled: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-900",
+  approved: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900",
+  rejected: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900",
+};
 
 export default function DashboardPage() {
-  const { user, setUser: _setUser } = useAuth();
-  const {
-    data: liveInventory = [],
-    isLoading: liveInventoryLoading,
-  } = useBloodInventory();
-  const { inventory, requests, refreshInventory } = useData();
-  const [, setLocation] = useLocation();
-
-  useEffect(() => {
-    // Only redirect if explicitly not logged in, not on initial load
-    if (user === null) {
-      const timeout = setTimeout(() => {
-        setLocation("/login");
-      }, 100);
-      return () => clearTimeout(timeout);
-    }
-  }, [user, setLocation]);
-
-  // Refresh inventory on page load and when window event fires
-  useEffect(() => {
-    refreshInventory();
-    
-    const handleInventoryUpdate = () => {
-      refreshInventory();
-    };
-
-    window.addEventListener('bloodInventoryUpdated', handleInventoryUpdate);
-    return () => window.removeEventListener('bloodInventoryUpdated', handleInventoryUpdate);
-  }, [refreshInventory]);
+  const { user } = useAuth();
+  const { data: rawInventory = [], isLoading: inventoryLoading } = useBloodInventory();
+  // The API only returns this user's own requests
+  const { data: requests = [], isLoading: requestsLoading } = useBloodRequests();
 
   if (!user) return null;
 
-  const totalUnits = liveInventory.reduce((acc, curr) => acc + (curr.quantity ?? 0), 0);
-  const lowStockCount = liveInventory.filter((entry) => entry.status === "limited" || entry.quantity < 5).length;
-  const criticalRequests = requests.filter(r => r.urgency === "critical").length;
-  const isHospitalStaff = user.role === "hospital" || user.role === "admin";
-  const statusColorByValue: Record<string, string> = {
-    pending: "bg-yellow-50 text-yellow-800 border-yellow-200",
-    fulfilled: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    approved: "bg-blue-50 text-blue-700 border-blue-200",
-    rejected: "bg-red-50 text-red-700 border-red-200",
-  };
+  // One entry per hospital and blood type, unexpired units only
+  const inventory = aggregateUsableInventory(rawInventory);
+  const totalUnits = inventory.reduce((acc, curr) => acc + (curr.quantity ?? 0), 0);
+  const lowStockCount = inventory.filter((entry) => entry.quantity < 5).length;
+  const openRequests = requests.filter((r) => r.status === "pending" || r.status === "approved");
 
   return (
     <div className="w-full py-8 px-4 md:px-8 space-y-8">
-      {/* Header Stats */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">Welcome back, {user.name}</p>
         </div>
+        {user.role === "donor" && (
+          <Link href="/donor-dashboard">
+            <Button variant="outline">
+              <Trophy className="mr-2 h-4 w-4" />
+              Donations &amp; achievements
+            </Button>
+          </Link>
+        )}
       </div>
 
-      {/* Overview Cards (Role agnostic overview) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Blood Units</CardTitle>
             <Droplets className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {liveInventoryLoading ? "…" : totalUnits}
-            </div>
-            <p className="text-xs text-muted-foreground">Across all groups</p>
+            <div className="text-2xl font-bold">{inventoryLoading ? "…" : totalUnits}</div>
+            <p className="text-xs text-muted-foreground">Across the hospital network</p>
           </CardContent>
         </Card>
         <Card>
@@ -88,83 +68,44 @@ export default function DashboardPage() {
             <AlertTriangle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {liveInventoryLoading ? "…" : lowStockCount}
-            </div>
-            <p className="text-xs text-muted-foreground">Blood groups critical</p>
+            <div className="text-2xl font-bold">{inventoryLoading ? "…" : lowStockCount}</div>
+            <p className="text-xs text-muted-foreground">Hospital blood groups under 5 units</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Requests</CardTitle>
+            <CardTitle className="text-sm font-medium">My Open Requests</CardTitle>
             <Activity className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{requests.length}</div>
-            <p className="text-xs text-muted-foreground">Pending fulfillment</p>
+            <div className="text-2xl font-bold">{requestsLoading ? "…" : openRequests.length}</div>
+            <p className="text-xs text-muted-foreground">Pending or approved</p>
           </CardContent>
         </Card>
-        {isHospitalStaff && (
-           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Donors</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">2</div>
-              <p className="text-xs text-muted-foreground">Awaiting approval</p>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Fulfilled</CardTitle>
+            <ClipboardList className="h-4 w-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {requestsLoading ? "…" : requests.filter((r) => r.status === "fulfilled").length}
+            </div>
+            <p className="text-xs text-muted-foreground">Requests completed</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Role Based Content */}
-      <Tabs defaultValue={isHospitalStaff ? "inventory" : "search"} className="space-y-4">
-        <TabsList>
-          {isHospitalStaff ? (
-            <>
-              <TabsTrigger value="inventory">Inventory Management</TabsTrigger>
-              <TabsTrigger value="donors">Donor Approvals</TabsTrigger>
-              <TabsTrigger value="requests">Active Requests</TabsTrigger>
-            </>
-          ) : (
-            <>
-              <TabsTrigger value="search">Search Blood</TabsTrigger>
-              <TabsTrigger value="request">Request Blood</TabsTrigger>
-              {user.role === 'donor' && <TabsTrigger value="history">My Donations</TabsTrigger>}
-            </>
-          )}
+      <Tabs defaultValue="search" className="space-y-4">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="search">Search Blood</TabsTrigger>
+          <TabsTrigger value="request">Request Blood</TabsTrigger>
+          <TabsTrigger value="my-requests">My Requests</TabsTrigger>
         </TabsList>
 
-        {/* Manager Views */}
-        <TabsContent value="inventory" className="space-y-4">
-          <Card>
-             <CardHeader>
-              <CardTitle>Blood Inventory</CardTitle>
-              <CardDescription>Manage stock levels for your hospital.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <BloodInventoryTable />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="donors" className="space-y-4">
-          <Card>
-             <CardHeader>
-              <CardTitle>Pending Approvals</CardTitle>
-              <CardDescription>Review and approve new donor registrations.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DonorApprovalList />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Receiver/Donor Views */}
         <TabsContent value="search" className="space-y-4">
           <Card>
-             <CardHeader>
+            <CardHeader>
               <CardTitle>Search Availability</CardTitle>
               <CardDescription>Real-time blood stock across our network.</CardDescription>
             </CardHeader>
@@ -175,68 +116,70 @@ export default function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="request" className="space-y-4">
-           <RequestBloodForm />
+          <RequestBloodForm />
         </TabsContent>
 
-        {/* Shared active requests view for manager to see what's incoming */}
-        <TabsContent value="requests" className="space-y-4">
-           <Card>
-             <CardHeader>
-              <CardTitle>Incoming Requests</CardTitle>
-              <CardDescription>Requests from receivers that need fulfillment.</CardDescription>
+        <TabsContent value="my-requests" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>My Requests</CardTitle>
+              <CardDescription>Track the status of blood requests you have submitted.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {requests.map(req => {
-                  const formattedStatus = req.status.charAt(0).toUpperCase() + req.status.slice(1);
-
-                  return (
+              {requestsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading requests…</p>
+              ) : requests.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  You haven't submitted any blood requests yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {requests.map((req) => (
                     <div
-                      key={req.id}
+                      key={req._id}
                       className={cn(
-                        "flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/10 transition-colors",
-                        req.urgency === "critical" &&
-                          "border-red-200 bg-red-50/80 dark:bg-red-950/30 shadow-[0_0_0_1px_rgba(239,68,68,0.35)]"
+                        "flex flex-col gap-2 p-4 border rounded-lg bg-card sm:flex-row sm:items-center sm:justify-between",
+                        req.urgency === "critical" && req.status === "pending" &&
+                          "border-red-200 bg-red-50/80 dark:border-red-900 dark:bg-red-950/30"
                       )}
                     >
-                      <div className="flex-1 pr-4">
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <h4 className="font-semibold">{req.patientName}</h4>
                           <Badge
                             variant="outline"
-                            className={cn(
-                              "capitalize",
-                              statusColorByValue[req.status] || "bg-muted text-foreground border-muted"
-                            )}
+                            className={cn("capitalize", statusColorByValue[req.status])}
                           >
-                            {formattedStatus}
+                            {req.status}
                           </Badge>
                           <UrgencyBadge urgency={req.urgency} size="sm" />
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          Needs {req.unitsNeeded} unit(s) of {req.bloodGroup} at {req.hospitalName}
+                          {req.quantity} unit(s) of {req.bloodType} at {req.hospitalName}
+                          {req.approvedByHospitalName && req.status !== "pending"
+                            ? ` · handled by ${req.approvedByHospitalName}`
+                            : ""}
                         </p>
+                        {req.status === "rejected" && req.rejectionReason && (
+                          <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+                            Reason: {req.rejectionReason}
+                          </p>
+                        )}
                       </div>
-                      <Button size="sm" variant="outline">
-                        View Details
-                      </Button>
+                      {req.createdAt && (
+                        <p className="text-xs text-muted-foreground shrink-0">
+                          {new Date(req.createdAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="history">
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <p>No donation history yet.</p>
-          </div>
-        </TabsContent>
-
       </Tabs>
 
-      {/* Contact Section */}
       <div className="border-t pt-8">
         <h2 className="text-2xl font-bold mb-6">Get in Touch</h2>
         <div className="grid gap-4 md:grid-cols-3">

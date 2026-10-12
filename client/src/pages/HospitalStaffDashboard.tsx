@@ -4,7 +4,6 @@ import { useLocation } from "wouter";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -50,6 +49,7 @@ import {
 } from "lucide-react";
 import { BloodExpiryAlerts } from "@/components/dashboard/BloodExpiryAlerts";
 import { InterHospitalBloodSharing } from "@/components/dashboard/InterHospitalBloodSharing";
+import { RecordDonationDialog } from "@/components/dashboard/RecordDonationDialog";
 import {
   Select,
   SelectContent,
@@ -91,6 +91,8 @@ interface BloodRequest {
   reason?: string;
   status: "pending" | "approved" | "fulfilled" | "rejected";
   rejectionReason?: string;
+  approvedByHospitalId?: string;
+  approvedByHospitalName?: string;
   fulfilledByHospitalId?: string;
   fulfilledByHospitalName?: string;
   createdAt: string;
@@ -151,9 +153,6 @@ export default function HospitalStaffDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | NormalizedUrgency>("all");
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [processAction, setProcessAction] = useState<"approve" | "reject" | "fulfill" | null>(null);
-  const [showProcessMenu, setShowProcessMenu] = useState(false);
-  const [processNotes, setProcessNotes] = useState("");
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showAddBloodModal, setShowAddBloodModal] = useState(false);
@@ -215,14 +214,13 @@ export default function HospitalStaffDashboard() {
   }, [user]);
 
   const fetchInventory = useCallback(async () => {
-    if (!staffProfile || user?.role !== "hospital") return;
+    if (!user || user.role !== "hospital") return;
 
     setInventoryLoading(true);
     try {
-      // Use hospital name from staff profile instead of user ID
-      const hospitalIdParam = staffProfile.hospitalName || user?.id;
+      // Inventory is keyed by the hospital account's user ID
       const response = await fetch(
-        `${API_URL}/blood-inventory/hospital/${hospitalIdParam}`
+        `${API_URL}/blood-inventory/hospital/${encodeURIComponent(user.id)}`
       );
       if (!response.ok) {
         throw new Error("Unable to load hospital inventory");
@@ -248,7 +246,7 @@ export default function HospitalStaffDashboard() {
     } finally {
       setInventoryLoading(false);
     }
-  }, [staffProfile, user]);
+  }, [user]);
 
   useEffect(() => {
     fetchInventory();
@@ -258,8 +256,7 @@ export default function HospitalStaffDashboard() {
   useEffect(() => {
     const fetchRequests = async () => {
       // Don't redirect, just skip fetching if no user
-      if (!user || !staffProfile) {
-        console.log("No user or staff profile yet, skipping request fetch");
+      if (!user) {
         return;
       }
 
@@ -291,7 +288,7 @@ export default function HospitalStaffDashboard() {
             return true; // All hospitals can see pending requests
           }
           // For approved, fulfilled, rejected - only show if this hospital approved/handled it
-          return req.approvedByHospitalId === user.id || req.approvedByHospitalName === staffProfile.hospitalName;
+          return req.approvedByHospitalId === user.id;
         });
         
         setRequests(filtered);
@@ -312,12 +309,21 @@ export default function HospitalStaffDashboard() {
     };
 
     fetchRequests();
-  }, [user, staffProfile, toast]);
+  }, [user, toast]);
 
-  const getUsableInventoryForType = (bloodType: string) =>
-    inventory.find(
-      (inv) => inv.bloodType === bloodType && isInventoryUsable(inv.status)
-    );
+  // Total unexpired, usable units of a blood type across all of this hospital's stock entries
+  const getUsableInventoryForType = (bloodType: string) => {
+    const now = Date.now();
+    const quantity = inventory
+      .filter(
+        (inv) =>
+          inv.bloodType === bloodType &&
+          isInventoryUsable(inv.status) &&
+          (!inv.expiryDate || new Date(inv.expiryDate).getTime() > now)
+      )
+      .reduce((sum, inv) => sum + (inv.quantity ?? 0), 0);
+    return quantity > 0 ? { quantity } : undefined;
+  };
 
   const openInventoryEditor = (entry: BloodInventory) => {
     setEditingInventory(entry);
@@ -435,8 +441,8 @@ export default function HospitalStaffDashboard() {
         if (req.status === "fulfilled") {
           return req.fulfilledByHospitalId === user?.id;
         }
-        // For rejected requests, show all (hospital can see requests they rejected)
-        return req.status === "rejected";
+        // Rejected requests are kept for the hospital that rejected them
+        return req.status === "rejected" && req.approvedByHospitalId === user?.id;
       });
     }
 
@@ -501,9 +507,7 @@ export default function HospitalStaffDashboard() {
         title: "Success",
         description: `${addBloodForm.quantity} units of ${addBloodForm.bloodType} blood added successfully`,
       });
-      
-      // Refresh inventory in other components via window event
-      window.dispatchEvent(new Event('bloodInventoryUpdated'));
+
     } catch (error) {
       toast({
         title: "Error",
@@ -556,35 +560,9 @@ export default function HospitalStaffDashboard() {
         if (!availableInventory || availableInventory.quantity < selectedRequest.quantity) {
           toast({
             title: "Insufficient Inventory",
-            description: `Not enough ${selectedRequest.bloodType} blood available. Required: ${selectedRequest.quantity} units, Available: ${availableInventory?.quantity || 0} units. Request will be rejected.`,
+            description: `Not enough ${selectedRequest.bloodType} blood available. Required: ${selectedRequest.quantity} units, Available: ${availableInventory?.quantity || 0} units. Add stock or leave it for another hospital.`,
             variant: "destructive",
           });
-
-          // Auto-reject if inventory insufficient
-          const rejectResponse = await fetch(
-            `${API_URL}/blood-requests/${selectedRequest._id}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ 
-                status: "rejected",
-                rejectionReason: `Insufficient ${selectedRequest.bloodType} blood inventory. Required: ${selectedRequest.quantity} units, Available: ${availableInventory?.quantity || 0} units.`
-              }),
-            }
-          );
-
-          if (rejectResponse.ok) {
-            setRequests(
-              requests.map((req) =>
-                req._id === selectedRequest._id
-                  ? { ...req, status: "rejected" }
-                  : req
-              )
-            );
-            setIsDetailsOpen(false);
-          } else {
-            throw new Error("Failed to auto-reject request due to insufficient inventory");
-          }
           return;
         }
       }
@@ -599,6 +577,8 @@ export default function HospitalStaffDashboard() {
               ? {
                   status: "rejected",
                   rejectionReason: rejectionReason || "Request rejected by hospital staff",
+                  approvedByHospitalId: user?.id || "",
+                  approvedByHospitalName: staffProfile?.hospitalName || user?.name || "Unknown Hospital",
                 }
               : {
                   status:
@@ -625,6 +605,11 @@ export default function HospitalStaffDashboard() {
         throw new Error(
           errorData.error || "Failed to update request status"
         );
+      }
+
+      // Fulfilling a request deducts stock on the server
+      if (action === "fulfill") {
+        fetchInventory();
       }
 
       // Update local state
@@ -668,8 +653,6 @@ export default function HospitalStaffDashboard() {
       });
     } finally {
       setProcessingId(null);
-      setProcessAction(null);
-      setProcessNotes("");
     }
   };
 
@@ -890,12 +873,15 @@ export default function HospitalStaffDashboard() {
               )}
             </Button>
           </div>
-          <Button
-            onClick={() => setShowAddBloodModal(true)}
-          >
-            <Droplets className="h-4 w-4 mr-2" />
-            Add Blood
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <RecordDonationDialog onRecorded={fetchInventory} />
+            <Button
+              onClick={() => setShowAddBloodModal(true)}
+            >
+              <Droplets className="h-4 w-4 mr-2" />
+              Add Blood
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
@@ -1718,7 +1704,7 @@ export default function HospitalStaffDashboard() {
                                   : "bg-amber-500 hover:bg-amber-600 dark:bg-amber-400 dark:hover:bg-amber-300 text-foreground"}`}
                                 onClick={() => handleProcessRequest("approve")}
                                 disabled={processingId === selectedRequest._id}
-                                title={!hasEnough ? "Insufficient inventory - will auto-reject" : ""}
+                                title={!hasEnough ? "Not enough stock to approve this request" : ""}
                               >
                                 {processingId === selectedRequest._id ? "Processing..." : "Approve"}
                               </Button>

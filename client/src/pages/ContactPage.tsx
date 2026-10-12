@@ -1,4 +1,4 @@
-import { Mail, Phone, Clock, AlertCircle, Heart } from "lucide-react";
+import { Mail, Clock, AlertCircle, Heart } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

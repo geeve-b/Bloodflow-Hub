@@ -15,7 +15,6 @@ import {
   insertInterHospitalRequestSchema,
 } from "@shared/schema";
 import { storage } from "./storage";
-import { isDbConnected } from "./db";
 import {
   sendContactEmail,
   sendVerificationEmail,
@@ -27,6 +26,39 @@ import { log } from "./index";
 import { MatchmakingEngine } from "./matchmaking";
 import { initializeRealtime } from "./realtime";
 import { bloodExpiryService } from "./bloodExpiryService";
+import { DonationError, donationHistoryService } from "./donationHistory";
+import { eligibilityReminderService, getDonorEligibility } from "./eligibilityReminder";
+import { achievementBadgeService } from "./achievementBadges";
+import {
+  createStaffProfileToken,
+  endSession,
+  isStaff,
+  loadSessionUser,
+  loginBlockReason,
+  readStaffProfileToken,
+  requireAuth,
+  requireRole,
+  requireSelfOr,
+  startSession,
+  toSessionUser,
+} from "./auth";
+
+const errorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof z.ZodError) {
+    return error.issues
+      .map((issue) => (issue.path.length ? `${issue.path.join(".")}: ${issue.message}` : issue.message))
+      .join("; ");
+  }
+  return error instanceof Error ? error.message : fallback;
+};
+
+// One-time codes are 6 digits, so cap wrong guesses per code. Issuing a new code resets the count.
+const MAX_CODE_ATTEMPTS = 5;
+const failedCodeAttempts = new Map<string, number>();
+const tooManyCodeAttempts = (key: string) => (failedCodeAttempts.get(key) ?? 0) >= MAX_CODE_ATTEMPTS;
+const recordFailedCodeAttempt = (key: string) =>
+  failedCodeAttempts.set(key, (failedCodeAttempts.get(key) ?? 0) + 1);
+const TOO_MANY_ATTEMPTS = "Too many incorrect attempts. Please request a new code.";
 
 const removePassword = (user: any) => {
   if (!user || typeof user !== "object") {
@@ -41,6 +73,12 @@ const removePassword = (user: any) => {
   } = user as Record<string, unknown>;
   return rest;
 };
+
+const authUser = (user: any) => ({
+  ...removePassword(user),
+  ...toSessionUser(user),
+  name: user.username,
+});
 
 const OTP_EXPIRATION_MINUTES = 10;
 
@@ -109,6 +147,43 @@ function getCompatibleDonorTypes(requestedBloodType: string): string[] {
   return BLOOD_COMPATIBILITY[requestedBloodType] ?? [requestedBloodType];
 }
 
+/**
+ * Takes `units` of blood for a patient of `bloodType` out of a hospital's unexpired stock,
+ * preferring the exact type and the soonest-expiring units. Returns false (and changes
+ * nothing) when the hospital doesn't hold enough compatible blood.
+ */
+async function consumeInventory(hospitalId: string, bloodType: string, units: number) {
+  const compatible = getCompatibleDonorTypes(bloodType);
+  const now = Date.now();
+  const stock = (await storage.getBloodInventoryByHospital(hospitalId))
+    .filter(
+      (entry) =>
+        compatible.includes(entry.bloodType) &&
+        entry.quantity > 0 &&
+        new Date(entry.expiryDate).getTime() > now,
+    )
+    .sort(
+      (a, b) =>
+        Number(b.bloodType === bloodType) - Number(a.bloodType === bloodType) ||
+        new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime(),
+    );
+
+  if (stock.reduce((sum, entry) => sum + entry.quantity, 0) < units) return false;
+
+  let remaining = units;
+  for (const entry of stock) {
+    if (remaining === 0) break;
+    const take = Math.min(entry.quantity, remaining);
+    const quantity = entry.quantity - take;
+    await storage.updateBloodInventory(String(entry.id), {
+      quantity,
+      status: quantity > 0 ? "available" : "not_available",
+    });
+    remaining -= take;
+  }
+  return true;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -120,91 +195,21 @@ export async function registerRoutes(
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  // ==================== DEBUG ENDPOINTS ====================
-  app.get("/api/debug/donors-and-emails", async (req, res) => {
-    if (process.env.NODE_ENV === "production") {
-      return res.status(404).json({ error: "Not found" });
-    }
-    try {
-      console.log("[DEBUG] === DEBUG ENDPOINT: Checking donors and emails ===");
-      
-      // Get all donors
-      const allDonors = await storage.getAllDonors();
-      console.log(`[DEBUG] Total donors in database: ${allDonors.length}`);
-      
-      // Get all users
-      const allUsers = await storage.getAllUsers();
-      console.log(`[DEBUG] Total users in database: ${allUsers.length}`);
-      
-      // Filter donors by blood type "O+"
-      const oPlusDonors = allDonors.filter(d => d.bloodType === "O+");
-      console.log(`[DEBUG] O+ donors: ${oPlusDonors.length}`);
-      
-      // Try to fetch emails for O+ donors
-      const eligibleDonors = await storage.getEligibleDonorsWithEmails(["O-", "O+"], undefined);
-      console.log(`[DEBUG] O-/O+ donors with emails: ${eligibleDonors.length}`);
-      
-      const donorList = allDonors.slice(0, 5).map(d => ({
-        id: d._id,
-        name: `${d.firstName} ${d.lastName}`,
-        bloodType: d.bloodType,
-        userId: d.userId,
-        status: d.eligibilityStatus,
-        isActive: d.isActive,
-      }));
-      
-      const userList = allUsers.slice(0, 5).map(u => ({
-        id: u._id,
-        username: u.username,
-        email: u.email,
-        role: u.role,
-      }));
-      
-      const eligibleList = eligibleDonors.slice(0, 5).map(e => ({
-        name: `${e.donor.firstName} ${e.donor.lastName}`,
-        email: e.email,
-        bloodType: e.donor.bloodType,
-        status: e.donor.eligibilityStatus,
-      }));
-      
-      res.json({
-        summary: {
-          totalDonors: allDonors.length,
-          totalUsers: allUsers.length,
-          oPlusDonors: oPlusDonors.length,
-          eligibleDonorsWithEmails: eligibleDonors.length,
-        },
-        samples: {
-          donors: donorList,
-          users: userList,
-          eligibleDonors: eligibleList,
-        },
-        debug: {
-          timestamp: new Date().toISOString(),
-          environmen: {
-            smtpConfigured: !!process.env.SMTP_HOST,
-          },
-        },
-      });
-    } catch (error) {
-      console.error("[ERROR] Debug endpoint error:", error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-    }
-  });
-
   // ==================== AUTH ROUTES ====================
   app.post("/api/register", async (req, res) => {
     console.log("[DEBUG] Register endpoint called with body:", Object.keys(req.body));
     try {
       const rawPayload = insertUserSchema.parse(req.body);
+      if (rawPayload.role === "admin") {
+        return res.status(403).json({ error: "Admin accounts cannot be created through registration" });
+      }
       const payload = {
-        ...rawPayload,
         username: rawPayload.username.trim(),
         email: rawPayload.email.trim().toLowerCase(),
         password: rawPayload.password,
+        role: rawPayload.role,
+        // Hospitals must be approved by an admin before they can sign in
+        approvalStatus: rawPayload.role === "hospital" ? "pending" : undefined,
       };
       console.log("[DEBUG] Payload parsed:", payload.username, payload.role);
 
@@ -293,6 +298,9 @@ export async function registerRoutes(
           expiresAt,
         )) ?? user;
 
+      // The account already exists at this point, so a failed email must not fail the
+      // registration; the user can request a new code from the verification page.
+      let emailSent = true;
       try {
         await sendVerificationEmail({
           email: user.email,
@@ -300,15 +308,18 @@ export async function registerRoutes(
           code: verificationCode,
         });
       } catch (emailError) {
-        console.error("[DEBUG] Verification email failed:", emailError);
-        return res
-          .status(500)
-          .json({ error: "Failed to send verification email" });
+        emailSent = false;
+        console.error("[ERROR] Verification email failed:", emailError);
       }
+      failedCodeAttempts.delete(`verify:${userId}`);
 
       console.log("[DEBUG] Sending registration response");
       res.status(201).json({
-        message: "User registered successfully",
+        message: emailSent
+          ? "User registered successfully"
+          : "Account created, but we could not send the verification email. Please request a new code.",
+        emailSent,
+        ...(payload.role === "hospital" && { staffProfileToken: createStaffProfileToken(String(userId)) }),
         user: removePassword(userWithCode),
         verification: {
           userId: userWithCode?._id,
@@ -319,7 +330,7 @@ export async function registerRoutes(
     } catch (error) {
       console.log("[DEBUG] Registration error:", error);
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Registration failed",
+        error: errorMessage(error, "Registration failed"),
       });
     }
   });
@@ -368,20 +379,31 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Verification code expired" });
       }
 
-      const isValid = await bcrypt.compare(code, user.emailVerificationCode);
-      if (!isValid) {
-        return res.status(400).json({ error: "Invalid verification code" });
+      const targetUserId = String(user.id || user._id);
+      const attemptKey = `verify:${targetUserId}`;
+      if (tooManyCodeAttempts(attemptKey)) {
+        return res.status(429).json({ error: TOO_MANY_ATTEMPTS });
       }
 
-      const targetUserId = user.id || user._id || userId;
-      if (!targetUserId) {
-        return res.status(500).json({ error: "Unable to verify email" });
+      const isValid = await bcrypt.compare(String(code), user.emailVerificationCode);
+      if (!isValid) {
+        recordFailedCodeAttempt(attemptKey);
+        return res.status(400).json({ error: "Invalid verification code" });
       }
+      failedCodeAttempts.delete(attemptKey);
+
       const verifiedUser =
         (await storage.markEmailVerified(targetUserId)) ?? user;
+      const blockReason = loginBlockReason(toSessionUser(verifiedUser));
+      if (!blockReason) {
+        startSession(req, res, targetUserId);
+      }
       return res.json({
-        message: "Email verified successfully",
-        user: removePassword(verifiedUser),
+        message: blockReason
+          ? `Email verified. ${blockReason}`
+          : "Email verified successfully",
+        requiresApproval: Boolean(blockReason),
+        user: authUser(verifiedUser),
       });
     } catch (error) {
       console.log("[DEBUG] Verify email error:", error);
@@ -426,6 +448,7 @@ export async function registerRoutes(
           codeHash,
           expiresAt,
         )) ?? user;
+      failedCodeAttempts.delete(`verify:${targetUserId}`);
 
       try {
         await sendVerificationEmail({
@@ -455,6 +478,17 @@ export async function registerRoutes(
         .status(500)
         .json({ error: "Unable to resend verification code" });
     }
+  });
+
+  app.get("/api/session", async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: "Not logged in" });
+    const user = await storage.getUser(req.user.id);
+    res.json({ user: user ? authUser(user) : req.user });
+  });
+
+  app.post("/api/logout", (_req, res) => {
+    endSession(res);
+    res.json({ message: "Logged out" });
   });
 
   app.post("/api/login", async (req, res) => {
@@ -504,16 +538,22 @@ export async function registerRoutes(
         console.log("[DEBUG] Email not verified for user:", userId);
         return res.status(403).json({
           error: "Email not verified",
+          code: "EMAIL_NOT_VERIFIED",
           userId,
           email: user.email,
         });
       }
+      const blockReason = loginBlockReason(toSessionUser(user));
+      if (blockReason) {
+        return res.status(403).json({ error: blockReason, code: "APPROVAL_REQUIRED" });
+      }
+      startSession(req, res, String(user.id || user._id));
       console.log("[DEBUG] Login successful for user:", user._id);
-      res.json({ message: "Login successful", user: removePassword(user) });
+      res.json({ message: "Login successful", user: authUser(user) });
     } catch (error) {
       console.log("[DEBUG] Login error:", error);
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Login failed",
+        error: errorMessage(error, "Login failed"),
       });
     }
   });
@@ -539,19 +579,15 @@ export async function registerRoutes(
       const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
       const codeHash = await bcrypt.hash(verificationCode, 10);
 
-      const userId = user.id || user._id;
-      if (userId) {
-        await storage.setResetPasswordToken(userId, codeHash, expiresAt);
-        console.log("[DEBUG] Reset token set in DB, sending email...");
-        await sendPasswordResetEmail({
-          email: user.email,
-          name: user.username,
-          code: verificationCode,
-        });
-        console.log("[DEBUG] Email sending process completed");
-      } else {
-        console.error("[DEBUG] Failed to extract userId");
-      }
+      const userId = String(user.id || user._id);
+      await storage.setResetPasswordToken(userId, codeHash, expiresAt);
+      failedCodeAttempts.delete(`reset:${user.email.toLowerCase()}`);
+      // Sent in the background so response time doesn't reveal whether the account exists
+      sendPasswordResetEmail({
+        email: user.email,
+        name: user.username,
+        code: verificationCode,
+      }).catch((emailError) => console.error("[ERROR] Password reset email failed:", emailError));
 
       res.json({ message: "If an account exists, a verification code has been sent." });
     } catch (error) {
@@ -587,10 +623,13 @@ export async function registerRoutes(
         return res.status(400).json({ error: "OTP has expired" });
       }
 
-      const isValid = await bcrypt.compare(otp, user.resetPasswordToken);
-      console.log(`[DEBUG] OTP validation result: ${isValid}`);
-      
+      const attemptKey = `reset:${user.email.toLowerCase()}`;
+      if (tooManyCodeAttempts(attemptKey)) {
+        return res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+      }
+      const isValid = await bcrypt.compare(String(otp), user.resetPasswordToken);
       if (!isValid) {
+        recordFailedCodeAttempt(attemptKey);
         return res.status(400).json({ error: "Invalid OTP" });
       }
 
@@ -620,10 +659,19 @@ export async function registerRoutes(
         return res.status(400).json({ error: "OTP has expired" });
       }
 
-      const isValid = await bcrypt.compare(otp, user.resetPasswordToken);
+      const attemptKey = `reset:${user.email.toLowerCase()}`;
+      if (tooManyCodeAttempts(attemptKey)) {
+        return res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+      }
+      const isValid = await bcrypt.compare(String(otp), user.resetPasswordToken);
       if (!isValid) {
-        console.log("[DEBUG] Invalid OTP during password reset");
+        recordFailedCodeAttempt(attemptKey);
         return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      const passwordCheck = insertUserSchema.shape.password.safeParse(newPassword);
+      if (!passwordCheck.success) {
+        return res.status(400).json({ error: passwordCheck.error.issues[0].message });
       }
 
       const userId = user.id || user._id;
@@ -633,6 +681,7 @@ export async function registerRoutes(
         console.log(`[DEBUG] Password update result: ${!!updatedUser}`);
         
         await storage.clearResetPasswordToken(userId);
+        failedCodeAttempts.delete(attemptKey);
         console.log("[DEBUG] Reset token cleared");
       } else {
         console.error("[DEBUG] Could not determine userId for password update");
@@ -646,7 +695,7 @@ export async function registerRoutes(
   });
 
   // ==================== FETCH USER PROFILE DATA ====================
-  app.get("/api/profile/:userId/:role", async (req, res) => {
+  app.get("/api/profile/:userId/:role", requireSelfOr("userId", "hospital", "admin"), async (req, res) => {
     try {
       const { userId, role } = req.params;
       console.log(`Fetching profile for userId: ${userId}, role: ${role}`);
@@ -683,13 +732,13 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error in profile endpoint:", error);
       res.status(500).json({
-        error: error instanceof Error ? error.message : "Failed to fetch profile",
+        error: errorMessage(error, "Failed to fetch profile"),
       });
     }
   });
 
   // ==================== USER ROUTES ====================
-  app.get("/api/users", async (_req, res) => {
+  app.get("/api/users", requireRole("admin"), async (_req, res) => {
     try {
       const users = await storage.getAllUsers();
       res.json(users.map(removePassword));
@@ -698,7 +747,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/users/:id", async (req, res) => {
+  app.get("/api/users/:id", requireSelfOr("id", "admin"), async (req, res) => {
     try {
       const user = await storage.getUser(req.params.id);
       if (!user) {
@@ -710,7 +759,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/users", async (req, res) => {
+  app.post("/api/users", requireRole("admin"), async (req, res) => {
     try {
       const payload = insertUserSchema.parse(req.body);
       const existingUser = await storage.getUserByUsername(payload.username);
@@ -721,12 +770,12 @@ export async function registerRoutes(
       res.status(201).json(removePassword(user));
     } catch (error) {
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to create user",
+        error: errorMessage(error, "Failed to create user"),
       });
     }
   });
 
-  app.put("/api/users/:id", async (req, res) => {
+  app.put("/api/users/:id", requireRole("admin"), async (req, res) => {
     try {
       const updates = insertUserSchema.partial().parse(req.body);
       const user = await storage.updateUser(req.params.id, updates);
@@ -736,12 +785,12 @@ export async function registerRoutes(
       res.json(removePassword(user));
     } catch (error) {
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to update user",
+        error: errorMessage(error, "Failed to update user"),
       });
     }
   });
 
-  app.delete("/api/users/:id", async (req, res) => {
+  app.delete("/api/users/:id", requireRole("admin"), async (req, res) => {
     try {
       const deleted = await storage.deleteUser(req.params.id);
       if (!deleted) {
@@ -754,7 +803,7 @@ export async function registerRoutes(
   });
 
   // ==================== BLOOD INVENTORY ROUTES ====================
-  app.get("/api/blood-inventory", async (_req, res) => {
+  app.get("/api/blood-inventory", requireAuth, async (_req, res) => {
     try {
       const inventory = await storage.getAllBloodInventory();
       res.json(inventory);
@@ -763,7 +812,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/blood-inventory/:id", async (req, res) => {
+  app.get("/api/blood-inventory/:id", requireAuth, async (req, res) => {
     try {
       const inventory = await storage.getBloodInventory(req.params.id);
       if (!inventory) {
@@ -775,7 +824,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/blood-inventory/hospital/:hospitalId", async (req, res) => {
+  app.get("/api/blood-inventory/hospital/:hospitalId", requireAuth, async (req, res) => {
     try {
       const inventory = await storage.getBloodInventoryByHospital(
         req.params.hospitalId
@@ -786,7 +835,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/blood-inventory/type/:bloodType", async (req, res) => {
+  app.get("/api/blood-inventory/type/:bloodType", requireAuth, async (req, res) => {
     try {
       const inventory = await storage.getBloodInventoryByType(
         req.params.bloodType
@@ -799,7 +848,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/blood-inventory", async (req, res) => {
+  app.post("/api/blood-inventory", requireRole("hospital", "admin"), async (req, res) => {
     try {
       // Convert expiryDate string to Date object if needed
       const body = {
@@ -807,20 +856,26 @@ export async function registerRoutes(
         expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : new Date(),
       };
       const payload = insertBloodInventorySchema.parse(body);
+      if (req.user!.role === "hospital") payload.hospitalId = req.user!.id;
       const inventory = await storage.createBloodInventory(payload);
       matchmakingEngine.clearCache();
       res.status(201).json(inventory);
     } catch (error) {
       res.status(400).json({
         error:
-          error instanceof Error ? error.message : "Failed to create inventory",
+          errorMessage(error, "Failed to create inventory"),
       });
     }
   });
 
-  app.put("/api/blood-inventory/:id", async (req, res) => {
+  app.put("/api/blood-inventory/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const updates = insertBloodInventorySchema.partial().parse(req.body);
+      delete updates.hospitalId;
+      const existing = await storage.getBloodInventory(req.params.id);
+      if (!existing || (req.user!.role === "hospital" && existing.hospitalId !== req.user!.id)) {
+        return res.status(404).json({ error: "Blood inventory not found" });
+      }
       const inventory = await storage.updateBloodInventory(
         req.params.id,
         updates
@@ -833,13 +888,17 @@ export async function registerRoutes(
     } catch (error) {
       res.status(400).json({
         error:
-          error instanceof Error ? error.message : "Failed to update inventory",
+          errorMessage(error, "Failed to update inventory"),
       });
     }
   });
 
-  app.delete("/api/blood-inventory/:id", async (req, res) => {
+  app.delete("/api/blood-inventory/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
+      const existing = await storage.getBloodInventory(req.params.id);
+      if (!existing || (req.user!.role === "hospital" && existing.hospitalId !== req.user!.id)) {
+        return res.status(404).json({ error: "Blood inventory not found" });
+      }
       const deleted = await storage.deleteBloodInventory(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Blood inventory not found" });
@@ -851,7 +910,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/blood-inventory/expiry/alerts", async (req, res) => {
+  app.get("/api/blood-inventory/expiry/alerts", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const days = parseInt(req.query.days as string) || 7;
       const expiringInventory =
@@ -869,20 +928,21 @@ export async function registerRoutes(
   });
 
   // ==================== BLOOD REQUEST ROUTES ====================
-  app.get("/api/blood-requests", async (_req, res) => {
+  app.get("/api/blood-requests", requireAuth, async (req, res) => {
     try {
       const requests = await storage.getAllBloodRequests();
-      res.json(requests);
+      // Donors and receivers only see the requests they raised
+      res.json(isStaff(req.user) ? requests : requests.filter((r) => r.requesterId === req.user!.id));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch blood requests" });
     }
   });
 
-  app.get("/api/blood-requests/:id", async (req, res) => {
+  app.get("/api/blood-requests/:id", requireAuth, async (req, res) => {
     try {
       const requestId = req.params.id;
       const request = await storage.getBloodRequest(requestId);
-      if (!request) {
+      if (!request || (!isStaff(req.user) && request.requesterId !== req.user!.id)) {
         return res.status(404).json({ error: "Blood request not found" });
       }
       res.json(request);
@@ -891,7 +951,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/blood-requests/status/:status", async (req, res) => {
+  app.get("/api/blood-requests/status/:status", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const requests = await storage.getBloodRequestsByStatus(
         req.params.status
@@ -902,9 +962,14 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/blood-requests", async (req, res) => {
+  app.post("/api/blood-requests", requireAuth, async (req, res) => {
     try {
       const payload = insertBloodRequestSchema.parse(req.body);
+      if (req.user!.role !== "admin") {
+        payload.requesterId = req.user!.id;
+        // New requests always start pending; only hospitals move them forward
+        payload.status = "pending";
+      }
       console.log(`[DEBUG] Creating blood request for blood type: ${payload.bloodType}`);
       const request = await storage.createBloodRequest(payload);
       realtime.publishBloodRequest({
@@ -917,24 +982,44 @@ export async function registerRoutes(
     } catch (error) {
       res.status(400).json({
         error:
-          error instanceof Error ? error.message : "Failed to create request",
+          errorMessage(error, "Failed to create request"),
       });
     }
   });
 
-  app.put("/api/blood-requests/:id", async (req, res) => {
+  app.put("/api/blood-requests/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const requestId = req.params.id;
       console.log("[DEBUG] Updating blood request:", requestId, "with data:", req.body);
 
       const updates = insertBloodRequestSchema.partial().parse(req.body);
       
-      // If approving the request, capture which hospital approved it
-      if (updates.status === "approved" && req.body.approvedByHospitalId) {
-        updates.approvedByHospitalId = req.body.approvedByHospitalId;
-        updates.approvedByHospitalName = req.body.approvedByHospitalName;
+      // A hospital always acts as itself, whatever IDs the client sent
+      if (req.user!.role === "hospital") {
+        if (updates.approvedByHospitalId !== undefined) updates.approvedByHospitalId = req.user!.id;
+        if (updates.fulfilledByHospitalId !== undefined) updates.fulfilledByHospitalId = req.user!.id;
       }
       
+      const existing = await storage.getBloodRequest(requestId);
+      if (!existing) {
+        return res.status(404).json({ error: "Blood request not found" });
+      }
+      if (updates.status && updates.status !== existing.status &&
+          (existing.status === "fulfilled" || existing.status === "rejected")) {
+        return res.status(409).json({ error: `This request is already ${existing.status}` });
+      }
+
+      // Fulfilling a request uses up the fulfilling hospital's stock
+      if (updates.status === "fulfilled" && existing.status !== "fulfilled" && req.user!.role === "hospital") {
+        const consumed = await consumeInventory(req.user!.id, existing.bloodType, existing.quantity);
+        if (!consumed) {
+          return res.status(409).json({
+            error: `Not enough unexpired ${existing.bloodType}-compatible blood in your inventory to fulfil ${existing.quantity} unit(s)`,
+          });
+        }
+        updates.fulfilledByHospitalId = req.user!.id;
+      }
+
       console.log("[DEBUG] Parsed updates:", updates);
       const request = await storage.updateBloodRequest(requestId, updates);
       
@@ -954,14 +1039,18 @@ export async function registerRoutes(
       console.error("[ERROR] Failed to update blood request:", error);
       res.status(400).json({
         error:
-          error instanceof Error ? error.message : "Failed to update blood request",
+          errorMessage(error, "Failed to update blood request"),
       });
     }
   });
 
-  app.delete("/api/blood-requests/:id", async (req, res) => {
+  app.delete("/api/blood-requests/:id", requireAuth, async (req, res) => {
     try {
       const requestId = req.params.id;
+      const existing = await storage.getBloodRequest(requestId);
+      if (!existing || (req.user!.role !== "admin" && existing.requesterId !== req.user!.id)) {
+        return res.status(404).json({ error: "Blood request not found" });
+      }
       const deleted = await storage.deleteBloodRequest(requestId);
       if (!deleted) {
         return res.status(404).json({ error: "Blood request not found" });
@@ -978,7 +1067,7 @@ export async function registerRoutes(
   });
 
   // Send blood request notifications to eligible donors
-  app.post("/api/blood-requests/:id/send-notifications", async (req, res) => {
+  app.post("/api/blood-requests/:id/send-notifications", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const requestId = req.params.id;
       console.log(`[DEBUG] === SEND NOTIFICATIONS START === RequestID: ${requestId}`);
@@ -997,7 +1086,9 @@ export async function registerRoutes(
       console.log(`[DEBUG] Compatible blood types for ${request.bloodType}: ${compatibleTypes.join(", ")}`);
 
       // Get eligible donors with emails
-      const eligibleDonors = await storage.getEligibleDonorsWithEmails(compatibleTypes, undefined);
+      const eligibleDonors = (
+        await storage.getEligibleDonorsWithEmails(compatibleTypes, undefined)
+      ).filter(({ donor }) => getDonorEligibility(donor).eligible);
       console.log(`[DEBUG] Found ${eligibleDonors.length} eligible donors`);
 
       if (eligibleDonors.length === 0) {
@@ -1015,7 +1106,7 @@ export async function registerRoutes(
       let failedCount = 0;
       const results = [];
 
-      for (const { donor, email, username } of eligibleDonors) {
+      for (const { donor, email } of eligibleDonors) {
         try {
           console.log(`[DEBUG] Sending notification to: ${email} (${donor.firstName} ${donor.lastName})`);
 
@@ -1064,12 +1155,12 @@ export async function registerRoutes(
     } catch (error) {
       console.error("[ERROR] Failed to send notifications:", error);
       res.status(500).json({
-        error: error instanceof Error ? error.message : "Failed to send notifications",
+        error: errorMessage(error, "Failed to send notifications"),
       });
     }
   });
 
-  app.get("/api/blood-requests/search/advanced", async (req, res) => {
+  app.get("/api/blood-requests/search/advanced", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const filters = {
         bloodType: req.query.bloodType as string | undefined,
@@ -1100,7 +1191,7 @@ export async function registerRoutes(
   });
 
   // ==================== DONOR ROUTES ====================
-  app.get("/api/donors", async (_req, res) => {
+  app.get("/api/donors", requireRole("hospital", "admin"), async (_req, res) => {
     try {
       const donors = await storage.getAllDonors();
       res.json(donors);
@@ -1109,7 +1200,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/donors/:id", async (req, res) => {
+  app.get("/api/donors/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const donor = await storage.getDonor(req.params.id);
       if (!donor) {
@@ -1121,7 +1212,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/donors/bloodtype/:bloodType", async (req, res) => {
+  app.get("/api/donors/bloodtype/:bloodType", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const donors = await storage.getDonorsByBloodType(req.params.bloodType);
       res.json(donors);
@@ -1132,7 +1223,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/donors", async (req, res) => {
+  app.post("/api/donors", requireRole("admin"), async (req, res) => {
     try {
       const payload = insertDonorSchema.parse(req.body);
       const donor = await storage.createDonor(payload);
@@ -1140,12 +1231,12 @@ export async function registerRoutes(
       res.status(201).json(donor);
     } catch (error) {
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to create donor",
+        error: errorMessage(error, "Failed to create donor"),
       });
     }
   });
 
-  app.put("/api/donors/:id", async (req, res) => {
+  app.put("/api/donors/:id", requireRole("admin"), async (req, res) => {
     try {
       const updates = insertDonorSchema.partial().parse(req.body);
       const donor = await storage.updateDonor(req.params.id, updates);
@@ -1156,12 +1247,12 @@ export async function registerRoutes(
       res.json(donor);
     } catch (error) {
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to update donor",
+        error: errorMessage(error, "Failed to update donor"),
       });
     }
   });
 
-  app.delete("/api/donors/:id", async (req, res) => {
+  app.delete("/api/donors/:id", requireRole("admin"), async (req, res) => {
     try {
       const deleted = await storage.deleteDonor(req.params.id);
       if (!deleted) {
@@ -1176,7 +1267,7 @@ export async function registerRoutes(
 
   // ==================== MATCHMAKING ROUTES ====================
   app.get(
-    "/api/matchmaking/requests/:requestId/suggestions",
+    "/api/matchmaking/requests/:requestId/suggestions", requireRole("hospital", "admin"),
     async (req, res) => {
       try {
         const { requestId } = req.params;
@@ -1201,14 +1292,14 @@ export async function registerRoutes(
         res.json({ requestId, suggestions });
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Failed to get donor suggestions";
+          errorMessage(error, "Failed to get donor suggestions");
         res.status(400).json({ error: message });
       }
     }
   );
 
   // ==================== INTER-HOSPITAL BLOOD SHARING ROUTES ====================
-  app.get("/api/inter-hospital-blood/:direction/:hospitalId", async (req, res) => {
+  app.get("/api/inter-hospital-blood/:direction/:hospitalId", requireSelfOr("hospitalId", "admin"), async (req, res) => {
     try {
       const { direction, hospitalId } = req.params;
       if (direction === "outgoing") {
@@ -1223,24 +1314,25 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/inter-hospital-blood", async (req, res) => {
+  app.post("/api/inter-hospital-blood", requireRole("hospital"), async (req, res) => {
     try {
-      const payload = insertInterHospitalRequestSchema.parse(req.body);
+      const payload = insertInterHospitalRequestSchema.parse({
+        ...req.body,
+        requestingHospitalId: req.user!.id,
+      });
       const request = await storage.createInterHospitalRequest(payload);
       res.status(201).json(request);
     } catch (error) {
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to create inter-hospital request",
+        error: errorMessage(error, "Failed to create inter-hospital request"),
       });
     }
   });
 
-  app.put("/api/inter-hospital-blood/:id/accept", async (req, res) => {
+  app.put("/api/inter-hospital-blood/:id/accept", requireRole("hospital"), async (req, res) => {
     try {
-      const { providingHospitalId, providingHospitalName } = req.body ?? {};
-      if (!providingHospitalId) {
-        return res.status(400).json({ error: "providingHospitalId is required" });
-      }
+      const providingHospitalId = req.user!.id;
+      const { providingHospitalName } = req.body ?? {};
       const existing = await storage.getInterHospitalRequest(req.params.id);
       if (!existing) {
         return res.status(404).json({ error: "Inter-hospital request not found" });
@@ -1262,11 +1354,14 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/inter-hospital-blood/:id/reject", async (req, res) => {
+  app.put("/api/inter-hospital-blood/:id/reject", requireRole("hospital"), async (req, res) => {
     try {
       const existing = await storage.getInterHospitalRequest(req.params.id);
       if (!existing) {
         return res.status(404).json({ error: "Inter-hospital request not found" });
+      }
+      if (existing.requestingHospitalId === req.user!.id) {
+        return res.status(400).json({ error: "A hospital cannot reject its own request" });
       }
       if (existing.status !== "pending") {
         return res.status(409).json({ error: `Request is already ${existing.status}` });
@@ -1281,8 +1376,20 @@ export async function registerRoutes(
     }
   });
 
+  // Staff ID documents are sensitive, so only admins can view them
+  app.get(
+    "/uploads/staff_documents/:file",
+    loadSessionUser,
+    requireRole("admin"),
+    (req, res) => {
+      res.sendFile(path.basename(req.params.file), { root: uploadsDir }, (err) => {
+        if (err && !res.headersSent) res.status(404).json({ error: "Document not found" });
+      });
+    },
+  );
+
   // ==================== STAFF ROUTES ====================
-  app.get("/api/staff", async (_req, res) => {
+  app.get("/api/staff", requireRole("hospital", "admin"), async (_req, res) => {
     try {
       const staffMembers = await storage.getAllStaff();
       res.json(staffMembers);
@@ -1291,7 +1398,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/staff/:id", async (req, res) => {
+  app.get("/api/staff/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const staff = await storage.getStaff(req.params.id);
       if (!staff) {
@@ -1306,6 +1413,18 @@ export async function registerRoutes(
   app.post("/api/staff", uploadMiddleware.single("staffIdDocument"), async (req, res) => {
     try {
       const payload = insertStaffSchema.parse(req.body);
+      // Admins can add staff directly; a newly registered hospital proves ownership
+      // with the token returned by /api/register, and may only do so once.
+      if (req.user?.role !== "admin") {
+        const tokenUserId = readStaffProfileToken(req.body.staffProfileToken);
+        if (!tokenUserId || tokenUserId !== payload.userId) {
+          throw Object.assign(new Error("You do not have permission to perform this action"), { status: 403 });
+        }
+        const existingProfile = (await storage.getAllStaff()).find((s) => s.userId === payload.userId);
+        if (existingProfile) {
+          throw Object.assign(new Error("A staff profile already exists for this account"), { status: 409 });
+        }
+      }
       
       // If file was uploaded, add the file path to the payload
       if (req.file) {
@@ -1323,13 +1442,13 @@ export async function registerRoutes(
           log(`Failed to delete file: ${unlinkError}`);
         }
       }
-      res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to create staff",
+      res.status((error as any)?.status ?? 400).json({
+        error: errorMessage(error, "Failed to create staff"),
       });
     }
   });
 
-  app.put("/api/staff/:id", async (req, res) => {
+  app.put("/api/staff/:id", requireRole("admin"), async (req, res) => {
     try {
       const updates = insertStaffSchema.partial().parse(req.body);
       const staff = await storage.updateStaff(req.params.id, updates);
@@ -1339,12 +1458,12 @@ export async function registerRoutes(
       res.json(staff);
     } catch (error) {
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to update staff",
+        error: errorMessage(error, "Failed to update staff"),
       });
     }
   });
 
-  app.delete("/api/staff/:id", async (req, res) => {
+  app.delete("/api/staff/:id", requireRole("admin"), async (req, res) => {
     try {
       const deleted = await storage.deleteStaff(req.params.id);
       if (!deleted) {
@@ -1357,7 +1476,7 @@ export async function registerRoutes(
   });
 
   // ==================== RECEIVER ROUTES ====================
-  app.get("/api/receivers", async (_req, res) => {
+  app.get("/api/receivers", requireRole("hospital", "admin"), async (_req, res) => {
     try {
       const receivers = await storage.getAllReceivers();
       res.json(receivers);
@@ -1366,7 +1485,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/receivers/:id", async (req, res) => {
+  app.get("/api/receivers/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const receiver = await storage.getReceiver(req.params.id);
       if (!receiver) {
@@ -1378,7 +1497,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/receivers/blood-type/:bloodType", async (req, res) => {
+  app.get("/api/receivers/blood-type/:bloodType", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const receivers = await storage.getReceiversByBloodType(
         req.params.bloodType
@@ -1389,19 +1508,19 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/receivers", async (req, res) => {
+  app.post("/api/receivers", requireRole("admin"), async (req, res) => {
     try {
       const { id: _id, _id: _legacyId, ...payload } = req.body ?? {};
       const receiver = await storage.createReceiver(payload);
       res.status(201).json(receiver);
     } catch (error) {
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to create receiver",
+        error: errorMessage(error, "Failed to create receiver"),
       });
     }
   });
 
-  app.put("/api/receivers/:id", async (req, res) => {
+  app.put("/api/receivers/:id", requireRole("admin"), async (req, res) => {
     try {
       const { id: _id, _id: _legacyId, ...updates } = req.body ?? {};
       const receiver = await storage.updateReceiver(req.params.id, updates);
@@ -1411,12 +1530,12 @@ export async function registerRoutes(
       res.json(receiver);
     } catch (error) {
       res.status(400).json({
-        error: error instanceof Error ? error.message : "Failed to update receiver",
+        error: errorMessage(error, "Failed to update receiver"),
       });
     }
   });
 
-  app.delete("/api/receivers/:id", async (req, res) => {
+  app.delete("/api/receivers/:id", requireRole("admin"), async (req, res) => {
     try {
       const deleted = await storage.deleteReceiver(req.params.id);
       if (!deleted) {
@@ -1429,7 +1548,7 @@ export async function registerRoutes(
   });
 
   // ==================== HOSPITAL MANAGEMENT ROUTES ====================
-  app.get("/api/hospitals", async (_req, res) => {
+  app.get("/api/hospitals", requireRole("admin"), async (_req, res) => {
     try {
       const users = await storage.getAllUsers();
       const hospitalUsers = users.filter((u) => u.role === "hospital").map(removePassword);
@@ -1444,11 +1563,8 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/hospitals", async (req, res) => {
+  app.post("/api/hospitals", requireRole("admin"), async (req, res) => {
     try {
-      if (!isDbConnected()) {
-        return res.status(503).json({ error: "Database not connected. Please ensure PostgreSQL is running." });
-      }
       const { username, email, password, firstName, lastName, staffId, department, position, phone, hospitalName } = req.body;
       if (!username || !email || !password) {
         return res.status(400).json({ error: "username, email, and password are required" });
@@ -1463,7 +1579,8 @@ export async function registerRoutes(
         email,
         password,
         role: "hospital",
-        approvalStatus: "pending",
+        // Created by an admin, so no separate approval step is needed
+        approvalStatus: "approved",
       });
       const userId = (user as any).id || (user as any)._id;
 
@@ -1483,11 +1600,11 @@ export async function registerRoutes(
 
       res.status(201).json(removePassword(user));
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to create hospital" });
+      res.status(400).json({ error: errorMessage(error, "Failed to create hospital") });
     }
   });
 
-  app.put("/api/hospitals/:id", async (req, res) => {
+  app.put("/api/hospitals/:id", requireRole("admin"), async (req, res) => {
     try {
       const { username, email, firstName, lastName, staffId, department, position, phone, hospitalName } = req.body;
       const userUpdates: Record<string, any> = {};
@@ -1528,13 +1645,12 @@ export async function registerRoutes(
       if (!updatedUser) return res.status(404).json({ error: "Hospital not found" });
       res.json(removePassword(updatedUser));
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to update hospital" });
+      res.status(400).json({ error: errorMessage(error, "Failed to update hospital") });
     }
   });
 
-  app.patch("/api/hospitals/:id/approve", async (req, res) => {
+  app.patch("/api/hospitals/:id/approve", requireRole("admin"), async (req, res) => {
     try {
-      if (!isDbConnected()) return res.status(503).json({ error: "Database not connected" });
       const user = await storage.getUser(req.params.id);
       if (!user || user.role !== "hospital") return res.status(404).json({ error: "Hospital not found" });
       await storage.updateUser(req.params.id, {
@@ -1546,9 +1662,8 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/hospitals/:id/reject", async (req, res) => {
+  app.patch("/api/hospitals/:id/reject", requireRole("admin"), async (req, res) => {
     try {
-      if (!isDbConnected()) return res.status(503).json({ error: "Database not connected" });
       const { reason } = req.body;
       const user = await storage.getUser(req.params.id);
       if (!user || user.role !== "hospital") return res.status(404).json({ error: "Hospital not found" });
@@ -1614,7 +1729,7 @@ export async function registerRoutes(
   // ==================== BLOOD EXPIRY ALERT ROUTES ====================
   
   // Get all active expiry alerts
-  app.get("/api/blood-expiry-alerts", async (_req, res) => {
+  app.get("/api/blood-expiry-alerts", requireRole("hospital", "admin"), async (_req, res) => {
     try {
       const alerts = await storage.getActiveBloodExpiryAlerts(false);
       res.json(alerts);
@@ -1624,7 +1739,7 @@ export async function registerRoutes(
   });
 
   // Get alert summary (dashboard overview)
-  app.get("/api/blood-expiry-alerts/summary", async (_req, res) => {
+  app.get("/api/blood-expiry-alerts/summary", requireRole("hospital", "admin"), async (_req, res) => {
     try {
       const summary = await bloodExpiryService.getAlertSummary();
       res.json(summary);
@@ -1634,7 +1749,7 @@ export async function registerRoutes(
   });
 
   // Get alerts by hospital
-  app.get("/api/blood-expiry-alerts/hospital/:hospitalId", async (req, res) => {
+  app.get("/api/blood-expiry-alerts/hospital/:hospitalId", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const alerts = await storage.getBloodExpiryAlertsByHospital(
         req.params.hospitalId
@@ -1646,7 +1761,7 @@ export async function registerRoutes(
   });
 
   // Get alerts by severity level
-  app.get("/api/blood-expiry-alerts/level/:level", async (req, res) => {
+  app.get("/api/blood-expiry-alerts/level/:level", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const alerts = await storage.getBloodExpiryAlertsByLevel(
         req.params.level
@@ -1658,7 +1773,7 @@ export async function registerRoutes(
   });
 
   // Get specific alert details
-  app.get("/api/blood-expiry-alerts/:id", async (req, res) => {
+  app.get("/api/blood-expiry-alerts/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const alert = await storage.getBloodExpiryAlert(req.params.id);
       if (!alert) {
@@ -1671,12 +1786,10 @@ export async function registerRoutes(
   });
 
   // Acknowledge an alert
-  app.post("/api/blood-expiry-alerts/:id/acknowledge", async (req, res) => {
+  app.post("/api/blood-expiry-alerts/:id/acknowledge", requireRole("hospital", "admin"), async (req, res) => {
     try {
-      const { userId, notes } = req.body;
-      if (!userId) {
-        return res.status(400).json({ error: "userId is required" });
-      }
+      const userId = req.user!.id;
+      const { notes } = req.body ?? {};
       const updated = await storage.acknowledgeBloodExpiryAlert(
         req.params.id,
         userId,
@@ -1695,12 +1808,10 @@ export async function registerRoutes(
   });
 
   // Resolve an alert (mark as handled)
-  app.post("/api/blood-expiry-alerts/:id/resolve", async (req, res) => {
+  app.post("/api/blood-expiry-alerts/:id/resolve", requireRole("hospital", "admin"), async (req, res) => {
     try {
-      const { userId, notes } = req.body;
-      if (!userId) {
-        return res.status(400).json({ error: "userId is required" });
-      }
+      const userId = req.user!.id;
+      const { notes } = req.body ?? {};
       const updated = await storage.resolveBloodExpiryAlert(
         req.params.id,
         userId,
@@ -1719,7 +1830,7 @@ export async function registerRoutes(
   });
 
   // Check and create new expiry alerts (can be called manually or scheduled)
-  app.post("/api/blood-expiry-alerts/check/create", async (req, res) => {
+  app.post("/api/blood-expiry-alerts/check/create", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const result = await bloodExpiryService.checkAndCreateAlerts();
       res.json({
@@ -1732,7 +1843,7 @@ export async function registerRoutes(
   });
 
   // Delete a resolved alert
-  app.delete("/api/blood-expiry-alerts/:id", async (req, res) => {
+  app.delete("/api/blood-expiry-alerts/:id", requireRole("admin"), async (req, res) => {
     try {
       const deleted = await storage.deleteBloodExpiryAlert(req.params.id);
       if (!deleted) {
@@ -1745,268 +1856,89 @@ export async function registerRoutes(
   });
 
   // ==================== DONATION HISTORY ROUTES ====================
-  // Record a new donation
-  app.post("/api/donations/record", async (req, res) => {
+  const recordDonationSchema = z.object({
+    donorIdentifier: z.string().trim().min(1, "Donor email or username is required"),
+    units: z.coerce.number().int().min(1, "At least 1 unit").max(2, "At most 2 units per donation"),
+    donationDate: z.coerce.date().optional(),
+  });
+
+  // A hospital records a donation it collected
+  app.post("/api/donations/record", requireRole("hospital"), async (req, res) => {
     try {
-      const { donorId, donorUserId, donorInfo, donationDetails } = req.body;
-
-      if (!donorId || !donorUserId || !donorInfo || !donationDetails) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const { donationHistoryService } = await import("./donationHistory");
-      await donationHistoryService.initialize();
-      const donation = await donationHistoryService.recordDonation(
-        donorId,
-        donorUserId,
-        donorInfo,
-        donationDetails
-      );
-
-      res.json({
-        message: "Donation recorded successfully",
-        donation,
+      const { donorIdentifier, units, donationDate } = recordDonationSchema.parse(req.body);
+      const staffProfile = (await storage.getAllStaff()).find((s) => s.userId === req.user!.id);
+      const result = await donationHistoryService.recordDonation({
+        donorIdentifier,
+        units,
+        donationDate,
+        hospital: { id: req.user!.id, name: staffProfile?.hospitalName || req.user!.username },
       });
+      matchmakingEngine.clearCache();
+      res.status(201).json({ message: "Donation recorded successfully", ...result });
     } catch (error) {
-      res.status(500).json({ error: "Failed to record donation" });
+      const status = error instanceof DonationError ? error.status : 400;
+      res.status(status).json({ error: errorMessage(error, "Failed to record donation") });
     }
   });
 
-  // Get donor's donation history
-  app.get("/api/donations/history/:donorId", async (req, res) => {
+  app.get("/api/donations/history/:donorId", requireSelfOr("donorId", "hospital", "admin"), async (req, res) => {
     try {
-      const { donorId } = req.params;
-      const { limit, offset, year, location, status } = req.query;
-
-      const { donationHistoryService } = await import("./donationHistory");
-      await donationHistoryService.initialize();
-      const history = await donationHistoryService.getDonationHistory(
-        donorId,
-        {
-          limit: limit ? parseInt(limit as string) : undefined,
-          offset: offset ? parseInt(offset as string) : undefined,
-          year: year ? parseInt(year as string) : undefined,
-          location: location as string,
-          status: status as string,
-        }
-      );
-
-      res.json(history);
+      res.json(await donationHistoryService.getDonationHistory(req.params.donorId));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch donation history" });
     }
   });
 
-  // Get donation statistics
-  app.get("/api/donations/stats/:donorId", async (req, res) => {
+  app.get("/api/donations/stats/:donorId", requireSelfOr("donorId", "hospital", "admin"), async (req, res) => {
     try {
-      const { donorId } = req.params;
-
-      const { donationHistoryService } = await import("./donationHistory");
-      await donationHistoryService.initialize();
-      const stats = await donationHistoryService.getDonationStats(donorId);
-
-      res.json(stats);
+      res.json(await donationHistoryService.getDonationStats(req.params.donorId));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch donation statistics" });
     }
   });
 
-  // Generate donation certificate
-  app.get("/api/donations/certificate/:donationHistoryId", async (req, res) => {
+  app.get("/api/donations/certificate/:donationId", requireAuth, async (req, res) => {
     try {
-      const { donationHistoryId } = req.params;
-
-      const { donationHistoryService } = await import("./donationHistory");
-      await donationHistoryService.initialize();
-      const certificate = await donationHistoryService.generateDonationCertificate(
-        donationHistoryId
-      );
-      if (!certificate) {
-        return res.status(404).json({ error: "Certificate not available" });
+      const donation = await donationHistoryService.getDonation(req.params.donationId);
+      if (!donation || (!isStaff(req.user) && donation.donorId !== req.user!.id)) {
+        return res.status(404).json({ error: "Donation not found" });
       }
-
-      res.json(certificate);
+      res.type("html").send(donationHistoryService.renderCertificate(donation));
     } catch (error) {
       res.status(500).json({ error: "Failed to generate certificate" });
     }
   });
 
   // ==================== ELIGIBILITY REMINDER ROUTES ====================
-  // Trigger eligibility check
-  app.post("/api/eligibility/check", async (req, res) => {
+  app.get("/api/eligibility/reminders/:donorId", requireSelfOr("donorId", "hospital", "admin"), async (req, res) => {
     try {
-      const { eligibilityReminderService } = await import("./eligibilityReminder");
-      await eligibilityReminderService.initialize();
-      await eligibilityReminderService.checkEligibility();
-
-      res.json({
-        message: "Eligibility check completed",
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to check eligibility" });
-    }
-  });
-
-  // Get reminders for a donor
-  app.get("/api/eligibility/reminders/:donorId", async (req, res) => {
-    try {
-      const { donorId } = req.params;
-
-      const { eligibilityReminderService } = await import("./eligibilityReminder");
-      await eligibilityReminderService.initialize();
-      const reminders = await eligibilityReminderService.getReminders(donorId);
-
+      const reminders = await eligibilityReminderService.getReminders(req.params.donorId);
       res.json({ reminders });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch reminders" });
     }
   });
 
-  // Mark reminder as acknowledged
-  app.post("/api/eligibility/reminders/:reminderId/acknowledge", async (req, res) => {
-    try {
-      const { reminderId } = req.params;
-
-      const { eligibilityReminderService } = await import("./eligibilityReminder");
-      await eligibilityReminderService.initialize();
-      await eligibilityReminderService.markReminderAsAcknowledged(reminderId);
-
-      res.json({ message: "Reminder marked as acknowledged" });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to acknowledge reminder" });
-    }
-  });
-
-  // Send emergency reminder
-  app.post("/api/eligibility/emergency-reminder/:donorId", async (req, res) => {
-    try {
-      const { donorId } = req.params;
-      const { reason } = req.body;
-
-      if (!reason) {
-        return res.status(400).json({ error: "Reason is required" });
-      }
-
-      const { eligibilityReminderService } = await import("./eligibilityReminder");
-      await eligibilityReminderService.initialize();
-      const result = await eligibilityReminderService.sendEmergencyReminder(
-        donorId,
-        reason
-      );
-
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to send emergency reminder" });
-    }
-  });
-
   // ==================== ACHIEVEMENT BADGE ROUTES ====================
-  // Get all badge definitions
-  app.get("/api/badges/definitions", async (req, res) => {
+  app.get("/api/badges/definitions", requireAuth, async (_req, res) => {
     try {
-      const { achievementBadgeService } = await import("./achievementBadges");
-      await achievementBadgeService.initialize();
-      const badges = await achievementBadgeService.getBadgeDefinitions();
-
-      res.json({ badges });
+      res.json({ badges: await achievementBadgeService.getBadgeDefinitions() });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch badge definitions" });
     }
   });
 
-  // Get donor's badges
-  app.get("/api/badges/:donorId", async (req, res) => {
+  app.get("/api/badges/:donorId", requireSelfOr("donorId", "hospital", "admin"), async (req, res) => {
     try {
-      const { donorId } = req.params;
-
-      const { achievementBadgeService } = await import("./achievementBadges");
-      await achievementBadgeService.initialize();
-      const badges = await achievementBadgeService.getDonorBadges(donorId);
-
-      res.json({ badges });
+      res.json({ badges: await achievementBadgeService.getDonorBadges(req.params.donorId) });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch donor badges" });
     }
   });
 
-  // Get new badges for donor
-  app.get("/api/badges/:donorId/new", async (req, res) => {
-    try {
-      const { donorId } = req.params;
-
-      const { achievementBadgeService } = await import("./achievementBadges");
-      await achievementBadgeService.initialize();
-      const newBadges = await achievementBadgeService.getNewBadges(donorId);
-
-      res.json({ newBadges });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch new badges" });
-    }
-  });
-
-  // Mark badge as viewed
-  app.post("/api/badges/:badgeId/view", async (req, res) => {
-    try {
-      const { badgeId } = req.params;
-
-      const { achievementBadgeService } = await import("./achievementBadges");
-      await achievementBadgeService.initialize();
-      await achievementBadgeService.markBadgeAsViewed(badgeId);
-
-      res.json({ message: "Badge marked as viewed" });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to mark badge as viewed" });
-    }
-  });
-
-  // Evaluate donor badges (trigger after donation)
-  app.post("/api/badges/:donorId/evaluate", async (req, res) => {
-    try {
-      const { donorId } = req.params;
-
-      const { achievementBadgeService } = await import("./achievementBadges");
-      await achievementBadgeService.initialize();
-      await achievementBadgeService.evaluateDonorBadges(donorId);
-
-      res.json({ message: "Badges evaluated successfully" });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to evaluate badges" });
-    }
-  });
-
-  // Add custom badge definition (admin only)
-  app.post("/api/badges/definitions/add", async (req, res) => {
-    try {
-      const { badgeId, name, emoji, description, rule, isActive } = req.body;
-
-      if (!badgeId || !name || !emoji || !description || !rule) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const { achievementBadgeService } = await import("./achievementBadges");
-      await achievementBadgeService.initialize();
-      const result = await achievementBadgeService.addCustomBadgeDefinition({
-        badgeId,
-        name,
-        emoji,
-        description,
-        rule,
-        isActive: isActive ?? true,
-      });
-
-      res.json({
-        message: "Badge definition added successfully",
-        insertedId: result.insertedId,
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to add badge definition" });
-    }
-  });
-
   // ==================== BLOOD DONATION TRACKING ROUTES ====================
   // Get all blood donation tracking records
-  app.get("/api/blood-donation-tracking", async (_req, res) => {
+  app.get("/api/blood-donation-tracking", requireRole("hospital", "admin"), async (_req, res) => {
     try {
       const trackings = await storage.getAllBloodDonationTracking();
       res.json(trackings);
@@ -2016,7 +1948,7 @@ export async function registerRoutes(
   });
 
   // Get tracking by ID
-  app.get("/api/blood-donation-tracking/:id", async (req, res) => {
+  app.get("/api/blood-donation-tracking/:id", requireAuth, async (req, res) => {
     try {
       const tracking = await storage.getBloodDonationTracking(req.params.id);
       if (!tracking) {
@@ -2029,7 +1961,7 @@ export async function registerRoutes(
   });
 
   // Get tracking records for a specific donor
-  app.get("/api/blood-donation-tracking/donor/:donorId", async (req, res) => {
+  app.get("/api/blood-donation-tracking/donor/:donorId", requireSelfOr("donorId", "hospital", "admin"), async (req, res) => {
     try {
       const trackings = await storage.getBloodDonationTrackingByDonor(
         req.params.donorId
@@ -2041,7 +1973,7 @@ export async function registerRoutes(
   });
 
   // Get tracking records for a specific receiver
-  app.get("/api/blood-donation-tracking/receiver/:receiverId", async (req, res) => {
+  app.get("/api/blood-donation-tracking/receiver/:receiverId", requireSelfOr("receiverId", "hospital", "admin"), async (req, res) => {
     try {
       const trackings = await storage.getBloodDonationTrackingByReceiver(
         req.params.receiverId
@@ -2053,7 +1985,7 @@ export async function registerRoutes(
   });
 
   // Get tracking records by status
-  app.get("/api/blood-donation-tracking/status/:status", async (req, res) => {
+  app.get("/api/blood-donation-tracking/status/:status", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const trackings = await storage.getBloodDonationTrackingByStatus(
         req.params.status
@@ -2065,7 +1997,7 @@ export async function registerRoutes(
   });
 
   // Get tracking records for a specific hospital
-  app.get("/api/blood-donation-tracking/hospital/:hospitalId", async (req, res) => {
+  app.get("/api/blood-donation-tracking/hospital/:hospitalId", requireSelfOr("hospitalId", "admin"), async (req, res) => {
     try {
       const trackings = await storage.getBloodDonationTrackingByHospital(
         req.params.hospitalId
@@ -2077,7 +2009,7 @@ export async function registerRoutes(
   });
 
   // Create a new blood donation tracking record
-  app.post("/api/blood-donation-tracking", async (req, res) => {
+  app.post("/api/blood-donation-tracking", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const payload = {
         ...req.body,
@@ -2097,13 +2029,13 @@ export async function registerRoutes(
     } catch (error) {
       res.status(400).json({
         error:
-          error instanceof Error ? error.message : "Failed to create tracking record",
+          errorMessage(error, "Failed to create tracking record"),
       });
     }
   });
 
   // Update a blood donation tracking record
-  app.put("/api/blood-donation-tracking/:id", async (req, res) => {
+  app.put("/api/blood-donation-tracking/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const payload = {
         ...req.body,
@@ -2129,13 +2061,13 @@ export async function registerRoutes(
     } catch (error) {
       res.status(400).json({
         error:
-          error instanceof Error ? error.message : "Failed to update tracking record",
+          errorMessage(error, "Failed to update tracking record"),
       });
     }
   });
 
   // Update blood donation tracking status
-  app.post("/api/blood-donation-tracking/:id/update-status", async (req, res) => {
+  app.post("/api/blood-donation-tracking/:id/update-status", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const { status, note, updatedBy } = req.body;
       if (!status) {
@@ -2158,13 +2090,13 @@ export async function registerRoutes(
     } catch (error) {
       res.status(400).json({
         error:
-          error instanceof Error ? error.message : "Failed to update tracking status",
+          errorMessage(error, "Failed to update tracking status"),
       });
     }
   });
 
   // Delete a blood donation tracking record
-  app.delete("/api/blood-donation-tracking/:id", async (req, res) => {
+  app.delete("/api/blood-donation-tracking/:id", requireRole("hospital", "admin"), async (req, res) => {
     try {
       const deleted = await storage.deleteBloodDonationTracking(req.params.id);
       if (!deleted) {

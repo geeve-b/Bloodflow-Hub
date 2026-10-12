@@ -1,4 +1,4 @@
-import { Heart, Users, Target, Lightbulb, TrendingUp, Award, Clock, Link2, BarChart3, Droplets, Building2, Database, Code2, Server, Palette, ClipboardList } from "lucide-react";
+import { Heart, Users, Target, Lightbulb, TrendingUp, Award, Clock, Link2, BarChart3, Droplets, Building2, Database, Code2, Server, ClipboardList } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";

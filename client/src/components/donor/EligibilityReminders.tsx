@@ -35,7 +35,17 @@ export function EligibilityReminders() {
           throw new Error("Failed to fetch reminders");
         }
         const data = await response.json();
-        setReminders(data.reminders || []);
+        setReminders(
+          (data.reminders || []).map((reminder: Reminder) => {
+            let acknowledgedAt: string | null = null;
+            try {
+              acknowledgedAt = localStorage.getItem(`lifeflow:ackReminder:${reminder._id}`);
+            } catch {
+              // Ignore storage failures
+            }
+            return acknowledgedAt ? { ...reminder, acknowledged: true, acknowledgedAt } : reminder;
+          })
+        );
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load reminders");
@@ -48,26 +58,20 @@ export function EligibilityReminders() {
     fetchReminders();
   }, [user]);
 
-  const handleAcknowledge = async (reminderId: string) => {
+  // Reminders are derived from donation dates, so acknowledging one is remembered per browser
+  const handleAcknowledge = (reminderId: string) => {
     try {
-      const response = await fetch(`/api/eligibility/reminders/${reminderId}/acknowledge`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to acknowledge reminder");
-      }
-
-      setReminders(
-        reminders.map((r) =>
-          r._id === reminderId
-            ? { ...r, acknowledged: true, acknowledgedAt: new Date().toISOString() }
-            : r
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to acknowledge reminder");
+      localStorage.setItem(`lifeflow:ackReminder:${reminderId}`, new Date().toISOString());
+    } catch {
+      // Ignore storage failures
     }
+    setReminders(
+      reminders.map((r) =>
+        r._id === reminderId
+          ? { ...r, acknowledged: true, acknowledgedAt: new Date().toISOString() }
+          : r
+      )
+    );
   };
 
   const getReminderIcon = (type: Reminder["reminderType"]) => {
@@ -199,7 +203,7 @@ export function EligibilityReminders() {
             Donation Cooldown Periods
           </h4>
           <ul className="text-sm space-y-1 text-blue-800 dark:text-blue-200">
-            <li>🩸 Whole Blood: 90 days</li>
+            <li>🩸 Whole Blood: 56 days (8 weeks)</li>
             <li>🩸 Platelets: 15 days</li>
             <li>🩸 Plasma: 48 hours</li>
           </ul>

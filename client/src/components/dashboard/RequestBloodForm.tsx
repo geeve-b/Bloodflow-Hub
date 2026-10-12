@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2 } from "lucide-react";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -52,6 +53,7 @@ interface ConfirmationDetails {
 export function RequestBloodForm() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [urgency, setUrgency] = useState<Urgency | "">("")
   const [formRef, setFormRef] = useState<HTMLFormElement | null>(null);
@@ -103,8 +105,9 @@ export function RequestBloodForm() {
       
       toast({
         title: "Success",
-        description: "Blood request submitted successfully. Eligible donors will be notified.",
+        description: "Request submitted. Matching donors are notified as soon as a hospital approves it.",
       });
+      queryClient.invalidateQueries({ queryKey: ["blood-requests"] });
       
       if (formRef) {
         formRef.reset();

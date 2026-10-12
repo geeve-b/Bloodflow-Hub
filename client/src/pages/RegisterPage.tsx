@@ -32,7 +32,7 @@ const STATE_REGION_MAP: Record<string, string[]> = {
 const ALL_REGIONS = Object.values(STATE_REGION_MAP).flat();
 
 export default function RegisterPage() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   

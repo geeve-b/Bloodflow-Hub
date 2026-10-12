@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
 import {
@@ -14,9 +14,6 @@ import {
   Users,
   ShieldCheck,
   Database,
-  Activity,
-  Mail,
-  LogIn,
   CheckCircle,
   Clock,
   UserCheck,
@@ -28,7 +25,6 @@ import { BloodExpiryAlerts } from "@/components/dashboard/BloodExpiryAlerts";
 import { ActiveRequestsTable } from "@/components/dashboard/ActiveRequestsTable";
 import HospitalManagement from "@/components/dashboard/HospitalManagement";
 
-const ADMIN_EMAIL = "bloodflowhub@gmail.com";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -43,10 +39,8 @@ export default function AdminDashboard() {
   });
   const [statsLoading, setStatsLoading] = useState(true);
 
-  const isAdmin = useMemo(
-    () => user?.role === "admin" && user.email.toLowerCase() === ADMIN_EMAIL,
-    [user]
-  );
+  // The server decides who is an admin; the route guard already enforces it
+  const isAdmin = user?.role === "admin";
 
   // Fetch statistics
   useEffect(() => {

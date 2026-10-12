@@ -17,7 +17,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertTriangle,
@@ -28,8 +27,6 @@ import {
   Building2,
   Calendar,
   RefreshCw,
-  Filter,
-  X,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -78,7 +75,6 @@ export function BloodExpiryAlerts() {
   const [refreshing, setRefreshing] = useState(false);
   const [filterLevel, setFilterLevel] = useState<"all" | "critical" | "warning" | "info">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "acknowledged" | "resolved">("active");
-  const [selectedAlert, setSelectedAlert] = useState<BloodExpiryAlert | null>(null);
   const [actionNotes, setActionNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -145,7 +141,6 @@ export function BloodExpiryAlerts() {
 
       if (response.ok) {
         await fetchAlerts();
-        setSelectedAlert(null);
         setActionNotes("");
       }
     } catch (error) {
@@ -172,7 +167,6 @@ export function BloodExpiryAlerts() {
 
       if (response.ok) {
         await fetchAlerts();
-        setSelectedAlert(null);
         setActionNotes("");
       }
     } catch (error) {
@@ -459,7 +453,6 @@ export function BloodExpiryAlerts() {
                       className={`p-4 border rounded-lg cursor-pointer transition-colors hover:bg-gray-50 ${getBgColor(
                         alert.alertLevel
                       )}`}
-                      onClick={() => setSelectedAlert(alert)}
                     >
                       <div className="flex items-start gap-3">
                         {getAlertIcon(alert.alertLevel)}

@@ -1,45 +1,48 @@
 import { useAuth } from "@/context/AuthContext";
-import { useEffect } from "react";
-import { useLocation, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart, Trophy, Clock, User, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Heart, Trophy, Clock } from "lucide-react";
 import { EligibilityReminders } from "@/components/donor/EligibilityReminders";
 import { DonationHistory } from "@/components/donor/DonationHistory";
 import { AchievementBadges } from "@/components/donor/AchievementBadges";
 
+interface DonorStats {
+  totalDonations: number;
+  totalUnitsCollected: number;
+  lifesSaved: number;
+  eligible: boolean;
+  nextEligibleDate: string | null;
+}
+
+const fetchJson = async <T,>(url: string): Promise<T> => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Request failed");
+  return response.json();
+};
+
 export default function DonorDashboardPage() {
-  const { user, logout } = useAuth();
-  const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
+  const { data: stats } = useQuery({
+    queryKey: ["donation-stats", userId],
+    queryFn: () => fetchJson<DonorStats>(`/api/donations/stats/${userId}`),
+    enabled: Boolean(userId),
+  });
+  const { data: badgeData } = useQuery({
+    queryKey: ["badges", userId],
+    queryFn: () => fetchJson<{ badges: unknown[] }>(`/api/badges/${userId}`),
+    enabled: Boolean(userId),
+  });
 
-  useEffect(() => {
-    // Redirect if not logged in or not a donor
-    if (user === null) {
-      const timeout = setTimeout(() => {
-        setLocation("/login");
-      }, 100);
-      return () => clearTimeout(timeout);
-    }
+  if (!user) return null;
 
-    if (user && user.role !== "donor" && user.role !== "receiver") {
-      setLocation("/");
-    }
-  }, [user, setLocation]);
-
-  const handleLogout = () => {
-    logout();
-    setLocation("/");
-  };
-
-  if (!user || (user.role !== "donor" && user.role !== "receiver")) {
-    return null;
-  }
+  const nextEligible = stats?.nextEligibleDate ? new Date(stats.nextEligibleDate) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-100 to-pink-100 dark:from-slate-950 dark:to-slate-900">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-900 border-b sticky top-0 z-50 shadow-md">
+      <div className="bg-white dark:bg-slate-900 border-b shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-3">
             <Heart className="w-8 h-8 text-red-500" />
@@ -65,9 +68,15 @@ export default function DonorDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-red-700 dark:text-white">Eligible</p>
+              <p className="text-2xl font-bold text-red-700 dark:text-white">
+                {!stats ? "…" : stats.eligible ? "Eligible" : "Resting"}
+              </p>
               <p className="text-xs text-red-600 dark:text-muted-foreground mt-1">
-                You can donate now
+                {!stats
+                  ? "Checking eligibility"
+                  : stats.eligible
+                    ? "You can donate now"
+                    : `Eligible again on ${nextEligible?.toLocaleDateString() ?? "a later date"}`}
               </p>
             </CardContent>
           </Card>
@@ -80,7 +89,9 @@ export default function DonorDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-amber-700 dark:text-white">--</p>
+              <p className="text-2xl font-bold text-amber-700 dark:text-white">
+                {badgeData ? badgeData.badges.length : "…"}
+              </p>
               <p className="text-xs text-amber-600 dark:text-muted-foreground mt-1">
                 Check your badges section
               </p>
@@ -95,9 +106,13 @@ export default function DonorDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-blue-700 dark:text-white">--</p>
+              <p className="text-2xl font-bold text-blue-700 dark:text-white">
+                {stats ? stats.totalDonations : "…"}
+              </p>
               <p className="text-xs text-blue-600 dark:text-muted-foreground mt-1">
-                View your complete history
+                {stats && stats.lifesSaved > 0
+                  ? `Up to ${stats.lifesSaved} lives helped`
+                  : "View your complete history"}
               </p>
             </CardContent>
           </Card>

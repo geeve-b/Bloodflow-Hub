@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { homePathFor, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -126,6 +126,20 @@ export default function VerifyEmailPage() {
         throw new Error("User data missing from response");
       }
 
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
+      }
+
+      // Hospitals stay signed out until an admin approves their registration
+      if (payload.requiresApproval) {
+        toast({
+          title: "Email Verified",
+          description: "Your hospital registration is now awaiting admin approval. You'll be able to log in once it's approved.",
+        });
+        setLocation("/login");
+        return;
+      }
+
       setUser({
         id: resolvedId,
         username: apiUser.username,
@@ -135,21 +149,12 @@ export default function VerifyEmailPage() {
         name: apiUser.username,
       });
 
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
-      }
-
       toast({
         title: "Email Verified",
         description: "Welcome to LifeFlow!",
       });
 
-      // Redirect to appropriate dashboard based on role
-      if (apiUser.role === "hospital") {
-        setLocation("/hospital-dashboard");
-      } else {
-        setLocation("/dashboard");
-      }
+      setLocation(homePathFor(apiUser.role));
     } catch (error) {
       toast({
         title: "Verification Failed",

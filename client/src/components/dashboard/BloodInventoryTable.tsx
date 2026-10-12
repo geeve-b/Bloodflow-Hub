@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -26,10 +26,10 @@ import {
   inventoryStatusMeta,
   isInventoryStale,
   calculateStatusFromQuantity,
+  aggregateUsableInventory,
 } from "@/lib/inventory";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { useData } from "@/context/DataContext";
 import { useLocation } from "wouter";
 import {
   AlertTriangle,
@@ -42,17 +42,17 @@ import {
 const BLOOD_TYPES = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
 export function BloodInventoryTable() {
-  const { refreshInventory } = useData();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const {
-    data: inventory = [],
+    data: rawInventory,
     isLoading,
     isFetching,
     error,
     refetch,
     dataUpdatedAt,
   } = useBloodInventory();
+  const inventory = useMemo(() => aggregateUsableInventory(rawInventory ?? []), [rawInventory]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<InventoryStatus | "all">(
     "all"
@@ -84,15 +84,6 @@ export function BloodInventoryTable() {
         a.hospitalName.localeCompare(b.hospitalName)
       );
   }, [inventory, statusFilter, bloodTypeFilter, normalizedSearch]);
-  // Listen for blood inventory updates
-  useEffect(() => {
-    const handleInventoryUpdate = () => {
-      refreshInventory();
-    };
-
-    window.addEventListener('bloodInventoryUpdated', handleInventoryUpdate);
-    return () => window.removeEventListener('bloodInventoryUpdated', handleInventoryUpdate);
-  }, [refreshInventory]);
 
   const staleEntries = useMemo(
     () => filteredInventory.filter((entry) => isInventoryStale(entry.updatedAt)),
@@ -276,9 +267,6 @@ export function BloodInventoryTable() {
                     >
                       <TableCell>
                         <p className="font-semibold">{entry.hospitalName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          ID: {entry.hospitalId}
-                        </p>
                       </TableCell>
                       <TableCell className="flex-1">
                         <div className="flex items-center gap-2 font-bold text-primary">

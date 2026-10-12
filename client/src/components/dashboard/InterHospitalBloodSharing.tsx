@@ -4,9 +4,6 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Table,
@@ -39,14 +36,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { UrgencyBadge } from "@/components/dashboard/UrgencyBadge";
 import { cn } from "@/lib/utils";
 import {
-  AlertTriangle,
   Building2,
-  Phone,
-  MapPin,
-  Clock,
   Loader2,
-  CheckCircle2,
-  AlertCircle,
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";

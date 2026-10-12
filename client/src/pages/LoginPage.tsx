@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { homePathFor, useAuth } from "@/context/AuthContext";
 import type { AuthUser } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import { useToast } from "@/hooks/use-toast";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 const PENDING_VERIFICATION_KEY = "lifeflow:pendingVerification";
-const ADMIN_EMAIL = "bloodflowhub@gmail.com";
 
 export default function LoginPage() {
   const { setUser } = useAuth();
@@ -63,7 +62,7 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
-        if (response.status === 403) {
+        if (response.status === 403 && errorBody?.code === "EMAIL_NOT_VERIFIED") {
           const targetId =
             errorBody?.userId ||
             (typeof errorBody?.user?._id === "string"
@@ -117,8 +116,6 @@ export default function LoginPage() {
         throw new Error("User data missing from response");
       }
 
-      console.log("[DEBUG] API returned user:", apiUser);
-
       const {
         _id,
         id,
@@ -129,30 +126,23 @@ export default function LoginPage() {
         emailVerified,
       } = apiUser;
 
-      console.log("[DEBUG] Extracted role from API:", role);
+      // The server resolves the effective role (including the primary admin account)
+      const resolvedRole: AuthUser["role"] =
+        role && ["donor", "receiver", "hospital", "admin"].includes(role) ? role : "donor";
 
-      const normalizedEmail = (email || trimmedIdentifier).toLowerCase();
-      const isPrimaryAdmin = normalizedEmail === ADMIN_EMAIL;
-      const resolvedRole: AuthUser["role"] = isPrimaryAdmin
-        ? "admin"
-        : role && ["donor", "receiver", "hospital", "admin"].includes(role)
-        ? role
-        : "donor";
-
-      // Validate role matches selected tab
-      if (selectedRole === "donor" && resolvedRole === "hospital") {
+      // Validate role matches selected tab. The server already opened a session,
+      // so close it again when we refuse the login here.
+      const portalError =
+        selectedRole === "donor" && resolvedRole === "hospital"
+          ? "Hospital users cannot login through the Donor portal. Please use the Hospital Login tab."
+          : selectedRole === "hospital" && (resolvedRole === "donor" || resolvedRole === "receiver")
+            ? "Donors cannot login through the Hospital Login portal. Please use the User/Donor tab."
+            : null;
+      if (portalError) {
+        await fetch(`${API_URL}/logout`, { method: "POST" }).catch(() => {});
         toast({
           title: "Invalid Login",
-          description: "Hospital users cannot login through the Donor portal. Please use the Hospital Login tab.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (selectedRole === "hospital" && resolvedRole === "donor") {
-        toast({
-          title: "Invalid Login",
-          description: "Donors cannot login through the Hospital Login portal. Please use the User/Donor tab.",
+          description: portalError,
           variant: "destructive",
         });
         return;
@@ -172,13 +162,7 @@ export default function LoginPage() {
         description: "Logged in successfully!",
       });
 
-      if (resolvedRole === "admin") {
-        setLocation("/admin");
-      } else if (resolvedRole === "hospital") {
-        setLocation("/hospital-dashboard");
-      } else {
-        setLocation("/dashboard");
-      }
+      setLocation(homePathFor(resolvedRole));
     } catch (error) {
       toast({
         title: "Login Failed",

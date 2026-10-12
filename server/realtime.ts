@@ -1,12 +1,12 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { RawData } from "ws";
-import type { Server } from "http";
+import type { IncomingMessage, Server } from "http";
 import type { BloodRequest, BloodDonationTracking } from "@shared/schema";
+import { getSessionUser, type SessionUser } from "./auth";
 
 interface ClientMetadata {
   socket: WebSocket;
-  userId?: string;
-  role?: string;
+  user: SessionUser;
   lastPong: number;
 }
 
@@ -24,9 +24,7 @@ export type ConnectionEvent =
 
 type OutgoingEvent = BloodRequestEvent | ConnectionEvent;
 
-type IncomingClientMessage =
-  | { type: "hello"; userId?: string; role?: string }
-  | { type: "ping" };
+type IncomingClientMessage = { type: "hello" } | { type: "ping" };
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const CLIENT_TIMEOUT_MS = 90_000;
@@ -38,7 +36,9 @@ class RealtimeHub {
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server, path: "/ws" });
-    this.wss.on("connection", (socket) => this.handleConnection(socket));
+    this.wss.on("connection", (socket, req) => {
+      this.handleConnection(socket, req).catch(() => socket.terminate());
+    });
 
     this.heartbeatTimer = setInterval(() => {
       const now = Date.now();
@@ -76,20 +76,20 @@ class RealtimeHub {
   }
 
   publishBloodRequest(event: BloodRequestEvent): void {
-    this.broadcast(event, (meta) => {
-      if (!meta.role) {
+    this.broadcast(event, ({ user }) => {
+      if (user.role === "admin" || user.role === "hospital") {
         return true;
       }
-      if (meta.role === "admin" || meta.role === "hospital") {
-        return true;
+      // Donors and receivers only hear about records that involve them
+      switch (event.type) {
+        case "blood-request:created":
+        case "blood-request:updated":
+          return event.payload.requesterId === user.id;
+        case "blood-request:deleted":
+          return true;
+        default:
+          return event.payload.donorId === user.id || event.payload.receiverId === user.id;
       }
-      if (meta.role === "donor") {
-        return true;
-      }
-      if (meta.role === "receiver") {
-        return true;
-      }
-      return true;
     });
   }
 
@@ -102,9 +102,16 @@ class RealtimeHub {
     });
   }
 
-  private handleConnection(socket: WebSocket) {
+  private async handleConnection(socket: WebSocket, req: IncomingMessage) {
+    const user = await getSessionUser(req.headers.cookie);
+    if (!user) {
+      socket.close(4401, "Unauthorized");
+      return;
+    }
+
     const metadata: ClientMetadata = {
       socket,
+      user,
       lastPong: Date.now(),
     };
 
@@ -129,9 +136,7 @@ class RealtimeHub {
     try {
       const parsed = JSON.parse(raw.toString()) as IncomingClientMessage;
       if (parsed.type === "hello") {
-        metadata.userId = parsed.userId;
-        metadata.role = parsed.role;
-        console.log(`(ws) client identified as ${parsed.role ?? "unknown"}`);
+        // Identity comes from the session cookie checked at connect time, not the client
         return;
       }
       if (parsed.type === "ping") {

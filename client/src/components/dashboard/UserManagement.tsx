@@ -453,9 +453,14 @@ export default function UserManagement() {
                   {selectedUser.role === "hospital" && userProfile.staff_id_document && (
                     <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                       <p className="text-sm text-muted-foreground mb-1">ID Proof Document</p>
-                      <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                        ✓ Submitted: {userProfile.staff_id_document}
-                      </p>
+                      <a
+                        href={userProfile.staff_id_document}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        ✓ View submitted document
+                      </a>
                     </div>
                   )}
                 </div>

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
-import generatedImage from "@assets/generated_images/abstract_medical_background_with_soft_red_and_white_tones.png";
+import { Reveal } from "@/components/layout/Reveal";
+import generatedImage from "@assets/generated_images/abstract_medical_background_with_soft_red_and_white_tones.webp";
 import { Heart, Search, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useState } from "react";
@@ -43,10 +43,7 @@ export default function LandingPage() {
         
         <div className="container relative z-10 px-4 md:px-8 max-w-screen-2xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+            <Reveal from="bottom"
               className="space-y-8"
             >
               <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-sm font-medium text-primary">
@@ -83,23 +80,23 @@ export default function LandingPage() {
                 </div>
                 <p>Join <span className="font-bold text-foreground">10,000+</span> donors saving lives.</p>
               </div>
-            </motion.div>
+            </Reveal>
 
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.7, delay: 0.2 }}
+            <Reveal from="zoom" delay={200}
               className="relative rounded-2xl overflow-hidden shadow-2xl border border-border"
             >
               <img 
-                src={generatedImage} 
-                alt="Medical Professional" 
+                src={generatedImage}
+                alt="Illustration of red blood cells flowing"
+                width={1024}
+                height={1024}
+                decoding="async"
                 className="w-full h-auto object-cover transform hover:scale-105 transition-transform duration-700"
               />
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-8 text-white">
                 <p className="font-medium">"Donating blood is the simplest way to impact a life forever."</p>
               </div>
-            </motion.div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -119,11 +116,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Left Side - Advantages List */}
             <div className="space-y-6">
-              <motion.div 
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5 }}
-                className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
+              <Reveal from="left" inView
+              className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-start gap-4">
                   <div className="text-3xl mt-1">🏥</div>
@@ -134,13 +128,10 @@ export default function LandingPage() {
                     </p>
                   </div>
                 </div>
-              </motion.div>
+              </Reveal>
 
-              <motion.div 
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-                className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
+              <Reveal from="left" delay={100} inView
+              className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-start gap-4">
                   <div className="text-3xl mt-1">✔️</div>
@@ -151,13 +142,10 @@ export default function LandingPage() {
                     </p>
                   </div>
                 </div>
-              </motion.div>
+              </Reveal>
 
-              <motion.div 
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
+              <Reveal from="left" delay={200} inView
+              className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-start gap-4">
                   <div className="text-3xl mt-1">✔️</div>
@@ -168,13 +156,10 @@ export default function LandingPage() {
                     </p>
                   </div>
                 </div>
-              </motion.div>
+              </Reveal>
 
-              <motion.div 
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
+              <Reveal from="left" delay={300} inView
+              className="rounded-lg bg-card border border-border p-6 space-y-3 hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-start gap-4">
                   <div className="text-3xl mt-1">❤️</div>
@@ -185,14 +170,11 @@ export default function LandingPage() {
                     </p>
                   </div>
                 </div>
-              </motion.div>
+              </Reveal>
             </div>
 
             {/* Right Side - Video Space */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+            <Reveal from="bottom" inView
               className="rounded-xl bg-secondary/30 border border-border overflow-hidden shadow-lg flex items-center justify-center min-h-[500px]"
             >
               {youtubeId ? (
@@ -234,7 +216,7 @@ export default function LandingPage() {
                   </div>
                 </div>
               )}
-            </motion.div>
+            </Reveal>
           </div>
         </div>
       </section>

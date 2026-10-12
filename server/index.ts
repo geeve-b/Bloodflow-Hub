@@ -4,12 +4,16 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { connectDB } from "../config/db";
-import { connectDatabase, closeDatabase } from "./db";
+import { connectDatabase } from "./db";
+import { loadSessionUser } from "./auth";
 import { scheduledTasksService } from "./scheduledTasks";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Behind nginx / a load balancer, trust X-Forwarded-* so secure cookies work over HTTPS
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
 
 declare module "http" {
   interface IncomingMessage {
@@ -26,6 +30,7 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+app.use("/api", loadSessionUser);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

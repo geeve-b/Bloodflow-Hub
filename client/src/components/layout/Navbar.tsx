@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Droplet, Menu, X, User, ShieldCheck } from "lucide-react";
+import { Droplet, Menu, User } from "lucide-react";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -11,7 +11,6 @@ export function Navbar() {
   const [location, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
-  const isLanding = location === "/";
   const isDashboard = location === "/dashboard";
   const isDonorDashboard = location === "/donor-dashboard";
   const isHospitalDashboard = location === "/hospital-dashboard";
@@ -66,7 +65,7 @@ export function Navbar() {
               <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
                 Logout
               </Button>
-              {!isDashboard && user.role !== "hospital" && (
+              {!isDashboard && (user.role === "donor" || user.role === "receiver") && (
                 <Link href="/dashboard">
                   <Button size="sm">
                     Go to Dashboard

@@ -1,78 +1,97 @@
 import { useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Country, State, City } from "country-state-city";
 
 interface LocationSelectorProps {
   onLocationChange: (location: { country: string; state: string; district: string }) => void;
-  defaultCountry?: string;
-  defaultState?: string;
-  defaultDistrict?: string;
 }
 
-export function LocationSelector({
-  onLocationChange,
-  defaultCountry = "",
-  defaultState = "",
-  defaultDistrict = "",
-}: LocationSelectorProps) {
-  const [countries, setCountries] = useState<any[]>([]);
-  const [states, setStates] = useState<any[]>([]);
-  const [districts, setDistricts] = useState<any[]>([]);
+interface Place {
+  name: string;
+  isoCode?: string;
+}
 
-  const [selectedCountry, setSelectedCountry] = useState<string>(defaultCountry);
-  const [selectedState, setSelectedState] = useState<string>(defaultState);
-  const [selectedDistrict, setSelectedDistrict] = useState<string>(defaultDistrict);
+// The location dataset is large (the city list alone is ~8 MB), so each part is loaded
+// on demand instead of being bundled into the dashboard.
+const loadCountries = () => import("country-state-city/lib/country").then((m) => m.default);
+const loadStates = () => import("country-state-city/lib/state").then((m) => m.default);
+const loadCities = () => import("country-state-city/lib/city").then((m) => m.default);
 
-  // Load countries on mount
+export function LocationSelector({ onLocationChange }: LocationSelectorProps) {
+  const [countries, setCountries] = useState<Place[]>([]);
+  const [states, setStates] = useState<Place[]>([]);
+  const [districts, setDistricts] = useState<Place[]>([]);
+  const [districtsLoading, setDistrictsLoading] = useState(false);
+
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+
   useEffect(() => {
-    const allCountries = Country.getAllCountries();
-    setCountries(allCountries);
+    let cancelled = false;
+    loadCountries().then((Country) => {
+      if (!cancelled) setCountries(Country.getAllCountries());
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Load states when country changes
   useEffect(() => {
-    if (selectedCountry) {
-      const countryCode = selectedCountry.split("|")[0]; // Extract country code
-      const countryStates = State.getStatesOfCountry(countryCode);
-      setStates(countryStates || []);
-      setSelectedState("");
-      setSelectedDistrict("");
-      setDistricts([]);
-    }
+    setSelectedState("");
+    setSelectedDistrict("");
+    setStates([]);
+    setDistricts([]);
+    if (!selectedCountry) return;
+    let cancelled = false;
+    const countryCode = selectedCountry.split("|")[0];
+    loadStates().then((State) => {
+      if (!cancelled) setStates(State.getStatesOfCountry(countryCode) || []);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedCountry]);
 
-  // Load districts when state changes
   useEffect(() => {
-    if (selectedCountry && selectedState) {
-      const countryCode = selectedCountry.split("|")[0];
-      const stateCode = selectedState.split("|")[0];
-      const stateCities = City.getCitiesOfState(countryCode, stateCode);
-      setDistricts(stateCities || []);
-      setSelectedDistrict("");
-    }
+    setSelectedDistrict("");
+    setDistricts([]);
+    if (!selectedCountry || !selectedState) return;
+    let cancelled = false;
+    const countryCode = selectedCountry.split("|")[0];
+    const stateCode = selectedState.split("|")[0];
+    setDistrictsLoading(true);
+    loadCities()
+      .then((City) => {
+        if (!cancelled) setDistricts(City.getCitiesOfState(countryCode, stateCode) || []);
+      })
+      .finally(() => {
+        if (!cancelled) setDistrictsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedState, selectedCountry]);
 
-  // Notify parent component when location changes
   useEffect(() => {
-    const countryName = selectedCountry.split("|")[1] || "";
-    const stateName = selectedState.split("|")[1] || "";
-    const districtName = selectedDistrict.split("|")[1] || "";
-
     onLocationChange({
-      country: countryName,
-      state: stateName,
-      district: districtName,
+      country: selectedCountry.split("|")[1] || "",
+      state: selectedState.split("|")[1] || "",
+      district: selectedDistrict.split("|")[1] || "",
     });
   }, [selectedCountry, selectedState, selectedDistrict, onLocationChange]);
+
+  // Some states have no city data; let the user type the district instead of getting stuck
+  const typeDistrict = Boolean(selectedState) && !districtsLoading && districts.length === 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div className="space-y-2">
         <Label htmlFor="country">Country <span className="text-red-500">*</span></Label>
-        <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+        <Select value={selectedCountry} onValueChange={setSelectedCountry} disabled={countries.length === 0}>
           <SelectTrigger id="country">
-            <SelectValue placeholder="Select Country" />
+            <SelectValue placeholder={countries.length ? "Select Country" : "Loading countries…"} />
           </SelectTrigger>
           <SelectContent className="max-h-[200px]">
             {countries.map((country) => (
@@ -106,22 +125,35 @@ export function LocationSelector({
 
       <div className="space-y-2">
         <Label htmlFor="district">District/City <span className="text-red-500">*</span></Label>
-        <Select
-          value={selectedDistrict}
-          onValueChange={setSelectedDistrict}
-          disabled={!selectedState || districts.length === 0}
-        >
-          <SelectTrigger id="district">
-            <SelectValue placeholder={selectedState ? "Select District" : "Select State First"} />
-          </SelectTrigger>
-          <SelectContent className="max-h-[200px]">
-            {districts.map((district) => (
-              <SelectItem key={district.name} value={`${district.isoCode || district.name}|${district.name}`}>
-                {district.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {typeDistrict ? (
+          <Input
+            id="district"
+            placeholder="Enter district or city"
+            value={selectedDistrict.split("|")[1] || ""}
+            onChange={(e) => setSelectedDistrict(e.target.value ? `custom|${e.target.value}` : "")}
+          />
+        ) : (
+          <Select
+            value={selectedDistrict}
+            onValueChange={setSelectedDistrict}
+            disabled={!selectedState || districtsLoading}
+          >
+            <SelectTrigger id="district">
+              <SelectValue
+                placeholder={
+                  !selectedState ? "Select State First" : districtsLoading ? "Loading districts…" : "Select District"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent className="max-h-[200px]">
+              {districts.map((district, index) => (
+                <SelectItem key={`${district.name}-${index}`} value={`${district.isoCode || district.name}|${district.name}`}>
+                  {district.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     </div>
   );

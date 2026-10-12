@@ -11,7 +11,6 @@ import { Eye, EyeOff, Mail, Phone, Lock, Home, Upload, X, FileText, Building2 } 
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 const ALLOWED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
-const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 const STATE_CITY_OPTIONS: Record<string, string[]> = {
@@ -36,7 +35,7 @@ const sanitizeHospitalToken = (value: string) =>
     .replace(/^_+|_+$/g, "");
 
 export default function StaffRegisterPage() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -223,6 +222,7 @@ export default function StaffRegisterPage() {
       // Then, create the staff profile with file upload using FormData
       const staffFormData = new FormData();
       staffFormData.append("userId", userId);
+      staffFormData.append("staffProfileToken", userData.staffProfileToken ?? "");
       staffFormData.append("firstName", staffNameBase);
       staffFormData.append("lastName", normalizedUsernameCode || "HOSP001");
       staffFormData.append("staffId", formData.staffId);
@@ -250,7 +250,7 @@ export default function StaffRegisterPage() {
       toast({
         title: "Success",
         description:
-          `Hospital registration successful! Your hospital login username is ${hospitalLoginUsername}.`,
+          `Registration submitted! Your hospital login username is ${hospitalLoginUsername}. Verify your email, then an admin will review your registration.`,
       });
 
       // Store pending verification info

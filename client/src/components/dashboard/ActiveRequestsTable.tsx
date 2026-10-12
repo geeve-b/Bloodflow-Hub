@@ -35,7 +35,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Search, AlertTriangle, Trash2, Check } from "lucide-react";
+import { Loader2, Search, AlertTriangle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CONFIG = {

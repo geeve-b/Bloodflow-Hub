@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Trophy, Star, AlertCircle, Lock } from "lucide-react";
+import { Trophy, Star, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface AchievementBadge {
@@ -25,6 +25,27 @@ interface BadgeDefinition {
   rule: string;
   condition: string;
   difficulty: "easy" | "medium" | "hard";
+}
+
+// "Seen" state is a per-browser nicety, so it lives in localStorage
+const seenKey = (userId: string) => `lifeflow:seenBadges:${userId}`;
+
+function readSeenBadges(userId: string): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(seenKey(userId)) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function markBadgeSeen(userId: string, badgeId: string) {
+  try {
+    const seen = new Set(readSeenBadges(userId));
+    seen.add(badgeId);
+    localStorage.setItem(seenKey(userId), JSON.stringify(Array.from(seen)));
+  } catch {
+    // Ignore storage failures; the badge will simply show as new again
+  }
 }
 
 export function AchievementBadges() {
@@ -56,15 +77,12 @@ export function AchievementBadges() {
           throw new Error("Failed to fetch badges");
         }
         const badgesData = await badgesResponse.json();
-        setBadges(badgesData.badges || []);
-
-        // Fetch new badges
-        const newBadgesResponse = await fetch(`/api/badges/${user.id}/new`);
-        if (!newBadgesResponse.ok) {
-          throw new Error("Failed to fetch new badges");
-        }
-        const newBadgesData = await newBadgesResponse.json();
-        setNewBadges(newBadgesData.newBadges || []);
+        const seen = new Set(readSeenBadges(user.id));
+        const donorBadges: AchievementBadge[] = (badgesData.badges || []).map(
+          (badge: AchievementBadge) => ({ ...badge, viewed: seen.has(badge._id) })
+        );
+        setBadges(donorBadges);
+        setNewBadges(donorBadges.filter((badge) => !badge.viewed));
 
         setError(null);
       } catch (err) {
@@ -80,23 +98,11 @@ export function AchievementBadges() {
     fetchBadges();
   }, [user]);
 
-  const handleBadgeView = async (badgeId: string) => {
-    try {
-      const response = await fetch(`/api/badges/${badgeId}/view`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to mark badge as viewed");
-      }
-
-      setBadges(
-        badges.map((b) => (b._id === badgeId ? { ...b, viewed: true } : b))
-      );
-      setNewBadges(newBadges.filter((b) => b._id !== badgeId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update badge view");
-    }
+  const handleBadgeView = (badgeId: string) => {
+    if (!user) return;
+    markBadgeSeen(user.id, badgeId);
+    setBadges(badges.map((b) => (b._id === badgeId ? { ...b, viewed: true } : b)));
+    setNewBadges(newBadges.filter((b) => b._id !== badgeId));
   };
 
   const unlockedBadgeIds = new Set(badges.map((b) => b.badgeId));

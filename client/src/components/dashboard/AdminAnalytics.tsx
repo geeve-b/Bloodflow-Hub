@@ -54,7 +54,6 @@ import {
   Area,
   AreaChart,
   Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
   Line,

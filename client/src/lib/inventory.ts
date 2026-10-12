@@ -85,3 +85,39 @@ export const inventoryStatusMeta: Record<
     description: "Currently unavailable at this facility",
   },
 };
+
+interface InventoryEntry {
+  _id: string;
+  hospitalId: string;
+  bloodType: string;
+  quantity: number;
+  status: InventoryStatus;
+  expiryDate?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Collapses stock batches into one row per hospital and blood type, counting only
+ * unexpired units, so availability reads as a single total.
+ */
+export function aggregateUsableInventory<T extends InventoryEntry>(entries: T[], now = Date.now()): T[] {
+  const groups = new Map<string, T>();
+  for (const entry of entries) {
+    if (entry.expiryDate && new Date(entry.expiryDate).getTime() <= now) continue;
+    const key = `${entry.hospitalId}|${entry.bloodType}`;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, { ...entry, _id: key });
+      continue;
+    }
+    const latest =
+      new Date(entry.updatedAt ?? 0).getTime() > new Date(existing.updatedAt ?? 0).getTime()
+        ? entry.updatedAt
+        : existing.updatedAt;
+    groups.set(key, { ...existing, quantity: existing.quantity + entry.quantity, updatedAt: latest });
+  }
+  return Array.from(groups.values()).map((entry) => ({
+    ...entry,
+    status: calculateStatusFromQuantity(entry.quantity),
+  }));
+}

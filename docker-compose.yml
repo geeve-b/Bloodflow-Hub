@@ -18,6 +18,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      # Staff ID documents must survive container rebuilds
+      - uploads:/app/uploads
     ports:
       - "3001:3001"
     networks:
@@ -61,6 +64,7 @@ services:
 
 volumes:
   pg_data:
+  uploads:
 
 networks:
   bloodflow-network:

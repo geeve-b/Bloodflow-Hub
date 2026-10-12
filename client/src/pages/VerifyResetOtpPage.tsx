@@ -9,7 +9,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
 export default function VerifyResetOtpPage() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);

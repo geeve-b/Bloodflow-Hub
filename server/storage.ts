@@ -7,7 +7,6 @@ import {
   donors,
   staff,
   receivers,
-  donorResponses,
   bloodExpiryAlerts,
   bloodDonationTracking,
   interHospitalRequests,

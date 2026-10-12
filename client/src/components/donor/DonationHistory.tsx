@@ -6,7 +6,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem,
@@ -104,22 +103,10 @@ export function DonationHistory() {
 
   const uniqueLocations = Array.from(new Set(history.map((d) => d.location)));
 
-  const handleDownloadCertificate = async (donationId: string) => {
+  // The certificate is a printable page; the browser's print dialog can save it as a PDF
+  const handleDownloadCertificate = (donationId: string) => {
     try {
-      const response = await fetch(`/api/donations/certificate/${donationId}`);
-      if (!response.ok) {
-        throw new Error("Failed to download certificate");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `donation-certificate-${donationId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      window.open(`/api/donations/certificate/${encodeURIComponent(donationId)}`, "_blank", "noopener");
     } catch (err) {
       setError(
         err instanceof Error ? `Failed to download certificate: ${err.message}` : "Failed to download"

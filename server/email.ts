@@ -404,7 +404,6 @@ export async function sendBloodExpiryAlertEmail(
   // Determine alert styling based on level
   let alertColor = "#dc2626";
   let alertBgColor = "#fef2f2";
-  let alertBorderColor = "#fecaca";
   let alertTitle = "CRITICAL ALERT";
   let alertDescription =
     "Blood unit is expiring TODAY or within 24 hours. Immediate action required!";
@@ -412,13 +411,11 @@ export async function sendBloodExpiryAlertEmail(
   if (alertLevel === "warning") {
     alertColor = "#f59e0b";
     alertBgColor = "#fffbeb";
-    alertBorderColor = "#fde68a";
     alertTitle = "WARNING";
     alertDescription = "Blood unit is expiring within 3 days. Please plan accordingly.";
   } else if (alertLevel === "info") {
     alertColor = "#3b82f6";
     alertBgColor = "#eff6ff";
-    alertBorderColor = "#bfdbfe";
     alertTitle = "REMINDER";
     alertDescription = "Blood unit is expiring within 7 days. Review and plan usage.";
   }
